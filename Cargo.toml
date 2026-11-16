@@ -41,3 +41,6 @@ thiserror.workspace = true
 
 [build-dependencies]
 cxx-qt-build.workspace = true
+
+[dev-dependencies]
+dualsense-core.workspace = true

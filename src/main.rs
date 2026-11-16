@@ -1,7 +1,12 @@
+extern crate cxx_qt;
+extern crate cxx_qt_lib;
+
 mod cli;
 mod hid;
 mod error;
 mod protocol;
+#[allow(dead_code)]
+mod snapshot_adapter;
 mod update;
 
 use clap::{CommandFactory, Parser};

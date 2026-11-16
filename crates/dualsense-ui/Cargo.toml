@@ -1,0 +1,13 @@
+[package]
+name = "dualsense-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Headless-testable ViewModel, HTTP client, and async application controller for DualSense firmware updates"
+
+[dependencies]
+dualsense-core.workspace = true
+log.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+ureq.workspace = true

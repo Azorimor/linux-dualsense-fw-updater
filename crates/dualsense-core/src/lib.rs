@@ -5,6 +5,7 @@ pub mod error;
 pub mod image;
 pub mod protocol;
 pub mod transport;
+pub mod updater;
 
 pub use cancel::CancellationToken;
 pub use error::{
@@ -24,3 +25,4 @@ pub use transport::{
     DualSenseDevice, HidApiBackend, HidApiTransport, HidDeviceEnumerator, HidDeviceInfo,
     HidTransport, Sleeper, StdSleeper,
 };
+pub use updater::{DualSenseUpdater, UpdateConfig, UpdateProgress};

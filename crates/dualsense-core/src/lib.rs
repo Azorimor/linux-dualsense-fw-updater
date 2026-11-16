@@ -1,6 +1,7 @@
 //! Core library for DualSense USB HID firmware inspection and updates.
 
 pub mod cancel;
+pub mod catalog;
 pub mod error;
 pub mod image;
 pub mod protocol;
@@ -8,6 +9,11 @@ pub mod transport;
 pub mod updater;
 
 pub use cancel::CancellationToken;
+pub use catalog::{
+    DownloadProgress, FirmwareCatalog, FirmwareCatalogClient, FirmwareRelease, FirmwareTargetInfo,
+    HttpClient, KNOWN_TARGETS, SONY_FW_BASE_URL, SONY_INFO_JSON_URL, build_firmware_url,
+    find_known_target,
+};
 pub use error::{
     CoreError, FinalizeUpdateError, Result, StartUpdateError, UpdateFailure, UpdatePhase,
     VerifyUpdateImageError, WriteUpdateImageError,

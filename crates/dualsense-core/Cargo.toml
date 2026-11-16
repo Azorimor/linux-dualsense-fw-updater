@@ -1,0 +1,11 @@
+[package]
+name = "dualsense-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core DualSense USB HID firmware inspection and update library"
+
+[dependencies]
+hidapi.workspace = true
+log.workspace = true
+thiserror.workspace = true

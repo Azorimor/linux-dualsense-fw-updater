@@ -1,12 +1,29 @@
-[package]
-name = "dualsense-updater"
+[workspace]
+members = [".", "crates/dualsense-core"]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
+[workspace.dependencies]
+clap = { version = "4.5.55", features = ["derive"] }
+env_logger = "0.11.8"
+hidapi = "2.6.4"
+log = "0.4.29"
+thiserror = "2.0.18"
+dualsense-core = { path = "crates/dualsense-core" }
+
+[package]
+name = "dualsense-updater"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
 [dependencies]
-clap = { version = "*", features = ["derive"] }
-hidapi = "*"
-log = "*"
-env_logger = "*"
-thiserror = "*"
+clap.workspace = true
+env_logger.workspace = true
+hidapi.workspace = true
+log.workspace = true
+thiserror.workspace = true

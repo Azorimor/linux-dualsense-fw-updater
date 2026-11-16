@@ -1,3 +1,5 @@
+use crate::error::{CoreError, Result};
+
 /// Default Sony USB vendor ID for DualSense controllers.
 pub const DEFAULT_VID: u16 = 0x054c;
 
@@ -51,6 +53,33 @@ pub struct FirmwareInfo {
 }
 
 impl FirmwareInfo {
+    /// Decodes a `0x20` HID feature report buffer into [`FirmwareInfo`].
+    pub fn from_report(raw: Vec<u8>) -> Result<Self> {
+        if raw.len() < 20 {
+            return Err(CoreError::FirmwareInfoTooShort(raw.len()));
+        }
+        let payload = if raw.len() > FIRMWARE_INFO_REPORT_LEN && raw[0] == REPORT_ID_FIRMWARE_INFO
+        {
+            &raw[1..]
+        } else {
+            raw.as_slice()
+        };
+        if payload.len() < 47 {
+            return Err(CoreError::FirmwareInfoPayloadTooShort(payload.len()));
+        }
+        let build_date = decode_ascii(&payload[..12]);
+        let build_time = decode_ascii(&payload[12..20]);
+        let firmware_version = u16::from_le_bytes([payload[44], payload[45]]);
+        let unknown = payload[20..].to_vec();
+        Ok(Self {
+            build_date,
+            build_time,
+            firmware_version,
+            unknown,
+            raw,
+        })
+    }
+
     /// Returns the firmware version formatted as `0xXXXX`.
     pub fn formatted_version(&self) -> String {
         format!("0x{:04x}", self.firmware_version)
@@ -226,6 +255,25 @@ pub struct UpdateStatus {
     pub command: UpdateCommand,
     pub status_raw: u8,
     pub raw: Vec<u8>,
+}
+
+impl UpdateStatus {
+    /// Parses a `0xF5` update status feature report buffer.
+    pub fn from_report(raw: Vec<u8>) -> Result<Self> {
+        if raw.is_empty() {
+            return Err(CoreError::UpdateStatusEmpty);
+        }
+        if raw[0] != REPORT_ID_UPDATE_STATUS || raw.len() != UPDATE_STATUS_REPORT_LEN {
+            return Err(CoreError::UpdateStatusMalformed(raw.len()));
+        }
+        let command = UpdateCommand::from_int(raw[1]);
+        Ok(Self {
+            report_id: raw[0],
+            command,
+            status_raw: raw[2],
+            raw,
+        })
+    }
 }
 
 /// Encodes a single `0xF4` feature report packet from an [`UpdateCommand`] and a chunk (`<= 0x39` bytes).
@@ -439,5 +487,66 @@ mod tests {
         assert_eq!(header_packets[0].len(), 3 + 57);
         assert_eq!(header_packets[4].len(), 3 + (256 - 4 * 57));
         assert_eq!(header_packets[4][2], (256 - 4 * 57) as u8);
+    }
+
+    #[test]
+    fn firmware_info_from_report_parses_64_and_65_byte_reports() {
+        let mut report64 = vec![0u8; 64];
+        report64[..11].copy_from_slice(b"Jan 15 2025");
+        report64[12..20].copy_from_slice(b"10:20:30");
+        report64[44] = 0x30;
+        report64[45] = 0x06;
+
+        let info64 = FirmwareInfo::from_report(report64).expect("valid 64-byte report");
+        assert_eq!(info64.build_date, "Jan 15 2025");
+        assert_eq!(info64.build_time, "10:20:30");
+        assert_eq!(info64.firmware_version, 0x0630);
+        assert_eq!(info64.unknown.len(), 44);
+
+        let mut report65 = vec![0u8; 65];
+        report65[0] = REPORT_ID_FIRMWARE_INFO;
+        report65[1..12].copy_from_slice(b"Feb 01 2026");
+        report65[13..21].copy_from_slice(b"01:02:03");
+        report65[45] = 0x41;
+        report65[46] = 0x06;
+
+        let info65 = FirmwareInfo::from_report(report65).expect("valid 65-byte report");
+        assert_eq!(info65.build_date, "Feb 01 2026");
+        assert_eq!(info65.build_time, "01:02:03");
+        assert_eq!(info65.firmware_version, 0x0641);
+    }
+
+    #[test]
+    fn firmware_info_from_report_rejects_short_reports() {
+        assert_eq!(
+            FirmwareInfo::from_report(vec![0u8; 19]),
+            Err(CoreError::FirmwareInfoTooShort(19))
+        );
+        assert_eq!(
+            FirmwareInfo::from_report(vec![0u8; 46]),
+            Err(CoreError::FirmwareInfoPayloadTooShort(46))
+        );
+    }
+
+    #[test]
+    fn update_status_from_report_parses_and_validates() {
+        let status = UpdateStatus::from_report(vec![REPORT_ID_UPDATE_STATUS, 0x01, 0x03, 0x00])
+            .expect("valid status");
+        assert_eq!(status.report_id, REPORT_ID_UPDATE_STATUS);
+        assert_eq!(status.command, UpdateCommand::WriteUpdateImage);
+        assert_eq!(status.status_raw, 0x03);
+
+        assert_eq!(
+            UpdateStatus::from_report(vec![]),
+            Err(CoreError::UpdateStatusEmpty)
+        );
+        assert_eq!(
+            UpdateStatus::from_report(vec![0xF5, 0x01, 0x00]),
+            Err(CoreError::UpdateStatusMalformed(3))
+        );
+        assert_eq!(
+            UpdateStatus::from_report(vec![0xF4, 0x01, 0x00, 0x00]),
+            Err(CoreError::UpdateStatusMalformed(4))
+        );
     }
 }

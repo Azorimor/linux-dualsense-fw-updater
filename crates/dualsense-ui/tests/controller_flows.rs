@@ -8,7 +8,8 @@ use std::time::{Duration, Instant};
 use dualsense_core::{
     CancellationToken, CoreError, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, DownloadProgress,
     FIRMWARE_INFO_REPORT_LEN, FIRMWARE_VERSION_OFFSET, HidDeviceEnumerator, HidDeviceInfo,
-    HidTransport, HttpClient, REPORT_ID_UPDATE_COMMAND, REPORT_ID_UPDATE_STATUS, Result, Sleeper,
+    HidTransport, HttpClient, REPORT_ID_FIRMWARE_INFO, REPORT_ID_SERIAL_RESPONSE,
+    REPORT_ID_UPDATE_COMMAND, REPORT_ID_UPDATE_STATUS, Result, SERIAL_REPORT_LEN, Sleeper,
     StartUpdateStatusCode, UpdateCommand, UpdateConfig, VerifyUpdateStatusCode, WRITE_BLOCK_SIZE,
     WriteUpdateStatusCode,
 };
@@ -27,10 +28,19 @@ impl Sleeper for NoopSleeper {
 struct SharedMockTransport {
     sent_reports: Arc<Mutex<Vec<Vec<u8>>>>,
     responses: Arc<Mutex<VecDeque<Result<Vec<u8>>>>>,
+    serial_response: Arc<Mutex<Option<Result<Vec<u8>>>>>,
 }
 
 impl HidTransport for SharedMockTransport {
-    fn get_feature_report(&self, _report_id: u8, _length: usize) -> Result<Vec<u8>> {
+    fn get_feature_report(&self, report_id: u8, _length: usize) -> Result<Vec<u8>> {
+        if report_id == REPORT_ID_SERIAL_RESPONSE {
+            return self
+                .serial_response
+                .lock()
+                .expect("lock serial")
+                .clone()
+                .unwrap_or_else(|| Err(CoreError::Hid("0x81 unsupported in mock".to_string())));
+        }
         self.responses
             .lock()
             .expect("lock responses")
@@ -48,11 +58,13 @@ impl HidTransport for SharedMockTransport {
 }
 
 type ResponseQueueMap = Mutex<BTreeMap<String, Arc<Mutex<VecDeque<Result<Vec<u8>>>>>>>;
+type SerialResponseMap = Mutex<BTreeMap<String, Arc<Mutex<Option<Result<Vec<u8>>>>>>>;
 type SentReportsMap = Mutex<BTreeMap<String, Arc<Mutex<Vec<Vec<u8>>>>>>;
 
 struct MockEnumerator {
     list_result: Mutex<Result<Vec<HidDeviceInfo>>>,
     queues: ResponseQueueMap,
+    serial_by_path: SerialResponseMap,
     sent_by_path: SentReportsMap,
     open_error: Mutex<Option<CoreError>>,
 }
@@ -62,6 +74,7 @@ impl Default for MockEnumerator {
         Self {
             list_result: Mutex::new(Ok(Vec::new())),
             queues: Mutex::new(BTreeMap::new()),
+            serial_by_path: Mutex::new(BTreeMap::new()),
             sent_by_path: Mutex::new(BTreeMap::new()),
             open_error: Mutex::new(None),
         }
@@ -92,7 +105,33 @@ impl MockEnumerator {
     }
 
     fn push_firmware_info(&self, path: &str, version: u16) {
-        self.push_report(path, Ok(make_firmware_info_report(version)));
+        self.push_firmware_info_with_hw(path, version, 0x0004, 0x0000_0411);
+    }
+
+    fn push_firmware_info_with_hw(&self, path: &str, version: u16, fw_series: u16, hw_info: u32) {
+        self.push_report(
+            path,
+            Ok(make_firmware_info_report(version, fw_series, hw_info)),
+        );
+    }
+
+    fn set_serial_number(&self, path: &str, serial: &str) {
+        let mut raw = vec![0u8; SERIAL_REPORT_LEN];
+        raw[0] = REPORT_ID_SERIAL_RESPONSE;
+        raw[1] = 1;
+        raw[2] = 19;
+        raw[3] = 2;
+        let bytes = serial.as_bytes();
+        let copy_len = bytes.len().min(17);
+        raw[4..4 + copy_len].copy_from_slice(&bytes[..copy_len]);
+        let slot = self
+            .serial_by_path
+            .lock()
+            .expect("lock serial map")
+            .entry(path.to_string())
+            .or_default()
+            .clone();
+        *slot.lock().expect("lock serial") = Some(Ok(raw));
     }
 
     fn push_status(&self, path: &str, cmd: UpdateCommand, status_raw: u8) {
@@ -180,6 +219,13 @@ impl HidDeviceEnumerator for MockEnumerator {
             .entry(target_path.clone())
             .or_default()
             .clone();
+        let serial_arc = self
+            .serial_by_path
+            .lock()
+            .expect("lock serial map")
+            .entry(target_path.clone())
+            .or_default()
+            .clone();
         let sent_arc = self
             .sent_by_path
             .lock()
@@ -190,6 +236,7 @@ impl HidDeviceEnumerator for MockEnumerator {
         Ok(Box::new(SharedMockTransport {
             sent_reports: sent_arc,
             responses: queue,
+            serial_response: serial_arc,
         }))
     }
 }
@@ -291,13 +338,14 @@ fn make_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
     }
 }
 
-fn make_firmware_info_report(version: u16) -> Vec<u8> {
-    let le = version.to_le_bytes();
+fn make_firmware_info_report(version: u16, fw_series: u16, hw_info: u32) -> Vec<u8> {
     let mut payload64 = vec![0u8; FIRMWARE_INFO_REPORT_LEN];
-    payload64[..11].copy_from_slice(b"Oct  1 2024");
+    payload64[0] = REPORT_ID_FIRMWARE_INFO;
+    payload64[1..12].copy_from_slice(b"Oct  1 2024");
     payload64[12..20].copy_from_slice(b"10:20:30");
-    payload64[44] = le[0];
-    payload64[45] = le[1];
+    payload64[22..24].copy_from_slice(&fw_series.to_le_bytes());
+    payload64[24..28].copy_from_slice(&hw_info.to_le_bytes());
+    payload64[44..46].copy_from_slice(&version.to_le_bytes());
     payload64
 }
 
@@ -451,7 +499,7 @@ fn end_to_end_multi_device_selection_and_local_file_update() {
         make_device("/dev/hidraw1", DUALSENSE_EDGE_PID, "EDGE-02"),
     ]);
     enum_mock.push_firmware_info("/dev/hidraw0", 0x0520);
-    enum_mock.push_firmware_info("/dev/hidraw1", 0x0210);
+    enum_mock.push_firmware_info_with_hw("/dev/hidraw1", 0x0210, 0x0044, 0x0000_0400);
     enum_mock.push_full_update_success("/dev/hidraw1", image_bytes.len());
 
     let runtime = AppRuntime::with_backends(
@@ -679,4 +727,136 @@ fn end_to_end_live_ureq_http_client_against_local_server() {
 
     server_handle.join().expect("server thread");
     runtime.shutdown();
+}
+
+#[test]
+fn end_to_end_bdm050_board_and_midnight_black_color_auto_selects_target() {
+    let image_bytes = make_firmware_image_bytes(WRITE_BLOCK_SIZE + 64, 0x0630);
+    let enum_mock =
+        MockEnumerator::with_devices(vec![make_device("/dev/hidraw0", DEFAULT_PID, "")]);
+    enum_mock.push_firmware_info_with_hw("/dev/hidraw0", 0x0520, 0x000B, 0x0000_0811);
+    enum_mock.set_serial_number("/dev/hidraw0", "F55301K0H14359961");
+    enum_mock.push_full_update_success("/dev/hidraw0", image_bytes.len());
+
+    let http_mock = MockHttp::with_catalog_and_image(SAMPLE_CATALOG_JSON, image_bytes);
+    let runtime = AppRuntime::with_backends(
+        enum_mock,
+        http_mock,
+        NoopSleeper,
+        fast_update_config(),
+        |_| {},
+    )
+    .expect("start runtime");
+
+    let mut rx = runtime.subscribe();
+    runtime.dispatch(AppEvent::ScanDevices);
+    let after_scan = wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
+
+    assert_eq!(after_scan.board_model, "BDM-050");
+    assert_eq!(after_scan.fw_series_text, "0x000B");
+    assert_eq!(after_scan.hw_model_text, "0x00000811");
+    assert_eq!(
+        after_scan.serial_number.as_deref(),
+        Some("F55301K0H14359961")
+    );
+    assert_eq!(after_scan.color_name.as_deref(), Some("Midnight Black"));
+    assert_eq!(after_scan.detected_target_id.as_deref(), Some("000B"));
+    assert!(after_scan.board_supported);
+    assert!(after_scan.unsupported_board_warning.is_none());
+    assert_eq!(after_scan.selected_target_id, "000B");
+    assert!(after_scan.can_select_target);
+
+    runtime.dispatch(AppEvent::ContinueToFirmwareStep);
+    let step2 = wait_until(&mut rx, |s| s.step == AppStep::SelectFirmware);
+    assert!(step2.can_select_target);
+    assert!(step2.can_check_updates);
+
+    runtime.dispatch(AppEvent::CheckForUpdates);
+    let after_catalog = wait_until(&mut rx, |s| !s.is_busy && s.catalog_checked);
+    assert!(after_catalog.can_review_update);
+
+    runtime.dispatch(AppEvent::ContinueToConfirmStep);
+    runtime.dispatch(AppEvent::SetWarningAcknowledged(true));
+    wait_until(&mut rx, |s| s.can_start_update);
+
+    runtime.dispatch(AppEvent::StartUpdate);
+    let completed = wait_until(&mut rx, |s| s.step == AppStep::Completed);
+    assert_eq!(completed.completed_version.as_deref(), Some("0x0630"));
+    runtime.shutdown();
+}
+
+#[test]
+fn end_to_end_unsupported_bdm010_and_missing_serial_behave_safely() {
+    // BDM-010 without 0x80/0x81 serial support: inspection still succeeds and disables catalog update
+    let enum_mock =
+        MockEnumerator::with_devices(vec![make_device("/dev/hidraw0", DEFAULT_PID, "")]);
+    enum_mock.push_firmware_info_with_hw("/dev/hidraw0", 0x0200, 0x0001, 0x0000_0300);
+
+    let runtime = AppRuntime::with_backends(
+        enum_mock,
+        MockHttp::with_catalog_and_image(SAMPLE_CATALOG_JSON, Vec::new()),
+        NoopSleeper,
+        fast_update_config(),
+        |_| {},
+    )
+    .expect("start runtime");
+
+    let mut rx = runtime.subscribe();
+    runtime.dispatch(AppEvent::ScanDevices);
+    let after_scan = wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
+    assert_eq!(after_scan.board_model, "BDM-010");
+    assert_eq!(after_scan.fw_series_text, "0x0001");
+    assert_eq!(after_scan.hw_model_text, "0x00000300");
+    assert!(after_scan.serial_number.is_none());
+    assert!(after_scan.color_name.is_none());
+    assert!(after_scan.detected_target_id.is_none());
+    assert!(!after_scan.board_supported);
+    assert!(!after_scan.can_select_target);
+    assert!(
+        after_scan
+            .unsupported_board_warning
+            .as_deref()
+            .is_some_and(|w| w.contains("BDM-010"))
+    );
+
+    runtime.dispatch(AppEvent::ContinueToFirmwareStep);
+    let step2 = wait_until(&mut rx, |s| s.step == AppStep::SelectFirmware);
+    assert!(!step2.can_select_target);
+    assert!(!step2.can_check_updates);
+    assert!(step2.can_select_file);
+
+    runtime.dispatch(AppEvent::SelectTarget {
+        target_id: "0004".to_string(),
+    });
+    runtime.dispatch(AppEvent::CheckForUpdates);
+    let guarded = runtime.snapshot();
+    assert!(!guarded.is_busy);
+    assert!(!guarded.catalog_checked);
+    runtime.shutdown();
+
+    // Unknown (zeroed) board on standard PID also disables target selection and update check
+    let enum_mock_unknown =
+        MockEnumerator::with_devices(vec![make_device("/dev/hidraw0", DEFAULT_PID, "")]);
+    enum_mock_unknown.push_firmware_info_with_hw("/dev/hidraw0", 0x0500, 0x0000, 0x0000_0000);
+
+    let runtime_unknown = AppRuntime::with_backends(
+        enum_mock_unknown,
+        MockHttp::with_catalog_and_image(SAMPLE_CATALOG_JSON, Vec::new()),
+        NoopSleeper,
+        fast_update_config(),
+        |_| {},
+    )
+    .expect("start runtime unknown");
+
+    let mut rx_unknown = runtime_unknown.subscribe();
+    runtime_unknown.dispatch(AppEvent::ScanDevices);
+    let snap_unknown = wait_until(&mut rx_unknown, |s| {
+        !s.is_busy && s.can_continue_to_firmware
+    });
+    assert_eq!(snap_unknown.board_model, "Unknown");
+    assert!(!snap_unknown.board_supported);
+    assert!(!snap_unknown.can_select_target);
+    assert!(!snap_unknown.can_check_updates);
+    assert!(snap_unknown.unsupported_board_warning.is_some());
+    runtime_unknown.shutdown();
 }

@@ -236,6 +236,17 @@ Kirigami.ApplicationWindow {
                                     wrapMode: Text.WordWrap
                                 }
                                 QQC2.Label {
+                                    Kirigami.FormData.label: "Board Model:"
+                                    visible: updater.boardModel.length > 0
+                                    text: updater.boardModel
+                                    font.bold: true
+                                }
+                                QQC2.Label {
+                                    Kirigami.FormData.label: "Color:"
+                                    visible: updater.colorName.length > 0
+                                    text: updater.colorName
+                                }
+                                QQC2.Label {
                                     Kirigami.FormData.label: "Current Firmware:"
                                     text: updater.selectedDeviceFirmware
                                     font.bold: true
@@ -282,6 +293,36 @@ Kirigami.ApplicationWindow {
                     Layout.fillWidth: true
                     spacing: Kirigami.Units.largeSpacing
 
+                    Kirigami.AbstractCard {
+                        Layout.fillWidth: true
+                        visible: updater.boardModel.length > 0
+
+                        contentItem: Kirigami.FormLayout {
+                            QQC2.Label {
+                                Kirigami.FormData.label: "Board Model:"
+                                text: updater.boardModel
+                                font.bold: true
+                            }
+                            QQC2.Label {
+                                Kirigami.FormData.label: "Color:"
+                                visible: updater.colorName.length > 0
+                                text: updater.colorName
+                            }
+                            QQC2.Label {
+                                Kirigami.FormData.label: "FW Series:"
+                                visible: updater.fwSeriesText.length > 0
+                                text: updater.fwSeriesText
+                            }
+                        }
+                    }
+
+                    Kirigami.InlineMessage {
+                        Layout.fillWidth: true
+                        visible: updater.hasUnsupportedBoardWarning && !updater.useLocalFile
+                        type: Kirigami.MessageType.Warning
+                        text: updater.unsupportedBoardWarning
+                    }
+
                     // Option A: Official Sony Firmware
                     Kirigami.AbstractCard {
                         Layout.fillWidth: true
@@ -310,10 +351,16 @@ Kirigami.ApplicationWindow {
                                 }
 
                                 QQC2.ComboBox {
+                                    id: targetComboBox
                                     Layout.fillWidth: true
+                                    enabled: updater.canSelectTarget
                                     model: updater.targetLabels
                                     currentIndex: updater.selectedTargetIndex
-                                    onActivated: index => updater.selectTargetAt(index)
+                                    onActivated: index => {
+                                        updater.selectTargetAt(index)
+                                        targetComboBox.currentIndex = Qt.binding(() => updater.selectedTargetIndex)
+                                    }
+                                    onModelChanged: targetComboBox.currentIndex = Qt.binding(() => updater.selectedTargetIndex)
                                 }
 
                                 Kirigami.InlineMessage {

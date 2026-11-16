@@ -254,6 +254,7 @@ Kirigami.ApplicationWindow {
                         spacing: Kirigami.Units.smallSpacing
 
                         QQC2.Button {
+                            visible: updater.hasDevices
                             text: "Check Again"
                             icon.name: "view-refresh"
                             enabled: updater.canScan
@@ -666,6 +667,7 @@ Kirigami.ApplicationWindow {
                         QQC2.Button {
                             text: "Scan Controllers"
                             icon.name: "view-refresh"
+                            enabled: updater.canScan
                             onClicked: updater.scanControllers()
                         }
 

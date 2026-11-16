@@ -107,6 +107,11 @@ impl<T: HidTransport, S: Sleeper> DualSenseUpdater<T, S> {
         self.dev.get_firmware_info()
     }
 
+    /// Best-effort read of the controller serial number via Feature Reports `0x80`/`0x81`.
+    pub fn try_read_serial_number(&self) -> Option<String> {
+        self.dev.try_read_serial_number()
+    }
+
     /// Executes the `StartUpdate` phase using the 256-byte header of `image`.
     pub fn start_update(&self, image: &FirmwareImage, cancel: &CancellationToken) -> Result<()> {
         check_cancelled(cancel)?;

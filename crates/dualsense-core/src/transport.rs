@@ -10,7 +10,8 @@ use hidapi::{HidApi, HidDevice};
 use crate::error::{CoreError, Result};
 use crate::protocol::{
     DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FIRMWARE_INFO_REPORT_LEN, FirmwareInfo,
-    REPORT_ID_FIRMWARE_INFO, REPORT_ID_UPDATE_STATUS, UpdateCommand, UpdateStatus,
+    REPORT_ID_FIRMWARE_INFO, REPORT_ID_SERIAL_COMMAND, REPORT_ID_SERIAL_RESPONSE,
+    REPORT_ID_UPDATE_STATUS, SERIAL_REPORT_LEN, UpdateCommand, UpdateStatus, decode_ascii,
     encode_update_command_chunks,
 };
 
@@ -132,6 +133,37 @@ impl<T: HidTransport> DualSenseDevice<T> {
             .transport
             .get_feature_report(REPORT_ID_FIRMWARE_INFO, FIRMWARE_INFO_REPORT_LEN)?;
         FirmwareInfo::from_report(raw)
+    }
+
+    /// Best-effort read of the controller serial number via Feature Reports `0x80`/`0x81`.
+    ///
+    /// Returns `None` without erroring if the transport rejects `0x80`/`0x81` or returns invalid data.
+    pub fn try_read_serial_number(&self) -> Option<String> {
+        if self
+            .transport
+            .send_feature_report(&[REPORT_ID_SERIAL_COMMAND, 1, 19])
+            .is_err()
+        {
+            return None;
+        }
+        let raw = self
+            .transport
+            .get_feature_report(REPORT_ID_SERIAL_RESPONSE, SERIAL_REPORT_LEN)
+            .ok()?;
+        if raw.len() < 21
+            || raw[0] != REPORT_ID_SERIAL_RESPONSE
+            || raw[1] != 1
+            || raw[2] != 19
+            || raw[3] != 2
+        {
+            return None;
+        }
+        let serial = decode_ascii(&raw[4..21]).trim().to_string();
+        if serial.is_empty() {
+            None
+        } else {
+            Some(serial)
+        }
     }
 
     /// Sends an [`UpdateCommand`] and its payload chunked into `<= 0x39`-byte `0xF4` reports.
@@ -273,6 +305,7 @@ mod tests {
     struct MockTransport {
         sent: RefCell<Vec<Vec<u8>>>,
         responses: RefCell<VecDeque<Result<Vec<u8>>>>,
+        fail_send: bool,
     }
 
     impl MockTransport {
@@ -298,6 +331,9 @@ mod tests {
         }
 
         fn send_feature_report(&self, data: &[u8]) -> Result<()> {
+            if self.fail_send {
+                return Err(CoreError::Hid("send failed".into()));
+            }
             self.sent.borrow_mut().push(data.to_vec());
             Ok(())
         }
@@ -406,5 +442,82 @@ mod tests {
         assert_eq!(all.len(), 2);
         assert_eq!(all[0].product_id, DEFAULT_PID);
         assert_eq!(all[1].product_id, DUALSENSE_EDGE_PID);
+    }
+
+    #[test]
+    fn try_read_serial_number_parses_valid_0x81_response_and_handles_failures() {
+        // Valid 64-byte 0x81 response
+        let mock = MockTransport::default();
+        let mut resp = vec![0u8; 64];
+        resp[0] = REPORT_ID_SERIAL_RESPONSE;
+        resp[1] = 1;
+        resp[2] = 19;
+        resp[3] = 2;
+        resp[4..21].copy_from_slice(b"F12301ABCDEF12345");
+        mock.push_response(Ok(resp));
+
+        let dev = DualSenseDevice::new(mock);
+        assert_eq!(
+            dev.try_read_serial_number().as_deref(),
+            Some("F12301ABCDEF12345")
+        );
+        assert_eq!(
+            dev.transport().sent.borrow().as_slice(),
+            &[vec![REPORT_ID_SERIAL_COMMAND, 1, 19]]
+        );
+
+        // Send failure returns None cleanly
+        let fail_send = MockTransport {
+            fail_send: true,
+            ..MockTransport::default()
+        };
+        assert_eq!(
+            DualSenseDevice::new(fail_send).try_read_serial_number(),
+            None
+        );
+
+        // Get failure returns None cleanly
+        let fail_get = MockTransport::default();
+        fail_get.push_response(Err(CoreError::Hid("unsupported".into())));
+        assert_eq!(
+            DualSenseDevice::new(fail_get).try_read_serial_number(),
+            None
+        );
+
+        // Too short (< 21) returns None
+        let short = MockTransport::default();
+        short.push_response(Ok(vec![0x81, 1, 19, 2, b'A', b'B']));
+        assert_eq!(DualSenseDevice::new(short).try_read_serial_number(), None);
+
+        // Invalid header bytes return None
+        for bad_hdr in [
+            [0x80, 1, 19, 2],
+            [0x81, 2, 19, 2],
+            [0x81, 1, 18, 2],
+            [0x81, 1, 19, 3],
+        ] {
+            let mock_bad = MockTransport::default();
+            let mut buf = vec![0u8; 64];
+            buf[..4].copy_from_slice(&bad_hdr);
+            buf[4..21].copy_from_slice(b"F12301ABCDEF12345");
+            mock_bad.push_response(Ok(buf));
+            assert_eq!(
+                DualSenseDevice::new(mock_bad).try_read_serial_number(),
+                None
+            );
+        }
+
+        // Empty / NUL serial returns None
+        let empty_serial = MockTransport::default();
+        let mut buf_empty = vec![0u8; 64];
+        buf_empty[0] = 0x81;
+        buf_empty[1] = 1;
+        buf_empty[2] = 19;
+        buf_empty[3] = 2;
+        empty_serial.push_response(Ok(buf_empty));
+        assert_eq!(
+            DualSenseDevice::new(empty_serial).try_read_serial_number(),
+            None
+        );
     }
 }

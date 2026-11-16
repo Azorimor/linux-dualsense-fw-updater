@@ -35,11 +35,14 @@ Kirigami.ApplicationWindow {
         title: "DualSense Firmware Updater"
         padding: Kirigami.Units.largeSpacing
 
-        ColumnLayout {
-            id: rootColumn
-            width: Math.min(mainPage.flickable.width - Kirigami.Units.largeSpacing * 2, 660)
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: Kirigami.Units.largeSpacing
+        Item {
+            implicitHeight: rootColumn.implicitHeight
+
+            ColumnLayout {
+                id: rootColumn
+                width: Math.min(parent.width, 660)
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Kirigami.Units.largeSpacing
 
             StepIndicator {
                 Layout.fillWidth: true
@@ -675,6 +678,7 @@ Kirigami.ApplicationWindow {
                     }
                 }
             }
+        }
         }
     }
 }

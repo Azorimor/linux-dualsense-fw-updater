@@ -10,9 +10,10 @@ pub mod updater;
 
 pub use cancel::CancellationToken;
 pub use catalog::{
-    DownloadProgress, FirmwareCatalog, FirmwareCatalogClient, FirmwareRelease, FirmwareTargetInfo,
-    HttpClient, KNOWN_TARGETS, SONY_FW_BASE_URL, SONY_INFO_JSON_URL, build_firmware_url,
-    find_known_target,
+    ControllerHardwareInfo, DownloadProgress, FirmwareCatalog, FirmwareCatalogClient,
+    FirmwareRelease, FirmwareTargetInfo, HttpClient, KNOWN_TARGETS, SONY_FW_BASE_URL,
+    SONY_INFO_JSON_URL, build_firmware_url, find_known_target, resolve_controller_target,
+    target_id_for_fw_series,
 };
 pub use error::{
     CoreError, FinalizeUpdateError, Result, StartUpdateError, UpdateFailure, UpdatePhase,

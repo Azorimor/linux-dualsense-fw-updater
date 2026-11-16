@@ -1,6 +1,7 @@
 use crate::cancel::CancellationToken;
 use crate::error::{CoreError, Result};
 use crate::image::FirmwareImage;
+use crate::protocol::{BoardModel, DUALSENSE_EDGE_PID, FirmwareInfo};
 
 /// Official Sony DualSense firmware catalog URL.
 pub const SONY_INFO_JSON_URL: &str = "https://fwupdater.dl.playstation.net/fwupdater/info.json";
@@ -51,6 +52,154 @@ pub fn find_known_target(target_id: &str) -> Option<FirmwareTargetInfo> {
         .iter()
         .find(|t| t.target_id.eq_ignore_ascii_case(target_id))
         .copied()
+}
+
+/// Maps a `fw_series` value from Feature Report `0x20` to Sony's firmware catalog target ID.
+pub fn target_id_for_fw_series(fw_series: u16) -> Option<&'static str> {
+    match fw_series {
+        0x0004 => Some("0004"),
+        0x000B => Some("000B"),
+        0x000E => Some("000E"),
+        0x0044 => Some("0044"),
+        _ => None,
+    }
+}
+
+/// Hardware board and Sony firmware target resolution for a connected controller.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControllerHardwareInfo {
+    pub board_model: BoardModel,
+    pub board_name: String,
+    pub fw_type: u16,
+    pub fw_series: u16,
+    pub fw_series_hex: String,
+    pub hw_info: u32,
+    pub fw_version: u32,
+    pub supported_target_id: Option<&'static str>,
+    pub is_officially_supported: bool,
+    pub unsupported_reason: Option<String>,
+}
+
+/// Resolves the hardware board revision and official Sony firmware target from `0x20` info and USB PID.
+pub fn resolve_controller_target(info: &FirmwareInfo, product_id: u16) -> ControllerHardwareInfo {
+    let fw_type = info.fw_type();
+    let fw_series = info.fw_series();
+    let fw_series_hex = info.formatted_fw_series();
+    let hw_info = info.hw_info();
+    let fw_version = info.fw_version();
+    let board_model = info.board_model();
+    let series_target = target_id_for_fw_series(fw_series);
+
+    if product_id == DUALSENSE_EDGE_PID {
+        let board_name = "DualSense Edge".to_string();
+        let (supported_target_id, is_officially_supported, unsupported_reason) = if fw_series == 0
+            || fw_series == 0x0044
+        {
+            (Some("0044"), true, None)
+        } else {
+            (
+                None,
+                false,
+                Some(format!(
+                    "This DualSense Edge reported firmware series {fw_series_hex}, which does not match Sony's DualSense Edge update target (0044)."
+                )),
+            )
+        };
+
+        return ControllerHardwareInfo {
+            board_model,
+            board_name,
+            fw_type,
+            fw_series,
+            fw_series_hex,
+            hw_info,
+            fw_version,
+            supported_target_id,
+            is_officially_supported,
+            unsupported_reason,
+        };
+    }
+
+    let board_name = board_model.as_str().to_string();
+    let (supported_target_id, is_officially_supported, unsupported_reason) =
+        match board_model.sony_target_id() {
+            Some(board_target) => {
+                if fw_series == 0 || series_target == Some(board_target) {
+                    (Some(board_target), true, None)
+                } else if series_target.is_none() {
+                    (
+                        None,
+                        false,
+                        Some(format!(
+                            "This {board_name} controller reported firmware series {fw_series_hex}, which is not in Sony's official update catalog."
+                        )),
+                    )
+                } else {
+                    (
+                        None,
+                        false,
+                        Some(format!(
+                            "Controller board {board_name} does not match reported firmware series {fw_series_hex}."
+                        )),
+                    )
+                }
+            }
+            None => match board_model {
+                BoardModel::Bdm010 => (
+                    None,
+                    false,
+                    Some(
+                        "DualSense BDM-010 controllers are not supported by Sony's official PC firmware catalog."
+                            .to_string(),
+                    ),
+                ),
+                _ => {
+                    if hw_info == 0 && fw_series == 0 {
+                        (
+                            None,
+                            false,
+                            Some(
+                                "The controller did not report a hardware board revision or firmware series."
+                                    .to_string(),
+                            ),
+                        )
+                    } else if let Some(target) = series_target {
+                        if target == "0044" {
+                            (
+                                None,
+                                false,
+                                Some(format!(
+                                    "Controller reported DualSense Edge firmware series {fw_series_hex}, but is not a DualSense Edge USB device."
+                                )),
+                            )
+                        } else {
+                            (Some(target), true, None)
+                        }
+                    } else {
+                        (
+                            None,
+                            false,
+                            Some(format!(
+                                "Unrecognized controller hardware (0x{hw_info:08X}, firmware series {fw_series_hex}) is not in Sony's official update catalog."
+                            )),
+                        )
+                    }
+                }
+            },
+        };
+
+    ControllerHardwareInfo {
+        board_model,
+        board_name,
+        fw_type,
+        fw_series,
+        fw_series_hex,
+        hw_info,
+        fw_version,
+        supported_target_id,
+        is_officially_supported,
+        unsupported_reason,
+    }
 }
 
 /// Byte progress snapshot emitted while downloading a firmware `.bin` image.
@@ -495,5 +644,153 @@ mod tests {
             .unwrap_err();
         assert_eq!(err, CoreError::Cancelled);
         assert_eq!(client.fetch_catalog(&cancel), Err(CoreError::Cancelled));
+    }
+
+    fn make_hw_firmware_info(
+        fw_type: u16,
+        fw_series: u16,
+        hw_info: u32,
+        fw_version: u32,
+        upd_version: u16,
+    ) -> FirmwareInfo {
+        let mut raw = vec![0u8; 64];
+        raw[0] = crate::protocol::REPORT_ID_FIRMWARE_INFO;
+        raw[1..12].copy_from_slice(b"Oct  1 2024");
+        raw[12..20].copy_from_slice(b"12:00:00");
+        raw[20..22].copy_from_slice(&fw_type.to_le_bytes());
+        raw[22..24].copy_from_slice(&fw_series.to_le_bytes());
+        raw[24..28].copy_from_slice(&hw_info.to_le_bytes());
+        raw[28..32].copy_from_slice(&fw_version.to_le_bytes());
+        raw[44..46].copy_from_slice(&upd_version.to_le_bytes());
+        FirmwareInfo::from_report(raw).expect("valid firmware info")
+    }
+
+    #[test]
+    fn resolve_controller_target_maps_all_supported_boards_and_edge() {
+        use crate::protocol::DEFAULT_PID;
+
+        let bdm050 = make_hw_firmware_info(0x0003, 0x000B, 0x0000_0811, 0x0001_0630, 0x0630);
+        let hw050 = resolve_controller_target(&bdm050, DEFAULT_PID);
+        assert_eq!(hw050.board_model, BoardModel::Bdm050);
+        assert_eq!(hw050.board_name, "BDM-050");
+        assert_eq!(hw050.fw_series, 0x000B);
+        assert_eq!(hw050.fw_series_hex, "0x000B");
+        assert_eq!(hw050.hw_info, 0x0000_0811);
+        assert_eq!(hw050.supported_target_id, Some("000B"));
+        assert!(hw050.is_officially_supported);
+        assert_eq!(hw050.unsupported_reason, None);
+
+        for (hw_info, expected_name) in [
+            (0x0000_0400, "BDM-020"),
+            (0x0000_0500, "BDM-030"),
+            (0x0000_0600, "BDM-040"),
+        ] {
+            let info = make_hw_firmware_info(0x0002, 0x0004, hw_info, 0x0001_0630, 0x0630);
+            let resolved = resolve_controller_target(&info, DEFAULT_PID);
+            assert_eq!(resolved.board_name, expected_name);
+            assert_eq!(resolved.supported_target_id, Some("0004"));
+            assert!(resolved.is_officially_supported);
+        }
+
+        for (hw_info, expected_name) in [
+            (0x0000_0900, "BDM-060R"),
+            (0x0000_1100, "BDM-060M"),
+            (0x0000_1300, "BDM-060X"),
+        ] {
+            let info = make_hw_firmware_info(0x0002, 0x000E, hw_info, 0x0001_0641, 0x0641);
+            let resolved = resolve_controller_target(&info, DEFAULT_PID);
+            assert_eq!(resolved.board_name, expected_name);
+            assert_eq!(resolved.supported_target_id, Some("000E"));
+            assert!(resolved.is_officially_supported);
+        }
+
+        // Known board with zeroed fw_series falls back to board mapping
+        let bdm050_zero_series = make_hw_firmware_info(0, 0, 0x0000_0700, 0, 0x0500);
+        let resolved_zero_series = resolve_controller_target(&bdm050_zero_series, DEFAULT_PID);
+        assert_eq!(resolved_zero_series.supported_target_id, Some("000B"));
+        assert!(resolved_zero_series.is_officially_supported);
+
+        // DualSense Edge with matching 0x0044 or 0x0000 fw_series
+        let edge = make_hw_firmware_info(0x0002, 0x0044, 0x0000_0400, 0x0001_0217, 0x0217);
+        let hw_edge = resolve_controller_target(&edge, DUALSENSE_EDGE_PID);
+        assert_eq!(hw_edge.board_name, "DualSense Edge");
+        assert_eq!(hw_edge.supported_target_id, Some("0044"));
+        assert!(hw_edge.is_officially_supported);
+
+        let edge_zero = make_hw_firmware_info(0, 0, 0, 0, 0x0217);
+        let hw_edge_zero = resolve_controller_target(&edge_zero, DUALSENSE_EDGE_PID);
+        assert_eq!(hw_edge_zero.board_name, "DualSense Edge");
+        assert_eq!(hw_edge_zero.supported_target_id, Some("0044"));
+        assert!(hw_edge_zero.is_officially_supported);
+    }
+
+    #[test]
+    fn resolve_controller_target_handles_unsupported_unknown_and_mismatched_boards() {
+        use crate::protocol::DEFAULT_PID;
+
+        // BDM-010 is unsupported by Sony PC catalog
+        let bdm010 = make_hw_firmware_info(0x0001, 0x0001, 0x0000_0300, 0x0001_0200, 0x0200);
+        let hw010 = resolve_controller_target(&bdm010, DEFAULT_PID);
+        assert_eq!(hw010.board_model, BoardModel::Bdm010);
+        assert_eq!(hw010.board_name, "BDM-010");
+        assert_eq!(hw010.supported_target_id, None);
+        assert!(!hw010.is_officially_supported);
+        assert!(
+            hw010
+                .unsupported_reason
+                .as_deref()
+                .unwrap()
+                .contains("BDM-010")
+        );
+
+        // Zeroed hw_info + fw_series on standard PID -> Unknown / unsupported
+        let zeroed = make_hw_firmware_info(0, 0, 0, 0, 0x0500);
+        let hw_zeroed = resolve_controller_target(&zeroed, DEFAULT_PID);
+        assert_eq!(hw_zeroed.board_model, BoardModel::Unknown);
+        assert_eq!(hw_zeroed.board_name, "Unknown");
+        assert_eq!(hw_zeroed.supported_target_id, None);
+        assert!(!hw_zeroed.is_officially_supported);
+        assert!(hw_zeroed.unsupported_reason.is_some());
+
+        // Unknown board with unsupported non-zero fw_series
+        let unknown_bad = make_hw_firmware_info(0, 0x0099, 0x0000_1F00, 0, 0x0500);
+        let hw_unknown_bad = resolve_controller_target(&unknown_bad, DEFAULT_PID);
+        assert_eq!(hw_unknown_bad.supported_target_id, None);
+        assert!(!hw_unknown_bad.is_officially_supported);
+        assert!(hw_unknown_bad.unsupported_reason.is_some());
+
+        // Unknown board with known Sony fw_series resolves via fw_series
+        let unknown_known_series = make_hw_firmware_info(0, 0x000E, 0x0000_1900, 0, 0x0641);
+        let hw_unknown_known = resolve_controller_target(&unknown_known_series, DEFAULT_PID);
+        assert_eq!(hw_unknown_known.board_name, "Unknown");
+        assert_eq!(hw_unknown_known.supported_target_id, Some("000E"));
+        assert!(hw_unknown_known.is_officially_supported);
+
+        // Known board with non-zero unknown fw_series -> unsupported
+        let bdm050_bad_series = make_hw_firmware_info(0, 0x0077, 0x0000_0811, 0, 0x0630);
+        let hw_bad_series = resolve_controller_target(&bdm050_bad_series, DEFAULT_PID);
+        assert_eq!(hw_bad_series.supported_target_id, None);
+        assert!(!hw_bad_series.is_officially_supported);
+        assert!(hw_bad_series.unsupported_reason.is_some());
+
+        // Known board with mismatched known fw_series -> unsupported
+        let bdm050_mismatch = make_hw_firmware_info(0, 0x0004, 0x0000_0811, 0, 0x0630);
+        let hw_mismatch = resolve_controller_target(&bdm050_mismatch, DEFAULT_PID);
+        assert_eq!(hw_mismatch.supported_target_id, None);
+        assert!(!hw_mismatch.is_officially_supported);
+        assert!(hw_mismatch.unsupported_reason.is_some());
+
+        // DualSense Edge with mismatched fw_series -> unsupported
+        let edge_mismatch = make_hw_firmware_info(0, 0x0004, 0x0000_0400, 0, 0x0217);
+        let hw_edge_mismatch = resolve_controller_target(&edge_mismatch, DUALSENSE_EDGE_PID);
+        assert_eq!(hw_edge_mismatch.supported_target_id, None);
+        assert!(!hw_edge_mismatch.is_officially_supported);
+        assert!(hw_edge_mismatch.unsupported_reason.is_some());
+
+        // Non-Edge device reporting Edge fw_series 0x0044 -> unsupported
+        let non_edge_0044 = make_hw_firmware_info(0, 0x0044, 0x0000_1F00, 0, 0x0217);
+        let hw_non_edge_0044 = resolve_controller_target(&non_edge_0044, DEFAULT_PID);
+        assert_eq!(hw_non_edge_0044.supported_target_id, None);
+        assert!(!hw_non_edge_0044.is_officially_supported);
     }
 }

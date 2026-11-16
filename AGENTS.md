@@ -60,7 +60,21 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 ---
 
-## 2. Current Project Overview
+## 2. Testing & UI Architecture Requirements (Mandatory)
+
+### 2.1 Full Unit & Integration Test Coverage for Business Logic
+- **100% of newly added or rewritten business logic** must be covered by unit and integration tests—do not ship untested modules or defer testing to the end.
+- Abstract hardware, OS, and external I/O boundaries (such as USB HID transport, timers/sleeps, and network/filesystem calls) behind traits so protocol parsing, chunking, update state machines, retry/timeout behavior, error handling, and CLI/application orchestration can be deterministically tested in CI without physical DualSense hardware.
+- Include integration tests verifying end-to-end workflows (e.g., simulated update flows across mock HID transports, firmware image validation, and failure recovery paths).
+
+### 2.2 Headless-Testable UI Design (No Desktop Environment in CI)
+- Any UI (GUI, TUI, or interactive terminal interface) **must** keep presentation/rendering strictly decoupled from business logic, application state, and user-flow orchestration (e.g., Elm/TEA `State` + `Message` + `update`, MVVM/ViewModel, or presenter pattern).
+- Keep toolkit/widget rendering code thin and purely declarative over testable state/controller types so that UI state transitions, input validation, action gating, progress/status formatting, and error handling can all be unit- and integration-tested directly.
+- All automated tests (`cargo test`) **must run and pass in a headless CI environment** with no X11/Wayland display server, desktop environment, GPU, or attached controller required.
+
+---
+
+## 3. Current Project Overview
 
 `dualsense-updater` (`v0.1.0`, Rust `edition = "2024"`, MIT license) is an unofficial CLI utility for inspecting and updating Sony PlayStation DualSense controller firmware over USB HID.
 
@@ -77,7 +91,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 ---
 
-## 3. Current Architecture & File Map
+## 4. Current Architecture & File Map
 
 ```text
 .
@@ -131,7 +145,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 ---
 
-## 4. Current Technical Debt & Observations for the Rewrite
+## 5. Current Technical Debt & Observations for the Rewrite
 
 Future agents replacing or refactoring this codebase should keep these concrete gaps in mind:
 - **No tests or CI:** `cargo test` currently has 0 tests, and `DualSenseHid` talks directly to `hidapi::HidDevice` with no transport abstraction for unit testing.
@@ -144,7 +158,7 @@ Future agents replacing or refactoring this codebase should keep these concrete 
 
 ---
 
-## 5. Build & Verification Commands
+## 6. Build & Verification Commands
 
 ```sh
 cargo check

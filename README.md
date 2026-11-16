@@ -110,7 +110,7 @@ https://fwupdater.dl.playstation.net/fwupdater/fwupdate000B/0x0630/FWUPDATE000B.
 
 ## Acknowledgments
 
-The core DualSense USB HID protocol and firmware update backend logic is adapted from the original CLI project by **nchie** under the MIT License.
+The core DualSense USB HID protocol and firmware update backend logic is adapted from the original CLI project by [nchie](https://github.com/nchie/dualsense-updater-rs) under the MIT License.
 
 ## License
 

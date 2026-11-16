@@ -1,15 +1,18 @@
 use std::path::Path;
 
-use cxx_qt_build::CxxQtBuilder;
+use cxx_qt_build::{CxxQtBuilder, QmlModule};
 
 fn main() {
     configure_qmake6();
 
-    CxxQtBuilder::new()
-        .qt_module("Quick")
-        .qt_module("QuickControls2")
-        .file("src/qt_bridge.rs")
-        .build();
+    CxxQtBuilder::new_qml_module(
+        QmlModule::new("dev.dualsense.updater")
+            .qml_files(["qml/Main.qml", "qml/StepIndicator.qml"]),
+    )
+    .qt_module("Quick")
+    .qt_module("QuickControls2")
+    .file("src/qt_bridge.rs")
+    .build();
 }
 
 fn configure_qmake6() {

@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use dualsense_core::{
-    CoreError, DUALSENSE_EDGE_PID, DownloadProgress, FirmwareCatalog, FirmwareInfo,
-    FirmwareRelease, HidDeviceInfo, KNOWN_TARGETS, UpdatePhase, UpdateProgress, find_known_target,
+    ControllerHardwareInfo, CoreError, DUALSENSE_EDGE_PID, DownloadProgress, FirmwareCatalog,
+    FirmwareInfo, FirmwareRelease, HidDeviceInfo, KNOWN_TARGETS, UpdatePhase, UpdateProgress,
+    find_known_target, resolve_controller_target,
 };
 
 use crate::error_map::{FriendlyError, map_core_error};
@@ -98,6 +99,28 @@ impl BannerMessage {
     }
 }
 
+/// Complete hardware, firmware, and optional serial/color inspection result for a controller.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceInspection {
+    pub firmware_info: FirmwareInfo,
+    pub hardware: ControllerHardwareInfo,
+    pub serial_number: Option<String>,
+    pub color_name: Option<String>,
+}
+
+impl DeviceInspection {
+    /// Creates a [`DeviceInspection`] from `0x20` firmware info and resolved hardware details.
+    pub fn from_firmware_info(firmware_info: FirmwareInfo, product_id: u16) -> Self {
+        let hardware = resolve_controller_target(&firmware_info, product_id);
+        Self {
+            firmware_info,
+            hardware,
+            serial_number: None,
+            color_name: None,
+        }
+    }
+}
+
 /// Summary of an enumerated DualSense USB HID device.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceSummary {
@@ -106,7 +129,14 @@ pub struct DeviceSummary {
     pub vendor_id: u16,
     pub product_id: u16,
     pub is_edge: bool,
-    pub serial_number: String,
+    pub serial_number: Option<String>,
+    pub color_name: Option<String>,
+    pub board_model: String,
+    pub fw_series_text: String,
+    pub hw_model_text: String,
+    pub detected_target_id: Option<String>,
+    pub board_supported: bool,
+    pub unsupported_board_warning: Option<String>,
     pub firmware_version: Option<u16>,
     pub formatted_firmware_version: String,
     pub build_date: Option<String>,
@@ -122,7 +152,14 @@ impl DeviceSummary {
             vendor_id: info.vendor_id,
             product_id: info.product_id,
             is_edge: info.product_id == DUALSENSE_EDGE_PID,
-            serial_number: info.serial_number.clone(),
+            serial_number: non_empty(&info.serial_number),
+            color_name: None,
+            board_model: "Unknown".to_string(),
+            fw_series_text: String::new(),
+            hw_model_text: String::new(),
+            detected_target_id: None,
+            board_supported: false,
+            unsupported_board_warning: None,
             firmware_version: None,
             formatted_firmware_version: "Not read yet".to_string(),
             build_date: None,
@@ -130,12 +167,42 @@ impl DeviceSummary {
         }
     }
 
+    /// Updates firmware, board, target, serial, and color fields from controller inspection.
+    pub fn apply_inspection(&mut self, inspection: &DeviceInspection) {
+        self.firmware_version = Some(inspection.firmware_info.firmware_version);
+        self.formatted_firmware_version = inspection.firmware_info.formatted_version();
+        self.build_date = non_empty(&inspection.firmware_info.build_date);
+        self.build_time = non_empty(&inspection.firmware_info.build_time);
+
+        let hw = &inspection.hardware;
+        self.board_model = hw.board_name.clone();
+        self.fw_series_text = hw.fw_series_hex.clone();
+        self.hw_model_text = format!("0x{:08X}", hw.hw_info);
+        self.detected_target_id = hw.supported_target_id.map(ToString::to_string);
+        self.board_supported = hw.is_officially_supported;
+        self.unsupported_board_warning = if hw.is_officially_supported {
+            None
+        } else {
+            let reason = hw.unsupported_reason.as_deref().unwrap_or(
+                "This controller hardware revision is not supported by Sony's official PC firmware catalog.",
+            );
+            Some(format!(
+                "{reason} Automatic firmware download and target selection are disabled; you can still install a local .bin firmware file if you have one."
+            ))
+        };
+
+        if let Some(serial) = inspection.serial_number.as_deref().and_then(non_empty) {
+            self.serial_number = Some(serial);
+        }
+        self.color_name = inspection.color_name.as_deref().and_then(non_empty);
+    }
+
     /// Updates firmware metadata fields from Feature Report `0x20`.
     pub fn apply_firmware_info(&mut self, info: &FirmwareInfo) {
-        self.firmware_version = Some(info.firmware_version);
-        self.formatted_firmware_version = info.formatted_version();
-        self.build_date = non_empty(&info.build_date);
-        self.build_time = non_empty(&info.build_time);
+        self.apply_inspection(&DeviceInspection::from_firmware_info(
+            info.clone(),
+            self.product_id,
+        ));
     }
 
     /// Returns a [`DeviceTarget`] descriptor for background HID operations.
@@ -437,6 +504,7 @@ pub enum AppCommand {
 }
 
 /// User interactions and background task results fed into [`AppState::update`].
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppEvent {
     ScanDevices,
@@ -464,7 +532,7 @@ pub enum AppEvent {
     DevicesScanned(std::result::Result<Vec<HidDeviceInfo>, CoreError>),
     DeviceFirmwareInfoLoaded {
         path: String,
-        result: std::result::Result<FirmwareInfo, CoreError>,
+        result: std::result::Result<DeviceInspection, CoreError>,
     },
     CatalogLoaded(std::result::Result<FirmwareCatalog, CoreError>),
     LocalFileInspected {
@@ -485,6 +553,14 @@ pub struct UiSnapshot {
     pub devices: Vec<DeviceSummary>,
     pub selected_device_path: Option<String>,
     pub selected_device: Option<DeviceSummary>,
+    pub board_model: String,
+    pub fw_series_text: String,
+    pub hw_model_text: String,
+    pub color_name: Option<String>,
+    pub serial_number: Option<String>,
+    pub detected_target_id: Option<String>,
+    pub board_supported: bool,
+    pub unsupported_board_warning: Option<String>,
     pub source_kind: FirmwareSourceKind,
     pub targets: Vec<TargetOption>,
     pub selected_target_id: String,
@@ -504,6 +580,7 @@ pub struct UiSnapshot {
     pub is_busy: bool,
     pub can_scan: bool,
     pub can_continue_to_firmware: bool,
+    pub can_select_target: bool,
     pub can_check_updates: bool,
     pub can_select_file: bool,
     pub can_review_update: bool,
@@ -587,7 +664,7 @@ impl AppState {
                 Vec::new()
             }
             AppEvent::SelectTarget { target_id } => {
-                if self.busy.is_some() {
+                if self.busy.is_some() || !self.selected_device_board_supported() {
                     return Vec::new();
                 }
                 if self
@@ -712,6 +789,38 @@ impl AppState {
         let has_device = selected_device.is_some();
         let has_ready_firmware = self.has_ready_firmware();
 
+        let (
+            board_model,
+            fw_series_text,
+            hw_model_text,
+            color_name,
+            serial_number,
+            detected_target_id,
+            board_supported,
+            unsupported_board_warning,
+        ) = match &selected_device {
+            Some(dev) => (
+                dev.board_model.clone(),
+                dev.fw_series_text.clone(),
+                dev.hw_model_text.clone(),
+                dev.color_name.clone(),
+                dev.serial_number.clone(),
+                dev.detected_target_id.clone(),
+                dev.board_supported,
+                dev.unsupported_board_warning.clone(),
+            ),
+            None => (
+                String::new(),
+                String::new(),
+                String::new(),
+                None,
+                None,
+                None,
+                false,
+                None,
+            ),
+        };
+
         let (error_title, error_message, recovery_hint) = match &self.error {
             Some(err) => (
                 err.error_title.clone(),
@@ -722,12 +831,16 @@ impl AppState {
         };
 
         let update_summary = self.build_update_summary();
+        let use_local_file = self.source_kind == FirmwareSourceKind::LocalFile;
         let can_scan = !is_busy && self.step != AppStep::Updating;
         let can_continue_to_firmware =
             !is_busy && self.step == AppStep::DetectController && has_device;
-        let can_check_updates =
+        let can_select_target = !is_busy && !use_local_file && board_supported;
+        let can_check_updates = !is_busy
+            && board_supported
+            && matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate);
+        let can_select_file =
             !is_busy && matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate);
-        let can_select_file = can_check_updates;
         let can_review_update =
             !is_busy && self.step == AppStep::SelectFirmware && has_device && has_ready_firmware;
         let can_start_update = !is_busy
@@ -746,6 +859,14 @@ impl AppState {
             devices: self.devices.clone(),
             selected_device_path: self.selected_device_path.clone(),
             selected_device,
+            board_model,
+            fw_series_text,
+            hw_model_text,
+            color_name,
+            serial_number,
+            detected_target_id,
+            board_supported,
+            unsupported_board_warning,
             source_kind: self.source_kind,
             targets: self.targets.clone(),
             selected_target_id: self.selected_target_id.clone(),
@@ -765,6 +886,7 @@ impl AppState {
             is_busy,
             can_scan,
             can_continue_to_firmware,
+            can_select_target,
             can_check_updates,
             can_select_file,
             can_review_update,
@@ -815,6 +937,21 @@ impl AppState {
             }];
         }
 
+        if let Some(warning) = &dev.unsupported_board_warning {
+            self.banner = Some(BannerMessage::warning(
+                "Unsupported controller board",
+                warning.clone(),
+            ));
+        } else {
+            self.banner = Some(BannerMessage::positive(
+                "Controller ready",
+                format!(
+                    "Detected current firmware version {}.",
+                    dev.formatted_firmware_version
+                ),
+            ));
+        }
+
         Vec::new()
     }
 
@@ -837,6 +974,7 @@ impl AppState {
 
     fn handle_check_for_updates(&mut self) -> Vec<AppCommand> {
         if self.busy.is_some()
+            || !self.selected_device_board_supported()
             || !matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate)
         {
             return Vec::new();
@@ -989,24 +1127,39 @@ impl AppState {
     fn handle_device_firmware_info_loaded(
         &mut self,
         path: &str,
-        result: std::result::Result<FirmwareInfo, CoreError>,
+        result: std::result::Result<DeviceInspection, CoreError>,
     ) -> Vec<AppCommand> {
         self.busy = None;
         self.progress = ProgressSnapshot::idle();
 
         match result {
-            Ok(info) => {
+            Ok(inspection) => {
+                let fw_version_str = inspection.firmware_info.formatted_version();
+                let mut loaded_device = None;
                 if let Some(dev) = self.devices.iter_mut().find(|d| d.path == path) {
-                    dev.apply_firmware_info(&info);
+                    dev.apply_inspection(&inspection);
+                    loaded_device = Some(dev.clone());
+                }
+                if self.selected_device_path.as_deref() == Some(path)
+                    && let Some(dev) = loaded_device.as_ref()
+                {
+                    self.auto_match_target_for_device(dev);
                 }
                 self.refresh_target_comparisons();
-                self.banner = Some(BannerMessage::positive(
-                    "Controller ready",
-                    format!(
-                        "Detected current firmware version {}.",
-                        info.formatted_version()
-                    ),
-                ));
+                if let Some(warning) = loaded_device
+                    .as_ref()
+                    .and_then(|d| d.unsupported_board_warning.as_ref())
+                {
+                    self.banner = Some(BannerMessage::warning(
+                        "Unsupported controller board",
+                        warning.clone(),
+                    ));
+                } else {
+                    self.banner = Some(BannerMessage::positive(
+                        "Controller ready",
+                        format!("Detected current firmware version {fw_version_str}."),
+                    ));
+                }
             }
             Err(CoreError::Cancelled) => {
                 self.banner = Some(BannerMessage::info(
@@ -1193,15 +1346,23 @@ impl AppState {
             .find(|r| r.target_id.eq_ignore_ascii_case(&self.selected_target_id))
     }
 
+    fn selected_device_board_supported(&self) -> bool {
+        self.selected_device().is_some_and(|d| d.board_supported)
+    }
+
     fn has_ready_firmware(&self) -> bool {
         match self.source_kind {
-            FirmwareSourceKind::OfficialCatalog => self.selected_release().is_some(),
+            FirmwareSourceKind::OfficialCatalog => {
+                self.selected_device_board_supported() && self.selected_release().is_some()
+            }
             FirmwareSourceKind::LocalFile => self.local_firmware.is_some(),
         }
     }
 
     fn auto_match_target_for_device(&mut self, dev: &DeviceSummary) {
-        if dev.is_edge {
+        if let Some(target_id) = &dev.detected_target_id {
+            self.selected_target_id = target_id.clone();
+        } else if dev.is_edge {
             self.selected_target_id = "0044".to_string();
         } else if self.selected_target_id == "0044" {
             self.selected_target_id = "0004".to_string();
@@ -1247,6 +1408,9 @@ impl AppState {
 
         match self.source_kind {
             FirmwareSourceKind::OfficialCatalog => {
+                if !device.board_supported {
+                    return None;
+                }
                 let target = self.selected_target()?;
                 let latest = target.latest_version?;
                 let is_same_or_older_version = device
@@ -1330,14 +1494,44 @@ mod tests {
         }
     }
 
-    fn sample_firmware_info(version: u16) -> FirmwareInfo {
+    fn sample_firmware_info_with_hw(version: u16, fw_series: u16, hw_info: u32) -> FirmwareInfo {
         let mut raw = vec![0u8; 64];
-        raw[..11].copy_from_slice(b"Oct  1 2024");
+        raw[0] = dualsense_core::REPORT_ID_FIRMWARE_INFO;
+        raw[1..12].copy_from_slice(b"Oct  1 2024");
         raw[12..20].copy_from_slice(b"12:34:56");
-        let le = version.to_le_bytes();
-        raw[44] = le[0];
-        raw[45] = le[1];
+        raw[22..24].copy_from_slice(&fw_series.to_le_bytes());
+        raw[24..28].copy_from_slice(&hw_info.to_le_bytes());
+        raw[44..46].copy_from_slice(&version.to_le_bytes());
         FirmwareInfo::from_report(raw).expect("valid firmware info")
+    }
+
+    fn sample_inspection(
+        version: u16,
+        pid: u16,
+        fw_series: u16,
+        hw_info: u32,
+        serial: Option<&str>,
+    ) -> DeviceInspection {
+        let fw_info = sample_firmware_info_with_hw(version, fw_series, hw_info);
+        let hardware = resolve_controller_target(&fw_info, pid);
+        let serial_number = serial.map(ToString::to_string);
+        let color_name = serial
+            .and_then(dualsense_core::decode_ds5_color)
+            .map(ToString::to_string);
+        DeviceInspection {
+            firmware_info: fw_info,
+            hardware,
+            serial_number,
+            color_name,
+        }
+    }
+
+    fn sample_bdm020_inspection(version: u16) -> DeviceInspection {
+        sample_inspection(version, DEFAULT_PID, 0x0004, 0x0000_0411, None)
+    }
+
+    fn sample_edge_inspection(version: u16) -> DeviceInspection {
+        sample_inspection(version, DUALSENSE_EDGE_PID, 0x0044, 0x0000_0400, None)
     }
 
     fn sample_catalog() -> FirmwareCatalog {
@@ -1359,12 +1553,15 @@ mod tests {
         assert!(!snap.is_busy);
         assert!(snap.can_scan);
         assert!(!snap.can_continue_to_firmware);
+        assert!(!snap.can_select_target);
         assert!(!snap.can_check_updates);
         assert!(!snap.can_select_file);
         assert!(!snap.can_review_update);
         assert!(!snap.can_start_update);
         assert!(!snap.can_cancel);
         assert!(!snap.can_go_back);
+        assert!(!snap.board_supported);
+        assert!(snap.unsupported_board_warning.is_none());
         assert_eq!(
             snap.banner.as_ref().map(|b| b.severity),
             Some(BannerSeverity::Info)
@@ -1411,10 +1608,14 @@ mod tests {
         // Firmware info arrives
         state.update(AppEvent::DeviceFirmwareInfoLoaded {
             path: "/dev/hidraw0".to_string(),
-            result: Ok(sample_firmware_info(0x0520)),
+            result: Ok(sample_bdm020_inspection(0x0520)),
         });
         let snap = state.snapshot();
         assert!(snap.can_continue_to_firmware);
+        assert!(snap.board_supported);
+        assert!(snap.can_select_target);
+        assert_eq!(snap.board_model, "BDM-020");
+        assert_eq!(snap.detected_target_id.as_deref(), Some("0004"));
         assert_eq!(
             snap.selected_device
                 .as_ref()
@@ -1434,7 +1635,7 @@ mod tests {
         assert_eq!(state.snapshot().selected_target_id, "0044");
         state.update(AppEvent::DeviceFirmwareInfoLoaded {
             path: "/dev/hidraw1".to_string(),
-            result: Ok(sample_firmware_info(0x0217)),
+            result: Ok(sample_edge_inspection(0x0217)),
         });
 
         // Selecting back to standard controller switches away from 0044 without re-probing
@@ -1452,7 +1653,7 @@ mod tests {
         state.update(AppEvent::DevicesScanned(Ok(vec![d1])));
         state.update(AppEvent::DeviceFirmwareInfoLoaded {
             path: "/dev/hidraw0".to_string(),
-            result: Ok(sample_firmware_info(0x0520)),
+            result: Ok(sample_bdm020_inspection(0x0520)),
         });
         state.update(AppEvent::ContinueToFirmwareStep);
 
@@ -1613,7 +1814,7 @@ mod tests {
         state.update(AppEvent::DevicesScanned(Ok(vec![d1])));
         state.update(AppEvent::DeviceFirmwareInfoLoaded {
             path: "/dev/hidraw0".to_string(),
-            result: Ok(sample_firmware_info(0x0630)),
+            result: Ok(sample_bdm020_inspection(0x0630)),
         });
         state.update(AppEvent::ContinueToFirmwareStep);
 
@@ -1683,7 +1884,7 @@ mod tests {
         state.update(AppEvent::DevicesScanned(Ok(vec![d1])));
         state.update(AppEvent::DeviceFirmwareInfoLoaded {
             path: "/dev/hidraw0".to_string(),
-            result: Ok(sample_firmware_info(0x0520)),
+            result: Ok(sample_bdm020_inspection(0x0520)),
         });
         state.update(AppEvent::ContinueToFirmwareStep);
         state.update(AppEvent::CatalogLoaded(Ok(sample_catalog())));

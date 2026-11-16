@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use dualsense_core::{
-    CancellationToken, CoreError, DownloadProgress, DualSenseDevice, DualSenseUpdater,
-    FirmwareCatalogClient, FirmwareImage, FirmwareRelease, HidApiBackend, HidDeviceEnumerator,
-    HttpClient, Sleeper, StdSleeper, UpdateConfig,
+    CancellationToken, CoreError, DownloadProgress, DualSenseUpdater, FirmwareCatalogClient,
+    FirmwareImage, FirmwareRelease, HidApiBackend, HidDeviceEnumerator, HttpClient, Sleeper,
+    StdSleeper, UpdateConfig, decode_ds5_color, resolve_controller_target,
 };
 use tokio::runtime::{Builder, Handle, Runtime};
 use tokio::sync::{mpsc, watch};
 
 use crate::http::UreqHttpClient;
 use crate::viewmodel::{
-    AppCommand, AppEvent, AppState, DeviceTarget, LocalFirmwareInfo, UiSnapshot,
+    AppCommand, AppEvent, AppState, DeviceInspection, DeviceTarget, LocalFirmwareInfo, UiSnapshot,
 };
 
 /// Default concrete controller using live `hidapi`, `ureq` HTTPS, and `std::thread::sleep`.
@@ -318,7 +318,20 @@ fn execute_command<E, H, S>(
                     if cancel.is_cancelled() {
                         return Err(CoreError::Cancelled);
                     }
-                    DualSenseDevice::new(transport).get_firmware_info()
+                    let updater = DualSenseUpdater::new(transport);
+                    let firmware_info = updater.read_firmware_info()?;
+                    let hardware = resolve_controller_target(&firmware_info, device.product_id);
+                    let serial_number = updater.try_read_serial_number();
+                    let color_name = serial_number
+                        .as_deref()
+                        .and_then(decode_ds5_color)
+                        .map(ToString::to_string);
+                    Ok(DeviceInspection {
+                        firmware_info,
+                        hardware,
+                        serial_number,
+                        color_name,
+                    })
                 })
                 .await
                 .unwrap_or_else(|_| {

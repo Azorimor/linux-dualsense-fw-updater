@@ -4,6 +4,7 @@ pub mod cancel;
 pub mod error;
 pub mod image;
 pub mod protocol;
+pub mod transport;
 
 pub use cancel::CancellationToken;
 pub use error::{
@@ -18,4 +19,8 @@ pub use protocol::{
     UPDATE_STATUS_REPORT_LEN, UpdateCommand, UpdateStatus, VerifyUpdateStatusCode,
     WRITE_BLOCK_SIZE, WriteUpdateStatusCode, decode_ascii, encode_update_command_chunks,
     encode_update_report,
+};
+pub use transport::{
+    DualSenseDevice, HidApiBackend, HidApiTransport, HidDeviceEnumerator, HidDeviceInfo,
+    HidTransport, Sleeper, StdSleeper,
 };

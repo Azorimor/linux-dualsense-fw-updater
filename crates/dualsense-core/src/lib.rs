@@ -20,12 +20,13 @@ pub use error::{
 };
 pub use image::FirmwareImage;
 pub use protocol::{
-    DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FIRMWARE_INFO_REPORT_LEN,
+    BoardModel, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FIRMWARE_INFO_REPORT_LEN,
     FIRMWARE_VERSION_OFFSET, FirmwareInfo, MAX_HID_CHUNK_SIZE, REPORT_ID_FIRMWARE_INFO,
-    REPORT_ID_UPDATE_COMMAND, REPORT_ID_UPDATE_STATUS, StartUpdateStatusCode, UPDATE_HEADER_LEN,
+    REPORT_ID_SERIAL_COMMAND, REPORT_ID_SERIAL_RESPONSE, REPORT_ID_UPDATE_COMMAND,
+    REPORT_ID_UPDATE_STATUS, SERIAL_REPORT_LEN, StartUpdateStatusCode, UPDATE_HEADER_LEN,
     UPDATE_STATUS_REPORT_LEN, UpdateCommand, UpdateStatus, VerifyUpdateStatusCode,
-    WRITE_BLOCK_SIZE, WriteUpdateStatusCode, decode_ascii, encode_update_command_chunks,
-    encode_update_report,
+    WRITE_BLOCK_SIZE, WriteUpdateStatusCode, decode_ascii, decode_ds5_color,
+    encode_update_command_chunks, encode_update_report,
 };
 pub use transport::{
     DualSenseDevice, HidApiBackend, HidApiTransport, HidDeviceEnumerator, HidDeviceInfo,

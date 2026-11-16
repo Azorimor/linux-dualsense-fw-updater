@@ -496,8 +496,11 @@ mod tests {
             max_start_polls: 2,
             ..UpdateConfig::default()
         };
-        let updater_timeout =
-            DualSenseUpdater::with_sleeper_and_config(hid_timeout, RecordingSleeper::default(), cfg);
+        let updater_timeout = DualSenseUpdater::with_sleeper_and_config(
+            hid_timeout,
+            RecordingSleeper::default(),
+            cfg,
+        );
         assert_eq!(
             updater_timeout.start_update(&img, &cancel),
             Err(CoreError::PollTimeout {
@@ -652,7 +655,10 @@ mod tests {
         assert_eq!(updater.sleeper.sleeps.borrow().len(), 1);
         let sent = updater.device().transport().sent.borrow();
         assert_eq!(sent.len(), 2);
-        assert_eq!(sent[1], vec![0xF4, UpdateCommand::FinalizeUpdate as u8, 0x00]);
+        assert_eq!(
+            sent[1],
+            vec![0xF4, UpdateCommand::FinalizeUpdate as u8, 0x00]
+        );
 
         let hid_cmac = MockHid::default();
         hid_cmac.push_status(

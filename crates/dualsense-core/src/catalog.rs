@@ -303,9 +303,7 @@ fn expect_char(
     }
 }
 
-fn parse_json_string(
-    chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
-) -> Result<String> {
+fn parse_json_string(chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>) -> Result<String> {
     expect_char(chars, '"')?;
     let mut out = String::new();
     while let Some((_, c)) = chars.next() {

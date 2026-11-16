@@ -58,8 +58,7 @@ impl FirmwareInfo {
         if raw.len() < 20 {
             return Err(CoreError::FirmwareInfoTooShort(raw.len()));
         }
-        let payload = if raw.len() > FIRMWARE_INFO_REPORT_LEN && raw[0] == REPORT_ID_FIRMWARE_INFO
-        {
+        let payload = if raw.len() > FIRMWARE_INFO_REPORT_LEN && raw[0] == REPORT_ID_FIRMWARE_INFO {
             &raw[1..]
         } else {
             raw.as_slice()

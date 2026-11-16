@@ -128,10 +128,7 @@ mod tests {
     #[test]
     fn from_file_reads_valid_file_and_reports_missing_file() {
         let temp_dir = std::env::temp_dir();
-        let file_path = temp_dir.join(format!(
-            "dualsense_core_test_fw_{}.bin",
-            std::process::id()
-        ));
+        let file_path = temp_dir.join(format!("dualsense_core_test_fw_{}.bin", std::process::id()));
         let bytes = make_image(512, 0x0520);
         std::fs::write(&file_path, &bytes).expect("write temp firmware");
 

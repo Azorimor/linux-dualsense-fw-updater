@@ -46,7 +46,9 @@ pub enum CoreError {
     #[error("The firmware file is too small to read a firmware version.")]
     FirmwareImageTooSmall,
 
-    #[error("The firmware file is too small to be a valid DualSense firmware image (minimum 256 bytes).")]
+    #[error(
+        "The firmware file is too small to be a valid DualSense firmware image (minimum 256 bytes)."
+    )]
     FirmwareImageTooSmallForHeader,
 
     #[error("Firmware update header has an invalid length.")]

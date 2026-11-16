@@ -212,9 +212,7 @@ impl HidApiBackend {
             let mut iter = api
                 .device_list()
                 .filter(|d| d.vendor_id() == vid && d.product_id() == pid);
-            let device = iter
-                .next()
-                .ok_or(CoreError::DeviceNotFound { vid, pid })?;
+            let device = iter.next().ok_or(CoreError::DeviceNotFound { vid, pid })?;
             device.open_device(&api)?
         };
         Ok(HidApiTransport { _api: api, dev })

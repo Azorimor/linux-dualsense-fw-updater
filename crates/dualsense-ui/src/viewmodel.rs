@@ -171,12 +171,7 @@ pub struct TargetOption {
 }
 
 impl TargetOption {
-    fn from_known(
-        target_id: &str,
-        model_name: &str,
-        board_revisions: &str,
-        tested: bool,
-    ) -> Self {
+    fn from_known(target_id: &str, model_name: &str, board_revisions: &str, tested: bool) -> Self {
         let label = if board_revisions == model_name {
             model_name.to_string()
         } else {
@@ -354,9 +349,10 @@ impl ProgressSnapshot {
 
     pub fn from_update(progress: &UpdateProgress) -> Self {
         match progress.phase {
-            UpdatePhase::Starting => {
-                Self::indeterminate(ProgressStage::StartingUpdate, "Preparing controller for update…")
-            }
+            UpdatePhase::Starting => Self::indeterminate(
+                ProgressStage::StartingUpdate,
+                "Preparing controller for update…",
+            ),
             UpdatePhase::Writing => {
                 let pct = (progress.percentage.round().clamp(0.0, 100.0)) as u8;
                 Self {
@@ -375,12 +371,14 @@ impl ProgressSnapshot {
                     total_bytes: Some(progress.total_bytes),
                 }
             }
-            UpdatePhase::Verifying => {
-                Self::indeterminate(ProgressStage::VerifyingFirmware, "Verifying installed firmware…")
-            }
-            UpdatePhase::Finalizing => {
-                Self::indeterminate(ProgressStage::FinalizingUpdate, "Finalizing firmware update…")
-            }
+            UpdatePhase::Verifying => Self::indeterminate(
+                ProgressStage::VerifyingFirmware,
+                "Verifying installed firmware…",
+            ),
+            UpdatePhase::Finalizing => Self::indeterminate(
+                ProgressStage::FinalizingUpdate,
+                "Finalizing firmware update…",
+            ),
             UpdatePhase::Completed => Self::completed(),
         }
     }
@@ -727,11 +725,8 @@ impl AppState {
         let can_scan = !is_busy && self.step != AppStep::Updating;
         let can_continue_to_firmware =
             !is_busy && self.step == AppStep::DetectController && has_device;
-        let can_check_updates = !is_busy
-            && matches!(
-                self.step,
-                AppStep::SelectFirmware | AppStep::ConfirmUpdate
-            );
+        let can_check_updates =
+            !is_busy && matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate);
         let can_select_file = can_check_updates;
         let can_review_update =
             !is_busy && self.step == AppStep::SelectFirmware && has_device && has_ready_firmware;
@@ -741,11 +736,8 @@ impl AppState {
             && has_ready_firmware
             && self.warning_acknowledged;
         let can_cancel = self.busy.is_some_and(BusyOperation::is_cancellable);
-        let can_go_back = !is_busy
-            && matches!(
-                self.step,
-                AppStep::SelectFirmware | AppStep::ConfirmUpdate
-            );
+        let can_go_back =
+            !is_busy && matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate);
 
         UiSnapshot {
             step: self.step,
@@ -845,10 +837,7 @@ impl AppState {
 
     fn handle_check_for_updates(&mut self) -> Vec<AppCommand> {
         if self.busy.is_some()
-            || !matches!(
-                self.step,
-                AppStep::SelectFirmware | AppStep::ConfirmUpdate
-            )
+            || !matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate)
         {
             return Vec::new();
         }
@@ -864,10 +853,7 @@ impl AppState {
 
     fn handle_select_local_file(&mut self, path: PathBuf) -> Vec<AppCommand> {
         if self.busy.is_some()
-            || !matches!(
-                self.step,
-                AppStep::SelectFirmware | AppStep::ConfirmUpdate
-            )
+            || !matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate)
         {
             return Vec::new();
         }
@@ -1633,7 +1619,10 @@ mod tests {
 
         let path = PathBuf::from("/tmp/fw.bin");
         let cmds = state.update(AppEvent::SelectLocalFile { path: path.clone() });
-        assert_eq!(cmds, vec![AppCommand::InspectLocalFile { path: path.clone() }]);
+        assert_eq!(
+            cmds,
+            vec![AppCommand::InspectLocalFile { path: path.clone() }]
+        );
 
         state.update(AppEvent::LocalFileInspected {
             path: path.clone(),

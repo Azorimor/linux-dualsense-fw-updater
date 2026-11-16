@@ -9,7 +9,9 @@ use tokio::runtime::{Builder, Handle, Runtime};
 use tokio::sync::{mpsc, watch};
 
 use crate::http::UreqHttpClient;
-use crate::viewmodel::{AppCommand, AppEvent, AppState, DeviceTarget, LocalFirmwareInfo, UiSnapshot};
+use crate::viewmodel::{
+    AppCommand, AppEvent, AppState, DeviceTarget, LocalFirmwareInfo, UiSnapshot,
+};
 
 /// Default concrete controller using live `hidapi`, `ureq` HTTPS, and `std::thread::sleep`.
 pub type DefaultAppController = AppController<HidApiBackend, UreqHttpClient, StdSleeper>;
@@ -311,11 +313,8 @@ fn execute_command<E, H, S>(
                     if cancel.is_cancelled() {
                         return Err(CoreError::Cancelled);
                     }
-                    let transport = enumerator.open(
-                        device.vendor_id,
-                        device.product_id,
-                        Some(&device.path),
-                    )?;
+                    let transport =
+                        enumerator.open(device.vendor_id, device.product_id, Some(&device.path))?;
                     if cancel.is_cancelled() {
                         return Err(CoreError::Cancelled);
                     }
@@ -323,9 +322,7 @@ fn execute_command<E, H, S>(
                 })
                 .await
                 .unwrap_or_else(|_| {
-                    Err(CoreError::Io(
-                        "Firmware info read task failed.".to_string(),
-                    ))
+                    Err(CoreError::Io("Firmware info read task failed.".to_string()))
                 });
                 let _ = tx.send(AppEvent::DeviceFirmwareInfoLoaded { path, result: res });
             });
@@ -398,7 +395,9 @@ fn execute_command<E, H, S>(
                 })
                 .await
                 .unwrap_or_else(|_| {
-                    Err(CoreError::Io("Firmware update task stopped unexpectedly.".to_string()))
+                    Err(CoreError::Io(
+                        "Firmware update task stopped unexpectedly.".to_string(),
+                    ))
                 });
                 let _ = tx.send(AppEvent::UpdateFinished(res));
             });
@@ -426,7 +425,9 @@ fn execute_command<E, H, S>(
                 })
                 .await
                 .unwrap_or_else(|_| {
-                    Err(CoreError::Io("Firmware update task stopped unexpectedly.".to_string()))
+                    Err(CoreError::Io(
+                        "Firmware update task stopped unexpectedly.".to_string(),
+                    ))
                 });
                 let _ = tx.send(AppEvent::UpdateFinished(res));
             });

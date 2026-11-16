@@ -285,7 +285,9 @@ mod tests {
                 body.len(),
                 body
             );
-            stream.write_all(response.as_bytes()).expect("write response");
+            stream
+                .write_all(response.as_bytes())
+                .expect("write response");
         });
 
         let client = UreqHttpClient::new();
@@ -382,7 +384,8 @@ mod tests {
     fn maps_http_status_and_network_errors_to_plain_english() {
         let (base_url, handle) = spawn_http_server(move |mut stream| {
             drain_request(&mut stream);
-            let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            let response =
+                "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
             stream.write_all(response.as_bytes()).expect("write 404");
         });
 
@@ -398,9 +401,13 @@ mod tests {
         handle.join().expect("server thread");
 
         assert!(describe_ureq_error(&ureq::Error::HostNotFound).contains("internet connection"));
-        assert!(describe_ureq_error(&ureq::Error::StatusCode(503)).contains("temporarily unavailable"));
+        assert!(
+            describe_ureq_error(&ureq::Error::StatusCode(503)).contains("temporarily unavailable")
+        );
         assert!(describe_ureq_error(&ureq::Error::StatusCode(403)).contains("denied"));
-        assert!(describe_ureq_error(&ureq::Error::Timeout(ureq::Timeout::Global)).contains("timed out"));
+        assert!(
+            describe_ureq_error(&ureq::Error::Timeout(ureq::Timeout::Global)).contains("timed out")
+        );
         assert!(describe_ureq_error(&ureq::Error::Tls("handshake")).contains("secure HTTPS"));
         assert!(describe_ureq_error(&ureq::Error::ConnectionFailed).contains("Could not connect"));
         assert!(describe_io_kind(std::io::ErrorKind::UnexpectedEof).contains("ended unexpectedly"));

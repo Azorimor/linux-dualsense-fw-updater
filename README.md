@@ -108,6 +108,10 @@ https://fwupdater.dl.playstation.net/fwupdater/fwupdate000B/0x0630/FWUPDATE000B.
 - A controller already running the latest firmware may not return success codes past the start-update phase; this is expected because Sony's firmware blocks downgrades/re-flashing the same version.
 - On Linux, you may need udev permissions to access DualSense HID devices (`/dev/hidraw*` / USB VID `054c`) without root privileges.
 
+## Acknowledgments
+
+The core DualSense USB HID protocol and firmware update backend logic is adapted from the original CLI project by **nchie** under the MIT License.
+
 ## License
 
 MIT. See `LICENSE`.

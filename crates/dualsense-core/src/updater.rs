@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 nchie
+// SPDX-FileCopyrightText: 2026 Azorimor
+// SPDX-License-Identifier: MIT
+
 use std::time::Duration;
 
 use crate::cancel::CancellationToken;

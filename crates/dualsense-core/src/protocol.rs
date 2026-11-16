@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 nchie
+// SPDX-FileCopyrightText: 2026 Azorimor
+// SPDX-License-Identifier: MIT
+
 use crate::error::{CoreError, Result};
 
 /// Default Sony USB vendor ID for DualSense controllers.

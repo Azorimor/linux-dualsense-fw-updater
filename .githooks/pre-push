@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+current_branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      cat >&2 <<EOF
+ERROR: Pushing directly to '$remote_ref' is forbidden.
+Push to a feature/working branch and open a pull request instead.
+EOF
+      exit 1
+      ;;
+  esac
+done
+
+case "$current_branch" in
+  main|master)
+    cat >&2 <<EOF
+ERROR: Refusing push while on '$current_branch'.
+Switch to a feature/working branch before pushing.
+EOF
+    exit 1
+    ;;
+esac

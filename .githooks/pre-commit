@@ -1,0 +1,35 @@
+#!/bin/sh
+set -eu
+
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+
+case "$branch" in
+  main|master)
+    cat >&2 <<EOF
+ERROR: Direct commits to '$branch' are forbidden.
+Create and switch to a working branch first, for example:
+  git switch -c feat/<short-description>
+EOF
+    exit 1
+    ;;
+esac
+
+# Warn if a commit looks like a single giant end-of-task commit.
+stats=$(git diff --cached --numstat -- . ':(exclude)Cargo.lock' 2>/dev/null || true)
+if [ -n "$stats" ]; then
+  eval "$(printf '%s\n' "$stats" | awk '
+    BEGIN { files = 0; lines = 0 }
+    {
+      files++
+      if ($1 ~ /^[0-9]+$/) lines += $1
+      if ($2 ~ /^[0-9]+$/) lines += $2
+    }
+    END { printf "staged_files=%d staged_lines=%d", files, lines }
+  ')"
+  if [ "$staged_files" -gt 12 ] || [ "$staged_lines" -gt 600 ]; then
+    cat >&2 <<EOF
+WARNING: Large commit detected ($staged_files files, $staged_lines changed lines excluding Cargo.lock).
+Remember: prefer multiple small, focused commits over one giant commit.
+EOF
+  fi
+fi

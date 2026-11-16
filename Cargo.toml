@@ -8,7 +8,6 @@ edition = "2024"
 license = "MIT"
 
 [workspace.dependencies]
-clap = { version = "4.5.55", features = ["derive"] }
 cxx = "1.0.205"
 cxx-qt = "0.10.0"
 cxx-qt-build = "0.10.0"
@@ -29,15 +28,12 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-clap.workspace = true
 cxx.workspace = true
 cxx-qt.workspace = true
 cxx-qt-lib.workspace = true
 dualsense-ui.workspace = true
 env_logger.workspace = true
-hidapi.workspace = true
 log.workspace = true
-thiserror.workspace = true
 
 [build-dependencies]
 cxx-qt-build.workspace = true

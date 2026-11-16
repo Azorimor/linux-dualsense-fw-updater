@@ -38,6 +38,15 @@ pub mod qobject {
         #[qproperty(QString, selected_device_firmware, READ, NOTIFY)]
         #[qproperty(QString, selected_device_build_info, READ, NOTIFY)]
         #[qproperty(bool, selected_device_is_edge, READ, NOTIFY)]
+        #[qproperty(QString, board_model, READ, NOTIFY)]
+        #[qproperty(QString, fw_series_text, READ, NOTIFY)]
+        #[qproperty(QString, hw_model_text, READ, NOTIFY)]
+        #[qproperty(QString, color_name, READ, NOTIFY)]
+        #[qproperty(QString, serial_number, READ, NOTIFY)]
+        #[qproperty(QString, detected_target_id, READ, NOTIFY)]
+        #[qproperty(bool, board_supported, READ, NOTIFY)]
+        #[qproperty(bool, has_unsupported_board_warning, READ, NOTIFY)]
+        #[qproperty(QString, unsupported_board_warning, READ, NOTIFY)]
         #[qproperty(bool, use_local_file, READ, NOTIFY)]
         #[qproperty(QStringList, target_ids, READ, NOTIFY)]
         #[qproperty(QStringList, target_labels, READ, NOTIFY)]
@@ -82,6 +91,7 @@ pub mod qobject {
         #[qproperty(bool, is_busy, READ, NOTIFY)]
         #[qproperty(bool, can_scan, READ, NOTIFY)]
         #[qproperty(bool, can_continue_to_firmware, READ, NOTIFY)]
+        #[qproperty(bool, can_select_target, READ, NOTIFY)]
         #[qproperty(bool, can_check_updates, READ, NOTIFY)]
         #[qproperty(bool, can_select_file, READ, NOTIFY)]
         #[qproperty(bool, can_review_update, READ, NOTIFY)]
@@ -168,6 +178,15 @@ pub struct DualSenseBridgeRust {
     selected_device_firmware: QString,
     selected_device_build_info: QString,
     selected_device_is_edge: bool,
+    board_model: QString,
+    fw_series_text: QString,
+    hw_model_text: QString,
+    color_name: QString,
+    serial_number: QString,
+    detected_target_id: QString,
+    board_supported: bool,
+    has_unsupported_board_warning: bool,
+    unsupported_board_warning: QString,
 
     use_local_file: bool,
     target_ids: QStringList,
@@ -219,6 +238,7 @@ pub struct DualSenseBridgeRust {
     is_busy: bool,
     can_scan: bool,
     can_continue_to_firmware: bool,
+    can_select_target: bool,
     can_check_updates: bool,
     can_select_file: bool,
     can_review_update: bool,
@@ -245,6 +265,15 @@ impl Default for DualSenseBridgeRust {
             selected_device_firmware: QString::default(),
             selected_device_build_info: QString::default(),
             selected_device_is_edge: false,
+            board_model: QString::default(),
+            fw_series_text: QString::default(),
+            hw_model_text: QString::default(),
+            color_name: QString::default(),
+            serial_number: QString::default(),
+            detected_target_id: QString::default(),
+            board_supported: false,
+            has_unsupported_board_warning: false,
+            unsupported_board_warning: QString::default(),
             use_local_file: false,
             target_ids: QStringList::default(),
             target_labels: QStringList::default(),
@@ -289,6 +318,7 @@ impl Default for DualSenseBridgeRust {
             is_busy: false,
             can_scan: false,
             can_continue_to_firmware: false,
+            can_select_target: false,
             can_check_updates: false,
             can_select_file: false,
             can_review_update: false,
@@ -443,6 +473,60 @@ impl qobject::DualSenseBridge {
             selected_device_is_edge,
             selected_device_is_edge_changed,
             adapted.selected_device_is_edge
+        );
+        sync_prop!(
+            self,
+            board_model,
+            board_model_changed,
+            QString::from(&adapted.board_model)
+        );
+        sync_prop!(
+            self,
+            fw_series_text,
+            fw_series_text_changed,
+            QString::from(&adapted.fw_series_text)
+        );
+        sync_prop!(
+            self,
+            hw_model_text,
+            hw_model_text_changed,
+            QString::from(&adapted.hw_model_text)
+        );
+        sync_prop!(
+            self,
+            color_name,
+            color_name_changed,
+            QString::from(&adapted.color_name)
+        );
+        sync_prop!(
+            self,
+            serial_number,
+            serial_number_changed,
+            QString::from(&adapted.serial_number)
+        );
+        sync_prop!(
+            self,
+            detected_target_id,
+            detected_target_id_changed,
+            QString::from(&adapted.detected_target_id)
+        );
+        sync_prop!(
+            self,
+            board_supported,
+            board_supported_changed,
+            adapted.board_supported
+        );
+        sync_prop!(
+            self,
+            has_unsupported_board_warning,
+            has_unsupported_board_warning_changed,
+            adapted.has_unsupported_board_warning
+        );
+        sync_prop!(
+            self,
+            unsupported_board_warning,
+            unsupported_board_warning_changed,
+            QString::from(&adapted.unsupported_board_warning)
         );
 
         sync_prop!(
@@ -692,6 +776,12 @@ impl qobject::DualSenseBridge {
             can_continue_to_firmware,
             can_continue_to_firmware_changed,
             adapted.can_continue_to_firmware
+        );
+        sync_prop!(
+            self,
+            can_select_target,
+            can_select_target_changed,
+            adapted.can_select_target
         );
         sync_prop!(
             self,

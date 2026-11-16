@@ -2,7 +2,7 @@
 
 This file governs all AI coding agents working in `dualsense-updater-rs`.
 
-> **Context for Future Work:** The goal for future agents is to **almost completely redesign and rewrite this project**. Read the workflow rules and current codebase documentation below before making any changes.
+> **Context:** This repository implements the 3-crate `dualsense-updater` workspace (`dualsense-core`, `dualsense-ui`, and the `cxx-qt` + KDE Kirigami GUI). Read the mandatory workflow rules and workspace documentation below before making any changes.
 
 ---
 
@@ -76,18 +76,18 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 ## 3. Current Project Overview
 
-`dualsense-updater` (`v0.1.0`, Rust `edition = "2024"`, MIT license) is an unofficial CLI utility for inspecting and updating Sony PlayStation DualSense controller firmware over USB HID.
+`dualsense-updater` (`v0.1.0`, Rust `edition = "2024"`, MIT license) is a Linux KDE Kirigami desktop application (organized as a 3-crate Cargo workspace) for inspecting and updating Sony PlayStation DualSense (`0x054c:0x0ce6`) and DualSense Edge (`0x054c:0x0df2`) firmware over USB HID.
 
-### Hardware & Firmware Context (from `README.md`)
+### Hardware & Firmware Context
 - **Upgrade irreversibility:** Firmware upgrades are auto-committed by the controller even if verify and finalize steps are not executed.
-- **Hardware scope:** Tested on standard DualSense controllers; **not** tested on DualSense Edge.
+- **Hardware scope:** Tested on standard DualSense controllers; **not** tested on DualSense Edge (`0044`). The GUI flags DualSense Edge as untested before flashing.
 - **Firmware source:** Sony publishes version metadata at `https://fwupdater.dl.playstation.net/fwupdater/info.json` and images at `https://fwupdater.dl.playstation.net/fwupdater/fwupdate<target>/<version>/FWUPDATE<target>.bin`.
-- **Observed board-to-target mappings:**
+- **Observed board-to-target mappings (`KNOWN_TARGETS`):**
   - DualSense BDM-020 / BDM-030 / BDM-040 -> `0004`
   - DualSense BDM-050 -> `000B`
   - DualSense BDM-060 -> `000E`
   - DualSense Edge -> `0044`
-- **Known device behavior:** A controller already running the target/latest firmware may not return success codes past `--start-update`.
+- **Known device behavior:** A controller already running the target or newer firmware may fail past start-update because Sony's firmware blocks downgrades/re-flashing.
 
 ---
 
@@ -95,76 +95,72 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 ```text
 .
-├── Cargo.toml        # Package manifest (edition 2024; wildcard "*" deps)
-├── Cargo.lock        # Resolved dependency lockfile
-├── README.md         # Build, CLI usage, firmware download URLs, disclaimer
-├── LICENSE           # MIT license
-├── .githooks/        # Enforced git hooks (pre-commit, commit-msg, pre-push)
-├── .agents/          # Antigravity lifecycle hooks
-└── src/
-    ├── main.rs       # Entry point, logging init, interactive & flag modes, error formatting
-    ├── cli.rs        # clap Args definition and hex/decimal VID/PID parsing
-    ├── hid.rs        # hidapi wrapper (DualSenseHid) and HID feature report I/O
-    ├── protocol.rs   # HID report IDs, FirmwareInfo, commands, and status code enums
-    ├── update.rs     # DualSenseUpdater update state machine & polling loops
-    └── error.rs      # thiserror error types for app/HID/protocol failures
+├── Cargo.toml                  # 3-member workspace manifest + pinned workspace dependencies
+├── Cargo.lock                  # Resolved dependency lockfile
+├── build.rs                    # Auto-sets QMAKE=/usr/bin/qmake6 if unset; builds cxx-qt + dev.dualsense.updater QML module
+├── README.md                   # Linux prerequisites, build/run/test guide, Sony firmware notes, disclaimer
+├── LICENSE                     # MIT license
+├── .githooks/                  # Enforced git hooks (pre-commit, commit-msg, pre-push)
+├── .agents/                    # Antigravity lifecycle hooks
+├── crates/
+│   ├── dualsense-core/         # Core HID protocol, image validation, catalog client, update state machine
+│   │   ├── src/
+│   │   │   ├── lib.rs          # Public crate re-exports
+│   │   │   ├── cancel.rs       # Thread-safe CancellationToken
+│   │   │   ├── catalog.rs      # Sony info.json parser, KNOWN_TARGETS, HttpClient trait, FirmwareCatalogClient
+│   │   │   ├── error.rs        # CoreError, UpdateFailure, UpdatePhase, per-phase error enums
+│   │   │   ├── image.rs        # Single-read FirmwareImage loader and 0x78 version / 32 KiB block validation
+│   │   │   ├── protocol.rs     # Report IDs (0x20, 0xF4, 0xF5), commands, status codes, chunk encoder
+│   │   │   ├── transport.rs    # HidTransport, HidDeviceEnumerator, Sleeper traits + HidApiBackend
+│   │   │   └── updater.rs      # DualSenseUpdater bounded polling state machine & UpdateProgress
+│   │   └── tests/update_flow.rs
+│   └── dualsense-ui/           # Headless-testable ViewModel, HTTP client, friendly errors, async runtime
+│       ├── src/
+│       │   ├── lib.rs          # Public crate re-exports
+│       │   ├── viewmodel.rs    # AppStep, AppState, AppEvent, AppCommand, UiSnapshot, gating flags
+│       │   ├── controller.rs   # AppController & AppRuntime running Tokio workers off the UI thread
+│       │   ├── http.rs         # UreqHttpClient (ureq + rustls) with streaming progress & cancellation
+│       │   └── error_map.rs    # FriendlyError plain-English mapping for CoreError / UpdateFailure
+│       └── tests/controller_flows.rs
+├── src/                        # Root `dualsense-updater` Qt6/Kirigami desktop binary crate
+│   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, org.kde.desktop + Fusion fallback
+│   ├── qt_bridge.rs            # cxx-qt DualSenseBridge QObject binding DefaultAppRuntime to QML
+│   └── snapshot_adapter.rs     # Pure Rust AdaptedSnapshot & file:// URL parser (unit-tested headlessly)
+└── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
+    ├── Main.qml                # Kirigami.ApplicationWindow + 6-view StackLayout wizard
+    └── StepIndicator.qml       # 4-step progress breadcrumb header
 ```
 
-### Dependencies (`Cargo.toml`)
-- `clap` (`derive` feature) — CLI parsing
-- `hidapi` — USB HID device enumeration and feature report I/O
-- `log` & `env_logger` — logging (`Info` default, `Debug` with `-v`/`--verbose`)
-- `thiserror` — typed error enums
+### Workspace Dependencies (`Cargo.toml`)
+- **Core & Async:** `hidapi`, `thiserror`, `tokio`, `ureq` (with `rustls`), `log`, `env_logger`.
+- **Qt / QML Bridge:** `cxx`, `cxx-qt`, `cxx-qt-build`, `cxx-qt-lib` (`qt_gui`, `qt_qml`, `qt_quickcontrols`).
 
-### Module Details
-- **`src/cli.rs`:**
-  - `DEFAULT_VID = 0x054c`, `DEFAULT_PID = 0x0ce6`.
-  - `Args`: `--vid`, `--pid` (`parse_u16` accepts `0x`-prefixed hex or decimal), positional `FW_IMAGE`, `--path`, `-v`/`--verbose`, `--print-firmware-info`, `--start-update-only`, `--write-update-image-only`, `--verify-update-image-only`, `--finalize-update-only`.
-- **`src/main.rs`:**
-  - Prints help and exits `0` when called with no arguments or on CLI parse errors (except `--help`/`--version`).
-  - **Interactive mode** (when `FW_IMAGE` is given with no action flags): opens the first matching device (`find_first_device_path`), prints current firmware version (`0x20`), reads target version from `FW_IMAGE` at offset `0x78`, prompts `[y/N]`, and executes `start_update` -> `write_update_image` -> `verify_update_image` -> `finalize_update`.
-  - **Flag mode**: opens `--path` if provided or first matching VID/PID device, then runs enabled flags in fixed order (`print_firmware_info`, `start_update`, `write_update_image`, `verify_update_image`, `finalize_update`).
-  - `format_error` translates `AppError` / `UpdateFailure` variants into human-readable messages.
-- **`src/hid.rs`:**
-  - `DualSenseHid` wraps `HidApi` and `HidDevice`.
-  - `get_firmware_info`: reads Feature Report `0x20` (64 bytes), decodes ASCII `build_date` (`payload[..12]`), `build_time` (`payload[12..20]`), and LE `u16` `firmware_version` (`payload[44..=45]`).
-  - `send_update_command`: sends payload in max `0x39` (57)-byte chunks as Feature Report `[0xF4, command, chunk_len, ...chunk]`.
-  - `get_update_status`: reads 4-byte Feature Report `0xF5` `[report_id, command, status_raw, ...]`.
-- **`src/protocol.rs`:**
-  - Report IDs: `REPORT_ID_FIRMWARE_INFO = 0x20`, `REPORT_ID_UPDATE_COMMAND = 0xF4`, `REPORT_ID_UPDATE_STATUS = 0xF5`.
-  - `UpdateCommand`: `StartUpdate (0x00)`, `WriteUpdateImage (0x01)`, `VerifyUpdateImage (0x02)`, `FinalizeUpdate (0x03)`, `Unknown (0xFF)`.
-  - Status enums: `StartUpdateStatusCode`, `WriteUpdateStatusCode`, `VerifyUpdateStatusCode`.
-- **`src/update.rs`:**
-  - `firmware_version_from_image`: reads LE `u16` at byte offset `0x78`.
-  - `start_update`: reads image (`>= 256` bytes), sends first 256 bytes via `StartUpdate`, polls `0xF5` every `10 ms` while `Processing (0x04)`.
-  - `write_update_image`: splits the full image into `0x8000` (32 KiB) blocks, sending each block in `0x39`-byte `WriteUpdateImage` chunks and polling `0xF5` every `10 ms` on `Retry (0x01)` / `AlsoRetry (0x10)` until `SendNext (0x03)` or `Success (0x00)`.
-  - `verify_update_image`: sends empty `VerifyUpdateImage`, polls `0xF5` every `10 ms` while `KeepPolling (0x10)`.
-  - `finalize_update`: sends empty `FinalizeUpdate` with no status polling.
-- **`src/error.rs`:**
-  - Defines `AppError`, `UpdateFailure`, `StartUpdateError`, `WriteUpdateImageError`, `VerifyUpdateImageError`, and `FinalizeUpdateError`.
+### Layer Responsibilities
+- **`dualsense-core`:** Zero UI/Qt dependencies. Encapsulates USB HID feature reports (`0x20`, `0xF4`, `0xF5`), `FirmwareImage` (read once into memory), `DualSenseUpdater` (bounded polling via `UpdateConfig` + `Sleeper` + `CancellationToken`), and Sony catalog/download logic behind `HidTransport`, `HidDeviceEnumerator`, and `HttpClient`.
+- **`dualsense-ui`:** Pure Rust Elm/TEA state machine (`AppState::apply` -> `Vec<AppCommand>`) and `AppController` / `AppRuntime` executing HID, disk, and HTTPS tasks on a Tokio runtime, emitting `UiSnapshot` updates and plain-English `FriendlyError` guidance.
+- **Root `dualsense-updater` (`src/` + `qml/`):** `DualSenseBridge` (`#[cxx_qt::bridge]`) marshals `UiSnapshot` via `AdaptedSnapshot` onto the Qt thread (`cxx_qt::Threading`). QML stays thin and declarative (`pragma ComponentBehavior: Bound`) over `updater` properties and `#[qinvokable]` slots.
 
 ---
 
-## 5. Current Technical Debt & Observations for the Rewrite
+## 5. Current Technical Notes
 
-Future agents replacing or refactoring this codebase should keep these concrete gaps in mind:
-- **No tests or CI:** `cargo test` currently has 0 tests, and `DualSenseHid` talks directly to `hidapi::HidDevice` with no transport abstraction for unit testing.
-- **Wildcard dependencies:** `Cargo.toml` specifies `"*"` for all crates.
-- **Repeated file reads:** `firmware_version_from_image`, `start_update`, and `write_update_image` each re-read `FW_IMAGE` from disk separately.
-- **Interactive `--path` omission:** Interactive mode in `src/main.rs` calls `find_first_device_path` and ignores `args.path`.
-- **Unbounded polling loops:** `start_update`, `write_update_image`, and `verify_update_image` in `src/update.rs` poll infinitely without a timeout or retry limit.
-- **Mixed concerns & dead code:** `src/update.rs` prints directly to stdout via `println!`; `protocol.rs` and `error.rs` have `#[allow(dead_code)]` items (`FirmwareInfo::{unknown, raw}`, `UpdateStatus::{report_id, raw}`, `FinalizeUpdateError`).
-- **CLI exit codes:** Invalid CLI arguments in `src/main.rs` currently print help and exit with code `0` instead of a non-zero exit code.
+- **Qt6 / `qmake6` discovery:** `build.rs` defaults `QMAKE` to `/usr/bin/qmake6` when unset and present; export `QMAKE=/path/to/qmake6` on systems where `qmake` defaults to Qt 5 or `qmake6` is elsewhere.
+- **Headless CI compatibility:** All 3 workspace crates decouple business logic and snapshot adaptation from Qt event loops, display servers, and physical DualSense hardware so `cargo test --workspace` runs completely headlessly.
+- **Kirigami style & QML linting:** `src/main.rs` sets `org.kde.desktop` (when `QT_QUICK_CONTROLS_STYLE` is unset) with `Fusion` fallback. Keep QML strictly typed (`pragma ComponentBehavior: Bound`, `required property` on delegates) so `qmllint` passes with zero warnings.
+- **Offscreen smoke check:** Running with `QT_QPA_PLATFORM=offscreen` verifies `QQmlApplicationEngine` loads `qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml` cleanly without X11/Wayland (using `timeout` because the Qt event loop stays open until closed).
 
 ---
 
 ## 6. Build & Verification Commands
 
 ```sh
-cargo check
-cargo test
 cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo check
+/usr/lib/qt6/bin/qmllint -I target/cxxqt/qml_modules -I /usr/lib/qt6/qml qml/StepIndicator.qml qml/Main.qml
 cargo build --release
+QT_QPA_PLATFORM=offscreen timeout 3s ./target/release/dualsense-updater  # expect exit 124 (clean startup)
 ```
 
 Note: Update `AGENTS.md` (and `README.md` if user-facing behavior changes) as part of your incremental commits whenever the architecture changes significantly.

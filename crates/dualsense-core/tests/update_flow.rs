@@ -3,13 +3,14 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use dualsense_core::{
-    CancellationToken, CoreError, DEFAULT_PID, DEFAULT_VID, DownloadProgress, DualSenseUpdater,
-    FirmwareCatalogClient, FirmwareImage, HidDeviceEnumerator, HidDeviceInfo, HidTransport,
-    HttpClient, MAX_HID_CHUNK_SIZE, REPORT_ID_FIRMWARE_INFO, REPORT_ID_UPDATE_COMMAND,
+    BoardModel, CancellationToken, CoreError, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID,
+    DownloadProgress, DualSenseUpdater, FirmwareCatalogClient, FirmwareImage, HidDeviceEnumerator,
+    HidDeviceInfo, HidTransport, HttpClient, MAX_HID_CHUNK_SIZE, REPORT_ID_FIRMWARE_INFO,
+    REPORT_ID_SERIAL_COMMAND, REPORT_ID_SERIAL_RESPONSE, REPORT_ID_UPDATE_COMMAND,
     REPORT_ID_UPDATE_STATUS, SONY_INFO_JSON_URL, Sleeper, StartUpdateError, StartUpdateStatusCode,
     UPDATE_HEADER_LEN, UpdateCommand, UpdateConfig, UpdateFailure, UpdatePhase, UpdateProgress,
     VerifyUpdateImageError, VerifyUpdateStatusCode, WRITE_BLOCK_SIZE, WriteUpdateImageError,
-    WriteUpdateStatusCode,
+    WriteUpdateStatusCode, decode_ds5_color, resolve_controller_target,
 };
 
 #[derive(Default)]
@@ -23,9 +24,12 @@ impl Sleeper for NoopSleeper {
     }
 }
 
-/// Stateful simulated DualSense controller validating wire-level `0xF4`/`0xF5`/`0x20` reports.
+/// Stateful simulated DualSense controller validating wire-level `0xF4`/`0xF5`/`0x20`/`0x80`/`0x81` reports.
 struct SimDualSenseController {
     current_version: u16,
+    fw_series: u16,
+    hw_info: u32,
+    serial_number: Option<String>,
     received_header: RefCell<Vec<u8>>,
     received_image: RefCell<Vec<u8>>,
     finalized: RefCell<bool>,
@@ -43,6 +47,9 @@ impl SimDualSenseController {
     fn new(current_version: u16) -> Self {
         Self {
             current_version,
+            fw_series: 0x000B,
+            hw_info: 0x0000_0811,
+            serial_number: None,
             received_header: RefCell::new(Vec::new()),
             received_image: RefCell::new(Vec::new()),
             finalized: RefCell::new(false),
@@ -62,11 +69,28 @@ impl HidTransport for SimDualSenseController {
     fn get_feature_report(&self, report_id: u8, length: usize) -> dualsense_core::Result<Vec<u8>> {
         if report_id == REPORT_ID_FIRMWARE_INFO {
             let mut report = vec![0u8; length.max(64)];
-            report[..11].copy_from_slice(b"May 01 2025");
+            report[0] = REPORT_ID_FIRMWARE_INFO;
+            report[1..12].copy_from_slice(b"May 01 2025");
             report[12..20].copy_from_slice(b"14:30:00");
+            report[22..24].copy_from_slice(&self.fw_series.to_le_bytes());
+            report[24..28].copy_from_slice(&self.hw_info.to_le_bytes());
             let le = self.current_version.to_le_bytes();
             report[44] = le[0];
             report[45] = le[1];
+            return Ok(report);
+        }
+        if report_id == REPORT_ID_SERIAL_RESPONSE {
+            let Some(serial) = &self.serial_number else {
+                return Err(CoreError::Hid("serial report unsupported".to_string()));
+            };
+            let mut report = vec![0u8; length.max(64)];
+            report[0] = REPORT_ID_SERIAL_RESPONSE;
+            report[1] = 1;
+            report[2] = 19;
+            report[3] = 2;
+            let bytes = serial.as_bytes();
+            let copy_len = bytes.len().min(17);
+            report[4..4 + copy_len].copy_from_slice(&bytes[..copy_len]);
             return Ok(report);
         }
         if report_id == REPORT_ID_UPDATE_STATUS {
@@ -83,6 +107,12 @@ impl HidTransport for SimDualSenseController {
     }
 
     fn send_feature_report(&self, data: &[u8]) -> dualsense_core::Result<()> {
+        if data == [REPORT_ID_SERIAL_COMMAND, 1, 19] {
+            if self.serial_number.is_none() {
+                return Err(CoreError::Hid("serial command unsupported".to_string()));
+            }
+            return Ok(());
+        }
         assert!(data.len() >= 3);
         assert_eq!(data[0], REPORT_ID_UPDATE_COMMAND);
         let cmd = UpdateCommand::from_int(data[1]);
@@ -389,4 +419,85 @@ fn end_to_end_failure_paths_and_mid_transfer_cancellation() {
         .unwrap_err();
     assert_eq!(err_cancel, CoreError::Cancelled);
     assert!(!*updater_cancel.device().transport().finalized.borrow());
+}
+
+#[test]
+fn end_to_end_board_detection_serial_color_and_unsupported_handling() {
+    // 1. Supported BDM-050 controller with 0x80/0x81 serial & colorway detection
+    let mut sim_bdm050 = SimDualSenseController::new(0x0520);
+    sim_bdm050.fw_series = 0x000B;
+    sim_bdm050.hw_info = 0x0000_0811;
+    sim_bdm050.serial_number = Some("F12302ABCDEF12345".to_string());
+
+    let updater_050 = DualSenseUpdater::with_sleeper_and_config(
+        sim_bdm050,
+        NoopSleeper::default(),
+        UpdateConfig::default(),
+    );
+    let info = updater_050.read_firmware_info().expect("firmware info");
+    assert_eq!(info.build_date, "May 01 2025");
+    assert_eq!(info.board_model(), BoardModel::Bdm050);
+    assert_eq!(info.fw_series(), 0x000B);
+    assert_eq!(info.hw_info(), 0x0000_0811);
+
+    let hw = resolve_controller_target(&info, DEFAULT_PID);
+    assert_eq!(hw.board_name, "BDM-050");
+    assert_eq!(hw.supported_target_id, Some("000B"));
+    assert!(hw.is_officially_supported);
+
+    let serial = updater_050
+        .try_read_serial_number()
+        .expect("serial should be decoded");
+    assert_eq!(serial, "F12302ABCDEF12345");
+    assert_eq!(decode_ds5_color(&serial), Some("Cosmic Red"));
+
+    // Resolve Sony catalog release using auto-detected target ID
+    let raw_fw = synthetic_firmware(512, 0x0630);
+    let catalog_client = FirmwareCatalogClient::new(MockSonyHttp {
+        image_bytes: raw_fw,
+    });
+    let cancel = CancellationToken::new();
+    let catalog = catalog_client.fetch_catalog(&cancel).expect("catalog");
+    let release = catalog
+        .release_for_target(hw.supported_target_id.unwrap())
+        .expect("release");
+    let image = catalog_client
+        .download_firmware(release, &cancel, &mut |_| {})
+        .expect("download");
+    updater_050
+        .run_full_update(&image, &cancel, |_| {})
+        .expect("update succeeds");
+
+    // 2. Unsupported BDM-010 where 0x80/0x81 errors cleanly without breaking read_firmware_info
+    let mut sim_bdm010 = SimDualSenseController::new(0x0200);
+    sim_bdm010.fw_series = 0x0001;
+    sim_bdm010.hw_info = 0x0000_0300;
+    sim_bdm010.serial_number = None;
+
+    let updater_010 = DualSenseUpdater::with_sleeper_and_config(
+        sim_bdm010,
+        NoopSleeper::default(),
+        UpdateConfig::default(),
+    );
+    let info_010 = updater_010
+        .read_firmware_info()
+        .expect("0x20 succeeds even if 0x80/0x81 unsupported");
+    assert_eq!(updater_010.try_read_serial_number(), None);
+
+    let hw_010 = resolve_controller_target(&info_010, DEFAULT_PID);
+    assert_eq!(hw_010.board_name, "BDM-010");
+    assert_eq!(hw_010.supported_target_id, None);
+    assert!(!hw_010.is_officially_supported);
+    assert!(hw_010.unsupported_reason.is_some());
+
+    // 3. DualSense Edge resolves to target 0044
+    let mut sim_edge = SimDualSenseController::new(0x0217);
+    sim_edge.fw_series = 0x0044;
+    sim_edge.hw_info = 0x0000_0400;
+    let updater_edge = DualSenseUpdater::new(sim_edge);
+    let info_edge = updater_edge.read_firmware_info().expect("edge info");
+    let hw_edge = resolve_controller_target(&info_edge, DUALSENSE_EDGE_PID);
+    assert_eq!(hw_edge.board_name, "DualSense Edge");
+    assert_eq!(hw_edge.supported_target_id, Some("0044"));
+    assert!(hw_edge.is_officially_supported);
 }

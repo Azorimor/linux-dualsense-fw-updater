@@ -8,6 +8,7 @@ fn main() {
     CxxQtBuilder::new()
         .qt_module("Quick")
         .qt_module("QuickControls2")
+        .file("src/qt_bridge.rs")
         .build();
 }
 

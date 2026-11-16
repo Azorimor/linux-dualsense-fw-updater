@@ -2,9 +2,11 @@ extern crate cxx_qt;
 extern crate cxx_qt_lib;
 
 mod cli;
-mod hid;
 mod error;
+mod hid;
 mod protocol;
+#[allow(dead_code)]
+mod qt_bridge;
 #[allow(dead_code)]
 mod snapshot_adapter;
 mod update;

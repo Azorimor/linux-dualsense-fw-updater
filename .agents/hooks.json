@@ -1,0 +1,23 @@
+{
+  "git-workflow-guard": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "./hooks/session-start.sh",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "write_file|edit_file|write_to_file|replace_file_content|multi_replace_file_content|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./hooks/pre-tool-use.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

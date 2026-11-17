@@ -216,7 +216,7 @@ jobs:
           version: "6.8.3"
           target: "desktop"
           arch: "linux_gcc_64"
-          modules: "qtshadertools qtsvg qtwayland"
+          modules: "qtshadertools"
           cache: "true"
 
       - name: Configure Qt 6.8.3 environment
@@ -269,6 +269,7 @@ jobs:
           cmake -S "${KF6_WORK}/kirigami-6.10.0" -B "${KF6_WORK}/kirigami-build" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="${QT_APPIMAGE_DIR};${KF6_OVERLAY}" \
+            -DQt6_DIR="${QT_APPIMAGE_DIR}/lib/cmake/Qt6" \
             -DCMAKE_INSTALL_PREFIX="$KF6_OVERLAY" \
             -DCMAKE_INSTALL_LIBDIR=lib \
             -DKDE_INSTALL_QMLDIR=qml \
@@ -286,10 +287,15 @@ jobs:
           test -f "${QT_APPIMAGE_DIR}/qml/org/kde/kirigami/qmldir"
           ls -la "${QT_APPIMAGE_DIR}/lib/libKirigami"*.so.6
 
-          cargo clean -p dualsense-updater --release
+          [[ "${QMAKE:-}" == "${QT_APPIMAGE_DIR}/bin/"* ]]
+          cargo clean -p dualsense-updater -p cxx-qt-lib --release
           cargo build --release --locked
           readelf -p .comment target/release/dualsense-updater | grep -i mold
           ldd target/release/dualsense-updater | grep -F "${QT_APPIMAGE_DIR}/lib"
+          if ldd target/release/dualsense-updater | grep -E 'libQt6.*\.so' | grep -Fv "${QT_APPIMAGE_DIR}/lib"; then
+            echo "error: binary linked against non-AppImage Qt6 libraries" >&2
+            exit 1
+          fi
 
           ./scripts/package-appimage.sh --appimage-only target/release/dualsense-updater "$RELEASE_TAG" dist
 

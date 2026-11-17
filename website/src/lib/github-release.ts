@@ -5,6 +5,9 @@
 export const GITHUB_RELEASE_API_URL =
   'https://api.github.com/repos/Azorimor/linux-dualsense-fw-updater/releases/latest';
 
+export const GITHUB_RELEASES_LIST_API_URL =
+  'https://api.github.com/repos/Azorimor/linux-dualsense-fw-updater/releases?per_page=10';
+
 export type ReleaseAssetKind = 'appimage' | 'tarball' | 'checksums';
 
 export interface ReleaseAsset {
@@ -12,6 +15,7 @@ export interface ReleaseAsset {
   size: number;
   formattedSize: string;
   downloadUrl: string;
+  sha256?: string;
   kind: ReleaseAssetKind;
 }
 
@@ -21,6 +25,13 @@ export interface GitHubRelease {
   publishedAt: string;
   htmlUrl: string;
   assets: ReleaseAsset[];
+}
+
+export interface PartitionedReleaseAssets {
+  appimage: ReleaseAsset | null;
+  tarball: ReleaseAsset | null;
+  checksums: ReleaseAsset | null;
+  otherBuilds: ReleaseAsset[];
 }
 
 const ASSET_ORDER: Record<ReleaseAssetKind, number> = {
@@ -87,6 +98,46 @@ export function buildGitHubHeaders(token?: string): Record<string, string> {
   return headers;
 }
 
+export function parseSha256Digest(rawDigest: unknown): string | undefined {
+  if (typeof rawDigest !== 'string') {
+    return undefined;
+  }
+  const trimmed = rawDigest.trim();
+  const hex = trimmed.toLowerCase().startsWith('sha256:')
+    ? trimmed.slice('sha256:'.length).trim()
+    : trimmed;
+  return /^[0-9a-f]{64}$/i.test(hex) ? hex.toLowerCase() : undefined;
+}
+
+export function partitionReleaseAssets(
+  assets: ReleaseAsset[],
+): PartitionedReleaseAssets {
+  let appimage: ReleaseAsset | null = null;
+  let tarball: ReleaseAsset | null = null;
+  let checksums: ReleaseAsset | null = null;
+  const otherBuilds: ReleaseAsset[] = [];
+
+  for (const asset of assets) {
+    if (asset.kind === 'appimage') {
+      if (!appimage) {
+        appimage = asset;
+      } else {
+        otherBuilds.push(asset);
+      }
+    } else if (asset.kind === 'tarball') {
+      if (!tarball) {
+        tarball = asset;
+      } else {
+        otherBuilds.push(asset);
+      }
+    } else if (asset.kind === 'checksums' && !checksums) {
+      checksums = asset;
+    }
+  }
+
+  return { appimage, tarball, checksums, otherBuilds };
+}
+
 function isHttpsUrl(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('https://');
 }
@@ -134,6 +185,7 @@ export function parseGitHubRelease(payload: unknown): GitHubRelease | null {
       typeof asset.size === 'number' && Number.isFinite(asset.size)
         ? Math.max(0, asset.size)
         : 0;
+    const sha256 = parseSha256Digest(asset.digest);
     const kind = assetName ? classifyReleaseAsset(assetName) : null;
 
     if (!assetName || !downloadUrl || !kind) {
@@ -145,6 +197,7 @@ export function parseGitHubRelease(payload: unknown): GitHubRelease | null {
       size,
       formattedSize: formatBytes(size),
       downloadUrl,
+      ...(sha256 ? { sha256 } : {}),
       kind,
     });
   }
@@ -160,10 +213,36 @@ export function parseGitHubRelease(payload: unknown): GitHubRelease | null {
   };
 }
 
+export function parseLatestFromReleasesList(
+  payload: unknown,
+): GitHubRelease | null {
+  if (!Array.isArray(payload)) {
+    return null;
+  }
+  const candidates: Array<{ release: GitHubRelease; prerelease: boolean }> = [];
+  for (const item of payload) {
+    const parsed = parseGitHubRelease(item);
+    if (!parsed) {
+      continue;
+    }
+    const isPrerelease =
+      typeof item === 'object' &&
+      item !== null &&
+      (item as Record<string, unknown>).prerelease === true;
+    candidates.push({ release: parsed, prerelease: isPrerelease });
+  }
+  return (
+    candidates.find((c) => !c.prerelease)?.release ??
+    candidates[0]?.release ??
+    null
+  );
+}
+
 export interface FetchLatestReleaseOptions {
   token?: string;
   fetchImpl?: typeof fetch;
   apiUrl?: string;
+  releasesListApiUrl?: string;
   timeoutMs?: number;
 }
 
@@ -172,19 +251,35 @@ export async function fetchLatestRelease(
 ): Promise<GitHubRelease | null> {
   const fetchFn = options.fetchImpl ?? fetch;
   const apiUrl = options.apiUrl ?? GITHUB_RELEASE_API_URL;
+  const listApiUrl =
+    options.releasesListApiUrl ?? GITHUB_RELEASES_LIST_API_URL;
   const token = options.token ?? process.env.GITHUB_TOKEN;
   const timeoutMs = options.timeoutMs ?? 8000;
+  const headers = buildGitHubHeaders(token);
 
   try {
     const response = await fetchFn(apiUrl, {
-      headers: buildGitHubHeaders(token),
+      headers,
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!response.ok) {
-      return null;
+    if (response.ok) {
+      const data: unknown = await response.json();
+      return parseGitHubRelease(data);
     }
-    const data: unknown = await response.json();
-    return parseGitHubRelease(data);
+
+    if (response.status === 404 && !options.apiUrl) {
+      const listResponse = await fetchFn(listApiUrl, {
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!listResponse.ok) {
+        return null;
+      }
+      const listData: unknown = await listResponse.json();
+      return parseLatestFromReleasesList(listData);
+    }
+
+    return null;
   } catch {
     return null;
   }

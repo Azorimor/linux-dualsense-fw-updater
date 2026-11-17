@@ -8,6 +8,8 @@ import { DownloadPanel } from '@/components/DownloadPanel';
 import { fetchLatestRelease } from '@/lib/github-release';
 import { baseOptions } from '@/lib/layout.shared';
 
+export const dynamic = 'force-static';
+
 export const metadata: Metadata = {
   title: 'Download',
   description:

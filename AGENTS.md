@@ -158,10 +158,13 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 ## 6. Build & Verification Commands
 
+Linux builds use the `mold` linker via `.cargo/config.toml` (`-C link-arg=-fuse-ld=mold`).
+
 ```sh
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+./scripts/coverage.sh  # requires cargo-llvm-cov + llvm-tools; writes target/coverage/{lcov.info,html/index.html}
 cargo check
 /usr/lib/qt6/bin/qmllint -I target/cxxqt/qml_modules -I /usr/lib/qt6/qml qml/StepIndicator.qml qml/Main.qml
 cargo build --release

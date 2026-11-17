@@ -29,6 +29,7 @@ Launch the desktop application (`dualsense-updater`) and follow the four guided 
 ## Linux Build Prerequisites
 
 - **Rust toolchain** (Edition 2024) and a **C++17 / `clang` toolchain** (for `cxx` / `cxx-qt-build`)
+- **`mold` linker** (configured for Linux targets via `.cargo/config.toml` with `-C link-arg=-fuse-ld=mold`)
 - **Qt 6** development packages: `Qt6Core`, `Qt6Gui`, `Qt6Qml`, `Qt6Quick`, `Qt6QuickControls2`, and `qmake6`
 - **KDE Frameworks 6 (KF6) runtime QML modules**: `Kirigami` (`org.kde.kirigami`) and `qqc2-desktop-style` (`org.kde.desktop`; falls back to Qt `Fusion` style if unavailable, or override with `QT_QUICK_CONTROLS_STYLE`)
 - **`hidapi`** development library (`hidapi-hidraw` / `hidapi-libusb`) and `pkg-config`
@@ -71,6 +72,14 @@ To verify QML loading against the offscreen Qt platform plugin in headless envir
 ```sh
 QT_QPA_PLATFORM=offscreen timeout 5s cargo run
 ```
+
+To generate workspace code coverage reports (requires `cargo-llvm-cov` and the `llvm-tools` rustup component):
+
+```sh
+./scripts/coverage.sh
+```
+
+This writes LCOV data to `target/coverage/lcov.info`, HTML reports to `target/coverage/html/index.html`, and prints a workspace summary table.
 
 ## Sony Firmware Sources & Hardware Targets
 

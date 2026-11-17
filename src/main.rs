@@ -1,5 +1,7 @@
 mod qt_bridge;
 mod snapshot_adapter;
+#[cfg(test)]
+mod tests;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};
 

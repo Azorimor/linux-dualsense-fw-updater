@@ -396,6 +396,7 @@ pub enum AppEvent {
     ResetFlow,
 
     DevicesScanned(std::result::Result<Vec<HidDeviceInfo>, CoreError>),
+    DevicesPollUpdated(Vec<HidDeviceInfo>),
     DeviceFirmwareInfoLoaded {
         path: String,
         result: std::result::Result<DeviceInspection, CoreError>,

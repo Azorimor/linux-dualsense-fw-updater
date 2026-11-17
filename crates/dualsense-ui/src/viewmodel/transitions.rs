@@ -107,6 +107,7 @@ impl AppState {
 
     pub(super) fn handle_select_local_file(&mut self, path: PathBuf) -> Vec<AppCommand> {
         if self.busy.is_some()
+            || self.selected_device().is_none()
             || !matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate)
         {
             return Vec::new();
@@ -240,11 +241,119 @@ impl AppState {
         }
     }
 
+    pub(super) fn handle_devices_poll_updated(
+        &mut self,
+        infos: Vec<HidDeviceInfo>,
+    ) -> Vec<AppCommand> {
+        if self.is_flashing() {
+            return Vec::new();
+        }
+
+        let was_empty = self.devices.is_empty();
+        let had_selected = self.selected_device_path.is_some();
+        let selected_still_present = self
+            .selected_device_path
+            .as_deref()
+            .is_some_and(|sel| infos.iter().any(|d| d.path == sel));
+
+        self.reconcile_devices(&infos);
+
+        // On Completed, unplugging is expected: keep devices updated silently without leaving the page.
+        if self.step == AppStep::Completed {
+            if had_selected && !selected_still_present {
+                self.selected_device_path = None;
+                self.refresh_target_comparisons();
+            }
+            return Vec::new();
+        }
+
+        if had_selected && !selected_still_present {
+            let mut commands = Vec::new();
+            if self.busy.is_some_and(BusyOperation::is_cancellable) {
+                commands.push(AppCommand::CancelActiveOperation);
+            }
+            self.busy = None;
+            self.progress = ProgressSnapshot::idle();
+            self.selected_device_path = None;
+            self.warning_acknowledged = false;
+            self.error = None;
+            self.step = AppStep::DetectController;
+            self.previous_step = AppStep::DetectController;
+            self.refresh_target_comparisons();
+            self.banner = Some(BannerMessage::warning(
+                "Controller disconnected",
+                "Your DualSense controller was unplugged. Plug it back in with a USB cable to continue.",
+            ));
+            return commands;
+        }
+
+        // Recover seamlessly on Step 0 when a controller is plugged back in.
+        if self.step == AppStep::DetectController
+            && self.busy.is_none()
+            && was_empty
+            && !self.devices.is_empty()
+        {
+            let first = self.devices[0].clone();
+            self.selected_device_path = Some(first.path.clone());
+            self.warning_acknowledged = false;
+            self.auto_match_target_for_device(&first);
+            self.refresh_target_comparisons();
+            self.busy = Some(BusyOperation::ReadingDeviceInfo);
+            self.progress = ProgressSnapshot::indeterminate(
+                ProgressStage::ReadingController,
+                "Reading controller firmware version…",
+            );
+            return vec![AppCommand::ReadDeviceFirmwareInfo {
+                device: first.target(),
+            }];
+        }
+
+        if self.step == AppStep::DetectController && self.devices.is_empty() && !was_empty {
+            self.selected_device_path = None;
+            self.refresh_target_comparisons();
+            self.banner = Some(BannerMessage::warning(
+                "No DualSense controller detected",
+                "Plug your controller directly into your PC using a USB data cable (updates cannot run over Bluetooth), then click Scan Again.",
+            ));
+        }
+
+        Vec::new()
+    }
+
+    fn reconcile_devices(&mut self, infos: &[HidDeviceInfo]) {
+        let mut next = Vec::with_capacity(infos.len());
+        for info in infos {
+            if let Some(existing) = self.devices.iter().find(|d| {
+                d.path == info.path
+                    && d.vendor_id == info.vendor_id
+                    && d.product_id == info.product_id
+            }) {
+                next.push(existing.clone());
+            } else {
+                next.push(DeviceSummary::from_hid_info(info));
+            }
+        }
+        self.devices = next;
+    }
+
     pub(super) fn handle_device_firmware_info_loaded(
         &mut self,
         path: &str,
         result: std::result::Result<DeviceInspection, CoreError>,
     ) -> Vec<AppCommand> {
+        if matches!(result, Err(CoreError::Cancelled))
+            && !matches!(self.busy, Some(BusyOperation::ReadingDeviceInfo))
+        {
+            return Vec::new();
+        }
+        if !self.devices.iter().any(|d| d.path == path) {
+            if matches!(self.busy, Some(BusyOperation::ReadingDeviceInfo)) {
+                self.busy = None;
+                self.progress = ProgressSnapshot::idle();
+            }
+            return Vec::new();
+        }
+
         self.busy = None;
         self.progress = ProgressSnapshot::idle();
 
@@ -284,6 +393,16 @@ impl AppState {
                 ));
             }
             Err(err) => {
+                if matches!(
+                    err,
+                    CoreError::DevicePathNotMatched(_) | CoreError::DeviceNotFound { .. }
+                ) {
+                    self.devices.retain(|d| d.path != path);
+                    if self.selected_device_path.as_deref() == Some(path) {
+                        self.selected_device_path = None;
+                    }
+                    self.refresh_target_comparisons();
+                }
                 self.enter_error(err, AppStep::DetectController);
             }
         }
@@ -294,6 +413,11 @@ impl AppState {
         &mut self,
         result: std::result::Result<FirmwareCatalog, CoreError>,
     ) -> Vec<AppCommand> {
+        if matches!(result, Err(CoreError::Cancelled))
+            && !matches!(self.busy, Some(BusyOperation::CheckingCatalog))
+        {
+            return Vec::new();
+        }
         self.busy = None;
         self.progress = ProgressSnapshot::idle();
 
@@ -351,6 +475,11 @@ impl AppState {
         path: PathBuf,
         result: std::result::Result<LocalFirmwareInfo, CoreError>,
     ) -> Vec<AppCommand> {
+        if matches!(result, Err(CoreError::Cancelled))
+            && !matches!(self.busy, Some(BusyOperation::InspectingLocalFile))
+        {
+            return Vec::new();
+        }
         self.busy = None;
         self.progress = ProgressSnapshot::idle();
 
@@ -386,6 +515,9 @@ impl AppState {
         &mut self,
         result: std::result::Result<u16, CoreError>,
     ) -> Vec<AppCommand> {
+        if self.step != AppStep::Updating {
+            return Vec::new();
+        }
         let was_flashing = matches!(self.busy, Some(BusyOperation::FlashingFirmware));
         self.busy = None;
 

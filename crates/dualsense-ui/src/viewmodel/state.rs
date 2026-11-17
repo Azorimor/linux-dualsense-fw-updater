@@ -109,7 +109,7 @@ impl AppState {
             AppEvent::ContinueToFirmwareStep => {
                 if self.busy.is_none()
                     && self.step == AppStep::DetectController
-                    && self.selected_device_path.is_some()
+                    && self.selected_device().is_some()
                 {
                     self.step = AppStep::SelectFirmware;
                     self.warning_acknowledged = false;
@@ -119,7 +119,7 @@ impl AppState {
             AppEvent::ContinueToConfirmStep => {
                 if self.busy.is_none()
                     && self.step == AppStep::SelectFirmware
-                    && self.selected_device_path.is_some()
+                    && self.selected_device().is_some()
                     && self.has_ready_firmware()
                 {
                     self.step = AppStep::ConfirmUpdate;
@@ -172,6 +172,7 @@ impl AppState {
                 Vec::new()
             }
             AppEvent::DevicesScanned(result) => self.handle_devices_scanned(result),
+            AppEvent::DevicesPollUpdated(devices) => self.handle_devices_poll_updated(devices),
             AppEvent::DeviceFirmwareInfoLoaded { path, result } => {
                 self.handle_device_firmware_info_loaded(&path, result)
             }
@@ -198,6 +199,11 @@ impl AppState {
             }
             AppEvent::UpdateFinished(result) => self.handle_update_finished(result),
         }
+    }
+
+    /// Returns `true` when firmware is actively being flashed to a controller.
+    pub(crate) fn is_flashing(&self) -> bool {
+        matches!(self.busy, Some(BusyOperation::FlashingFirmware))
     }
 
     pub(super) fn enter_error(&mut self, err: dualsense_core::CoreError, return_step: AppStep) {

@@ -111,8 +111,9 @@ impl AppState {
         let can_check_updates = !is_busy
             && board_supported
             && matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate);
-        let can_select_file =
-            !is_busy && matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate);
+        let can_select_file = !is_busy
+            && has_device
+            && matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate);
         let can_review_update =
             !is_busy && self.step == AppStep::SelectFirmware && has_device && has_ready_firmware;
         let can_start_update = !is_busy

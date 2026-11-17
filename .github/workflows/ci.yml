@@ -1,0 +1,84 @@
+name: CI
+
+# Manual trigger only via the GitHub Actions UI ("Run workflow").
+on:
+  workflow_dispatch:
+
+env:
+  QMAKE: /usr/bin/qmake6
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    name: Build, Test & Coverage (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Note: Ubuntu 24.04 (noble) does not package KF6 Kirigami
+      # (`qml6-module-org-kde-kirigami`), so QML runtime/lint steps requiring
+      # KF6 Kirigami are not invoked directly on `ubuntu-24.04`. All Qt6 C++
+      # compilation, `cxx-qt` linking, QML binding/asset checks
+      # (`qml_bindings_test`), release build, and 100% headless tests run natively.
+      - name: Install Ubuntu 24.04 system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            mold \
+            libhidapi-dev \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            qt6-declarative-dev-tools \
+            qmake6 \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qtquick-layouts
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Cache Rust dependencies and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Lint workspace with clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run all headless tests
+        run: cargo test --workspace
+
+      - name: Build release binary and verify mold linker
+        run: |
+          cargo build --release
+          readelf -p .comment target/release/dualsense-updater | grep -i mold
+
+      - name: Generate coverage report and print summary
+        run: |
+          ./scripts/coverage.sh
+          {
+            echo "## Workspace Code Coverage"
+            echo ""
+            echo '```text'
+            cargo llvm-cov report --workspace --summary-only
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/coverage/
+          if-no-files-found: error

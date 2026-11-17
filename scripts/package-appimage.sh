@@ -79,6 +79,11 @@ SVG_ICON_FILE="${ICONS_DIR}/scalable/icon.svg"
 DIRICON_SOURCE="${ICONS_DIR}/256x256/icon.png"
 GPL_LICENSE_FILE="${REPO_ROOT}/LICENSES/GPL-3.0-or-later.txt"
 MIT_LICENSE_FILE="${REPO_ROOT}/LICENSES/MIT.txt"
+LGPL3_LICENSE_FILE="${REPO_ROOT}/LICENSES/LGPL-3.0-only.txt"
+LGPL21_LICENSE_FILE="${REPO_ROOT}/LICENSES/LGPL-2.1-or-later.txt"
+LGPL20_LICENSE_FILE="${REPO_ROOT}/LICENSES/LGPL-2.0-or-later.txt"
+BSD3_LICENSE_FILE="${REPO_ROOT}/LICENSES/BSD-3-Clause.txt"
+THIRD_PARTY_NOTICES_FILE="${REPO_ROOT}/packaging/linux/THIRD_PARTY_NOTICES.txt"
 README_FILE="${REPO_ROOT}/README.md"
 
 if [[ ! -x "${BINARY_PATH}" ]]; then
@@ -90,7 +95,12 @@ for required in \
     "${INSTALL_SCRIPT}" \
     "${SVG_ICON_FILE}" \
     "${GPL_LICENSE_FILE}" \
-    "${MIT_LICENSE_FILE}"
+    "${MIT_LICENSE_FILE}" \
+    "${LGPL3_LICENSE_FILE}" \
+    "${LGPL21_LICENSE_FILE}" \
+    "${LGPL20_LICENSE_FILE}" \
+    "${BSD3_LICENSE_FILE}" \
+    "${THIRD_PARTY_NOTICES_FILE}"
 do
     if [[ ! -f "${required}" ]]; then
         echo "error: required packaging asset missing: ${required}" >&2
@@ -118,8 +128,10 @@ if [[ "${MODE}" != "appimage-only" ]]; then
     TAR_STAGE="${STAGE_ROOT}/${APP_NAME}-${TAG}-x86_64"
     mkdir -p "${TAR_STAGE}"
     install -Dm755 "${BINARY_ABS}" "${TAR_STAGE}/dualsense-updater"
-    install -Dm644 "${GPL_LICENSE_FILE}" "${TAR_STAGE}/LICENSES/GPL-3.0-or-later.txt"
-    install -Dm644 "${MIT_LICENSE_FILE}" "${TAR_STAGE}/LICENSES/MIT.txt"
+    for lic_file in "${REPO_ROOT}/LICENSES/"*.txt; do
+        install -Dm644 "${lic_file}" "${TAR_STAGE}/LICENSES/$(basename "${lic_file}")"
+    done
+    install -Dm644 "${THIRD_PARTY_NOTICES_FILE}" "${TAR_STAGE}/THIRD_PARTY_NOTICES.txt"
     if [[ -f "${README_FILE}" ]]; then
         install -Dm644 "${README_FILE}" "${TAR_STAGE}/README.md"
     fi
@@ -141,7 +153,8 @@ fi
 
 # 2. Stage AppDir for linuxdeploy + linuxdeploy-plugin-qt
 APPDIR="${STAGE_ROOT}/AppDir"
-mkdir -p "${APPDIR}/usr/bin"
+APPDIR_LICENSES_DIR="${APPDIR}/usr/share/licenses/${APP_NAME}"
+mkdir -p "${APPDIR}/usr/bin" "${APPDIR_LICENSES_DIR}"
 install -Dm755 "${BINARY_ABS}" "${APPDIR}/usr/bin/dualsense-updater"
 install -Dm644 "${DESKTOP_FILE}" "${APPDIR}/usr/share/applications/${APP_ID}.desktop"
 for size in "${ICON_SIZES[@]}"; do
@@ -151,8 +164,10 @@ done
 install -Dm644 "${SVG_ICON_FILE}" \
     "${APPDIR}/usr/share/icons/hicolor/scalable/apps/${APP_ID}.svg"
 install -Dm644 "${DIRICON_SOURCE}" "${APPDIR}/.DirIcon"
-install -Dm644 "${GPL_LICENSE_FILE}" "${APPDIR}/usr/share/licenses/${APP_NAME}/GPL-3.0-or-later.txt"
-install -Dm644 "${MIT_LICENSE_FILE}" "${APPDIR}/usr/share/licenses/${APP_NAME}/MIT.txt"
+for lic_file in "${REPO_ROOT}/LICENSES/"*.txt; do
+    install -Dm644 "${lic_file}" "${APPDIR_LICENSES_DIR}/$(basename "${lic_file}")"
+done
+install -Dm644 "${THIRD_PARTY_NOTICES_FILE}" "${APPDIR_LICENSES_DIR}/THIRD_PARTY_NOTICES.txt"
 
 if [[ "${MODE}" == "stage-only" ]]; then
     APPDIR_STAGE_OUT="${OUT_DIR_ABS}/AppDir"
@@ -359,6 +374,90 @@ if [[ -d "${WAYLAND_GFX_SRC}" ]]; then
     shopt -u nullglob
 fi
 
+collect_appdir_library_notices() {
+    local appdir="$1"
+    local licenses_dir="$2"
+    local bundled_list_file="${licenses_dir}/BUNDLED_LIBRARIES.txt"
+
+    local search_dirs=()
+    for sub in lib plugins qml; do
+        if [[ -d "${appdir}/usr/${sub}" ]]; then
+            search_dirs+=("${appdir}/usr/${sub}")
+        fi
+    done
+
+    local bundled_libs=""
+    if [[ "${#search_dirs[@]}" -gt 0 ]]; then
+        bundled_libs="$(find "${search_dirs[@]}" \( -type f -o -type l \) \( -name '*.so' -o -name '*.so.*' \) \
+            | sed "s|^${appdir}/||" \
+            | LC_ALL=C sort -u || true)"
+    fi
+
+    {
+        echo "# Bundled shared libraries inside AppDir (relative to AppDir root)"
+        echo "# See THIRD_PARTY_NOTICES.txt for Qt 6, KDE Kirigami, hidapi, and system package notices."
+        if [[ -n "${bundled_libs}" ]]; then
+            printf '%s\n' "${bundled_libs}"
+        fi
+    } > "${bundled_list_file}"
+
+    if [[ -n "${QT_APPIMAGE_DIR:-}" ]]; then
+        if [[ -d "${QT_APPIMAGE_DIR}/LICENSES" ]]; then
+            shopt -s nullglob
+            for lic_file in "${QT_APPIMAGE_DIR}/LICENSES/"*; do
+                if [[ -f "${lic_file}" ]]; then
+                    install -Dm644 "${lic_file}" \
+                        "${licenses_dir}/upstream-licenses/$(basename "${lic_file}")"
+                fi
+            done
+            shopt -u nullglob
+        fi
+        shopt -s nullglob
+        for lic_file in "${QT_APPIMAGE_DIR}/"LICENSE*; do
+            if [[ -f "${lic_file}" ]]; then
+                install -Dm644 "${lic_file}" \
+                    "${licenses_dir}/upstream-licenses/$(basename "${lic_file}")"
+            fi
+        done
+        shopt -u nullglob
+    fi
+
+    if [[ -n "${bundled_libs}" ]] && command -v dpkg-query >/dev/null 2>&1; then
+        mkdir -p "${licenses_dir}/system-packages"
+        declare -A seen_pkgs=()
+        while IFS= read -r rel_lib; do
+            [[ -z "${rel_lib}" ]] && continue
+            local so_name
+            so_name="$(basename "${rel_lib}")"
+            local query_out=""
+            query_out="$(dpkg-query -S "*/${so_name}" 2>/dev/null || true)"
+            [[ -z "${query_out}" ]] && continue
+            while IFS= read -r line; do
+                [[ "${line}" == diversion* ]] && continue
+                [[ "${line}" == "local diversion"* ]] && continue
+                [[ "${line}" == *": "* ]] || continue
+                local pkg_part="${line%%: *}"
+                local path_part="${line#*: }"
+                [[ "$(basename "${path_part}")" == "${so_name}" ]] || continue
+                local pkg_name="${pkg_part%%:*}"
+                pkg_name="${pkg_name%%,*}"
+                [[ -n "${pkg_name}" ]] || continue
+                if [[ -z "${seen_pkgs[${pkg_name}]+x}" ]]; then
+                    seen_pkgs["${pkg_name}"]=1
+                    local copyright_file="/usr/share/doc/${pkg_name}/copyright"
+                    if [[ ! -f "${copyright_file}" ]]; then
+                        copyright_file="/usr/share/doc/${pkg_part}/copyright"
+                    fi
+                    if [[ -f "${copyright_file}" ]]; then
+                        install -Dm644 "${copyright_file}" \
+                            "${licenses_dir}/system-packages/${pkg_name}.copyright"
+                    fi
+                fi
+            done <<< "${query_out}"
+        done <<< "${bundled_libs}"
+    fi
+}
+
 pushd "${STAGE_ROOT}" >/dev/null
 if [[ "${#WAYLAND_GFX_SOS[@]}" -gt 0 ]]; then
     "${LINUXDEPLOY_BIN}" \
@@ -375,16 +474,22 @@ if [[ "${#WAYLAND_GFX_SOS[@]}" -gt 0 ]]; then
         --appdir "${APPDIR}" \
         --desktop-file "${APPDIR}/usr/share/applications/${APP_ID}.desktop" \
         --icon-file "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png" \
-        --deploy-deps-only "${APPDIR}/usr/plugins/wayland-graphics-integration-client" \
-        --output appimage
+        --deploy-deps-only "${APPDIR}/usr/plugins/wayland-graphics-integration-client"
 else
     "${LINUXDEPLOY_BIN}" \
         --appdir "${APPDIR}" \
         --desktop-file "${APPDIR}/usr/share/applications/${APP_ID}.desktop" \
         --icon-file "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png" \
-        --plugin qt \
-        --output appimage
+        --plugin qt
 fi
+
+collect_appdir_library_notices "${APPDIR}" "${APPDIR_LICENSES_DIR}"
+
+"${LINUXDEPLOY_BIN}" \
+    --appdir "${APPDIR}" \
+    --desktop-file "${APPDIR}/usr/share/applications/${APP_ID}.desktop" \
+    --icon-file "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png" \
+    --output appimage
 popd >/dev/null
 
 APPIMAGE_PATH="${OUT_DIR_ABS}/${APP_NAME}-${TAG}-x86_64.AppImage"

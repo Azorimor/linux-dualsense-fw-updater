@@ -312,6 +312,15 @@ jobs:
           test -f squashfs-root/usr/plugins/platforms/libqoffscreen.so
           compgen -G "squashfs-root/usr/plugins/wayland-graphics-integration-client/*.so" >/dev/null
           test -f squashfs-root/usr/plugins/iconengines/libqsvgicon.so
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/GPL-3.0-or-later.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/MIT.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/LGPL-3.0-only.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/LGPL-2.1-or-later.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/LGPL-2.0-or-later.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/BSD-3-Clause.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/THIRD_PARTY_NOTICES.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/BUNDLED_LIBRARIES.txt
+          compgen -G "squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/system-packages/*.copyright" >/dev/null
           popd >/dev/null
 
           set +e

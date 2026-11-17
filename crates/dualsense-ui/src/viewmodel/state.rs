@@ -206,6 +206,32 @@ impl AppState {
         matches!(self.busy, Some(BusyOperation::FlashingFirmware))
     }
 
+    /// Returns `true` if a background poll differs from known devices or the active device vanished.
+    pub(crate) fn poll_devices_changed(&self, polled: &[dualsense_core::HidDeviceInfo]) -> bool {
+        if self
+            .selected_device_path
+            .as_deref()
+            .is_some_and(|sel| !polled.iter().any(|d| d.path == sel))
+        {
+            return true;
+        }
+
+        let mut current: Vec<(&str, u16, u16)> = self
+            .devices
+            .iter()
+            .map(|d| (d.path.as_str(), d.vendor_id, d.product_id))
+            .collect();
+        current.sort_unstable();
+
+        let mut next: Vec<(&str, u16, u16)> = polled
+            .iter()
+            .map(|d| (d.path.as_str(), d.vendor_id, d.product_id))
+            .collect();
+        next.sort_unstable();
+
+        current != next
+    }
+
     pub(super) fn enter_error(&mut self, err: dualsense_core::CoreError, return_step: AppStep) {
         let friendly = map_core_error(&err);
         self.previous_step = return_step;

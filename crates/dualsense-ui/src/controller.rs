@@ -1,9 +1,10 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use dualsense_core::{
     CancellationToken, CoreError, DownloadProgress, DualSenseUpdater, FirmwareCatalogClient,
-    FirmwareImage, FirmwareRelease, HidApiBackend, HidDeviceEnumerator, HttpClient, Sleeper,
-    StdSleeper, UpdateConfig, decode_ds5_color, resolve_controller_target,
+    FirmwareImage, FirmwareRelease, HidApiBackend, HidDeviceEnumerator, HidDeviceInfo, HttpClient,
+    Sleeper, StdSleeper, UpdateConfig, decode_ds5_color, resolve_controller_target,
 };
 use tokio::runtime::{Builder, Handle, Runtime};
 use tokio::sync::{mpsc, watch};
@@ -12,6 +13,9 @@ use crate::http::UreqHttpClient;
 use crate::viewmodel::{
     AppCommand, AppEvent, AppState, DeviceInspection, DeviceTarget, LocalFirmwareInfo, UiSnapshot,
 };
+
+/// Default interval between background USB HID device polls in desktop usage.
+pub const DEFAULT_DEVICE_POLL_INTERVAL: Duration = Duration::from_millis(800);
 
 /// Default concrete controller using live `hidapi`, `ureq` HTTPS, and `std::thread::sleep`.
 pub type DefaultAppController = AppController<HidApiBackend, UreqHttpClient, StdSleeper>;
@@ -66,12 +70,13 @@ impl DefaultAppController {
     where
         F: Fn(UiSnapshot) + Send + Sync + 'static,
     {
-        Self::new(
+        Self::with_poll_interval(
             handle,
             HidApiBackend,
             UreqHttpClient::new(),
             StdSleeper,
             UpdateConfig::default(),
+            Some(DEFAULT_DEVICE_POLL_INTERVAL),
             on_snapshot,
         )
     }
@@ -83,13 +88,37 @@ where
     H: HttpClient + Send + Sync + 'static,
     S: Sleeper + Clone + Send + Sync + 'static,
 {
-    /// Spawns the controller actor on `handle` with injected hardware, HTTP, and timing backends.
+    /// Spawns the controller actor on `handle` using the default 800 ms device poll interval.
     pub fn new<F>(
         handle: &Handle,
         enumerator: E,
         http: H,
         sleeper: S,
         update_config: UpdateConfig,
+        on_snapshot: F,
+    ) -> Self
+    where
+        F: Fn(UiSnapshot) + Send + Sync + 'static,
+    {
+        Self::with_poll_interval(
+            handle,
+            enumerator,
+            http,
+            sleeper,
+            update_config,
+            Some(DEFAULT_DEVICE_POLL_INTERVAL),
+            on_snapshot,
+        )
+    }
+
+    /// Spawns the controller actor on `handle` with an explicit background `device_poll_interval`.
+    pub fn with_poll_interval<F>(
+        handle: &Handle,
+        enumerator: E,
+        http: H,
+        sleeper: S,
+        update_config: UpdateConfig,
+        device_poll_interval: Option<Duration>,
         on_snapshot: F,
     ) -> Self
     where
@@ -115,7 +144,12 @@ where
             on_snapshot,
         };
 
-        handle.spawn(run_actor_loop(initial_state, event_rx, ctx));
+        handle.spawn(run_actor_loop(
+            initial_state,
+            event_rx,
+            device_poll_interval,
+            ctx,
+        ));
 
         Self {
             event_tx,
@@ -154,11 +188,12 @@ impl DefaultAppRuntime {
     where
         F: Fn(UiSnapshot) + Send + Sync + 'static,
     {
-        Self::with_backends(
+        Self::with_backends_and_poll_interval(
             HidApiBackend,
             UreqHttpClient::new(),
             StdSleeper,
             UpdateConfig::default(),
+            Some(DEFAULT_DEVICE_POLL_INTERVAL),
             on_snapshot,
         )
     }
@@ -170,7 +205,7 @@ where
     H: HttpClient + Send + Sync + 'static,
     S: Sleeper + Clone + Send + Sync + 'static,
 {
-    /// Starts a multi-threaded Tokio runtime with injected backends for deterministic testing.
+    /// Starts a multi-threaded Tokio runtime with injected backends and default 800 ms polling.
     pub fn with_backends<F>(
         enumerator: E,
         http: H,
@@ -181,17 +216,40 @@ where
     where
         F: Fn(UiSnapshot) + Send + Sync + 'static,
     {
+        Self::with_backends_and_poll_interval(
+            enumerator,
+            http,
+            sleeper,
+            update_config,
+            Some(DEFAULT_DEVICE_POLL_INTERVAL),
+            on_snapshot,
+        )
+    }
+
+    /// Starts a multi-threaded Tokio runtime with injected backends and custom `device_poll_interval`.
+    pub fn with_backends_and_poll_interval<F>(
+        enumerator: E,
+        http: H,
+        sleeper: S,
+        update_config: UpdateConfig,
+        device_poll_interval: Option<Duration>,
+        on_snapshot: F,
+    ) -> std::io::Result<Self>
+    where
+        F: Fn(UiSnapshot) + Send + Sync + 'static,
+    {
         let runtime = Builder::new_multi_thread()
             .worker_threads(2)
             .thread_name("dualsense-ui-worker")
             .enable_all()
             .build()?;
-        let controller = AppController::new(
+        let controller = AppController::with_poll_interval(
             runtime.handle(),
             enumerator,
             http,
             sleeper,
             update_config,
+            device_poll_interval,
             on_snapshot,
         );
         Ok(Self {
@@ -250,6 +308,7 @@ struct ActorContext<E, H, S> {
 async fn run_actor_loop<E, H, S>(
     mut state: AppState,
     mut event_rx: mpsc::UnboundedReceiver<AppEvent>,
+    device_poll_interval: Option<Duration>,
     ctx: ActorContext<E, H, S>,
 ) where
     E: HidDeviceEnumerator + Send + Sync + 'static,
@@ -257,16 +316,91 @@ async fn run_actor_loop<E, H, S>(
     S: Sleeper + Clone + Send + Sync + 'static,
 {
     let mut active_cancel = CancellationToken::new();
+    let (poll_tx, mut poll_rx) = mpsc::unbounded_channel::<Option<Vec<HidDeviceInfo>>>();
+    let mut poll_in_flight = false;
+    let mut poll_timer = device_poll_interval.filter(|d| !d.is_zero()).map(|period| {
+        let mut interval = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        interval
+    });
 
-    while let Some(event) = event_rx.recv().await {
-        let commands = state.update(event);
-        let snapshot = state.snapshot();
-        let _ = ctx.snapshot_tx.send(snapshot.clone());
-        (ctx.on_snapshot)(snapshot);
-
-        for command in commands {
-            execute_command(command, &mut active_cancel, &ctx);
+    loop {
+        tokio::select! {
+            maybe_event = event_rx.recv() => {
+                let Some(event) = maybe_event else {
+                    break;
+                };
+                apply_event_and_commands(event, &mut state, &mut active_cancel, &ctx);
+            }
+            Some(poll_result) = poll_rx.recv() => {
+                poll_in_flight = false;
+                if let Some(polled_devices) = poll_result
+                    && !state.is_flashing()
+                    && state.poll_devices_changed(&polled_devices)
+                {
+                    apply_event_and_commands(
+                        AppEvent::DevicesPollUpdated(polled_devices),
+                        &mut state,
+                        &mut active_cancel,
+                        &ctx,
+                    );
+                }
+            }
+            _ = wait_poll_tick(poll_timer.as_mut()) => {
+                if !poll_in_flight && !state.is_flashing() {
+                    poll_in_flight = true;
+                    let enumerator = Arc::clone(&ctx.enumerator);
+                    let tx = poll_tx.clone();
+                    ctx.handle.spawn(async move {
+                        let res = tokio::task::spawn_blocking(move || {
+                            enumerator.list_dualsense_devices()
+                        })
+                        .await;
+                        let devices = match res {
+                            Ok(Ok(devices)) => Some(devices),
+                            Ok(Err(err)) => {
+                                log::debug!("Background USB device poll failed: {err}");
+                                None
+                            }
+                            Err(_) => {
+                                log::debug!("Background USB device poll task failed");
+                                None
+                            }
+                        };
+                        let _ = tx.send(devices);
+                    });
+                }
+            }
         }
+    }
+}
+
+async fn wait_poll_tick(timer: Option<&mut tokio::time::Interval>) {
+    match timer {
+        Some(interval) => {
+            interval.tick().await;
+        }
+        None => std::future::pending::<()>().await,
+    }
+}
+
+fn apply_event_and_commands<E, H, S>(
+    event: AppEvent,
+    state: &mut AppState,
+    active_cancel: &mut CancellationToken,
+    ctx: &ActorContext<E, H, S>,
+) where
+    E: HidDeviceEnumerator + Send + Sync + 'static,
+    H: HttpClient + Send + Sync + 'static,
+    S: Sleeper + Clone + Send + Sync + 'static,
+{
+    let commands = state.update(event);
+    let snapshot = state.snapshot();
+    let _ = ctx.snapshot_tx.send(snapshot.clone());
+    (ctx.on_snapshot)(snapshot);
+
+    for command in commands {
+        execute_command(command, active_cancel, ctx);
     }
 }
 

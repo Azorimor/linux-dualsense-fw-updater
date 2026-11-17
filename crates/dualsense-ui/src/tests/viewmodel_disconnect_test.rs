@@ -218,6 +218,32 @@ fn flashing_ignores_poll_updates_and_preserves_inspected_devices_when_second_add
 }
 
 #[test]
+fn poll_devices_changed_ignores_serial_enrichment_and_detects_real_changes() {
+    let mut state = AppState::new();
+    let d1_no_serial = sample_hid_device("/dev/hidraw0", DEFAULT_PID, "");
+    assert!(state.poll_devices_changed(std::slice::from_ref(&d1_no_serial)));
+
+    state.update(AppEvent::DevicesScanned(Ok(vec![d1_no_serial.clone()])));
+    // Enrich serial via 0x81 report; hidraw list from OS still has empty serial
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(super::sample_inspection(
+            0x0520,
+            DEFAULT_PID,
+            0x000B,
+            0x0000_0811,
+            Some("F55301K0H14359961"),
+        )),
+    });
+    assert!(!state.poll_devices_changed(std::slice::from_ref(&d1_no_serial)));
+
+    // Replug/disappear triggers change
+    assert!(state.poll_devices_changed(&[]));
+    let d2 = sample_hid_device("/dev/hidraw1", DEFAULT_PID, "");
+    assert!(state.poll_devices_changed(&[d1_no_serial, d2]));
+}
+
+#[test]
 fn step_transitions_are_guarded_when_no_connected_device_selected() {
     let mut state = AppState::new();
     assert!(state.update(AppEvent::ContinueToFirmwareStep).is_empty());

@@ -1,8 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 name: Deploy Website
 
 on:
   workflow_dispatch:
-  # Uncomment once repository is public and GitHub Pages (`pages` branch) is enabled:
+  # Uncomment when public: enable automatic website builds on push to main:
   # push:
   #   branches: [main]
   #   paths:
@@ -45,7 +48,7 @@ jobs:
           path: website/out/
           if-no-files-found: error
 
-      # Uncomment once repository is public and GitHub Pages (`pages` branch) is enabled:
+      # Uncomment when public: deploy built static site to GitHub Pages (`pages` branch):
       # - name: Deploy to GitHub Pages
       #   uses: peaceiris/actions-gh-pages@v4
       #   with:

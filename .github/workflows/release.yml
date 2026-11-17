@@ -11,12 +11,11 @@ on:
         type: string
         required: false
         default: ""
-  # Uncomment when public: enable automated releases on main push and v* tags:
-  # push:
-  #   branches:
-  #     - main
-  #   tags:
-  #     - "v*"
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
 
 permissions:
   contents: write

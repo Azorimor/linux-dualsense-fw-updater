@@ -5,19 +5,17 @@ name: Coverage
 
 on:
   workflow_dispatch:
-  # Uncomment when public: enable automatic PR coverage checks:
-  # pull_request:
-  #   branches: [main, master]
-  #   paths-ignore:
-  #     - "website/**"
-  #     - "*.md"
-  #     - "LICENSES/**"
-  #     - "REUSE.toml"
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - "website/**"
+      - "*.md"
+      - "LICENSES/**"
+      - "REUSE.toml"
 
 permissions:
   contents: read
-  # Uncomment when public: allow posting PR coverage comments:
-  # pull-requests: write
+  pull-requests: write
 
 env:
   QMAKE: /usr/bin/qmake6

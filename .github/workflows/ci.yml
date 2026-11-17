@@ -28,13 +28,12 @@ on:
         type: string
         required: false
         default: ""
-  # Uncomment when public: enable automatic PR CI:
-  # pull_request:
-  #   branches: [main, master]
-  #   paths-ignore:
-  #     - "website/**"
-  #     - "*.md"
-  #     # Note: LICENSES/** and REUSE.toml intentionally trigger license-check & build.rs
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - "website/**"
+      - "*.md"
+      # Note: LICENSES/** and REUSE.toml intentionally trigger license-check & build.rs
 
 env:
   QMAKE: /usr/bin/qmake6

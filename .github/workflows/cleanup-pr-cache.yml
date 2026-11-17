@@ -11,9 +11,8 @@ on:
         type: string
         required: false
         default: ""
-  # Uncomment when public: enable automatic PR cache cleanup:
-  # pull_request:
-  #   types: [closed]
+  pull_request:
+    types: [closed]
 
 permissions:
   actions: write

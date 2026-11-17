@@ -30,6 +30,15 @@ Kirigami.ApplicationWindow {
         onAccepted: updater.selectLocalFile(selectedFile.toString())
     }
 
+    Connections {
+        target: updater
+        function onStepIndexChanged() {
+            if (updater.stepIndex !== 1 && firmwareFileDialog.visible) {
+                firmwareFileDialog.close()
+            }
+        }
+    }
+
     pageStack.initialPage: Kirigami.ScrollablePage {
         id: mainPage
         title: "DualSense Firmware Updater"

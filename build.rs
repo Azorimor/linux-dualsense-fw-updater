@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use cxx_qt_build::{CxxQtBuilder, QmlModule};
+use cxx_qt_build::{CxxQtBuilder, QResources, QmlModule};
 
 #[path = "src/license_report.rs"]
 mod license_report;
@@ -16,9 +16,22 @@ use license_report::{
     parse_cargo_lock_packages, parse_crate_package_metadata,
 };
 
+const EMBEDDED_DESKTOP_ICONS: &[&str] = &[
+    "packaging/linux/icons/16x16/icon.png",
+    "packaging/linux/icons/22x22/icon.png",
+    "packaging/linux/icons/32x32/icon.png",
+    "packaging/linux/icons/48x48/icon.png",
+    "packaging/linux/icons/64x64/icon.png",
+    "packaging/linux/icons/128x128/icon.png",
+    "packaging/linux/icons/256x256/icon.png",
+    "packaging/linux/icons/512x512/icon.png",
+    "packaging/linux/icons/scalable/icon.svg",
+];
+
 fn main() {
     configure_qmake6();
     generate_bundled_licenses();
+    println!("cargo::rerun-if-changed=src/app_icon.h");
 
     let builder =
         CxxQtBuilder::new_qml_module(QmlModule::new("dev.dualsense.updater").qml_files([
@@ -30,7 +43,10 @@ fn main() {
         ]))
         .qt_module("Quick")
         .qt_module("QuickControls2")
-        .file("src/qt_bridge.rs");
+        .qrc_resources(desktop_icon_resources())
+        .file("src/qt_bridge.rs")
+        .file("src/app_icon.rs")
+        .cpp_file("src/app_icon.cpp");
 
     // SAFETY: `cc_builder` is marked unsafe because it exposes cxx-qt-build's internal
     // `cc::Build` without minor-version stability guarantees; we only append a supported
@@ -56,6 +72,10 @@ fn configure_qmake6() {
             std::env::set_var("QMAKE", qmake6);
         }
     }
+}
+
+fn desktop_icon_resources() -> QResources {
+    QResources::from(EMBEDDED_DESKTOP_ICONS.iter().copied())
 }
 
 fn generate_bundled_licenses() {

@@ -118,12 +118,14 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ├── REUSE.toml                  # FSFE REUSE metadata for non-commentable and config assets
 ├── LICENSES/                   # Full SPDX license texts (GPL-3.0-or-later.txt, MIT.txt)
 ├── .githooks/                  # Enforced git hooks (pre-commit, commit-msg, pre-push)
-├── .github/workflows/          # GitHub Actions workflows (Ubuntu 24.04)
-│   ├── ci.yml                  # Build, fmt, clippy, structural rules, test, qmllint, & Linux packaging
-│   ├── coverage.yml            # Code coverage workflow
-│   ├── cleanup-pr-cache.yml    # PR cache cleanup workflow
-│   ├── release.yml             # Release & SHA256SUMS artifact publishing workflow
-│   └── deploy-website.yml      # Fumadocs static site build & deploy workflow
+├── .github/
+│   ├── ISSUE_TEMPLATE/         # GitHub issue templates (`flash_report.md` prefill target; others live on main)
+│   └── workflows/              # GitHub Actions workflows (Ubuntu 24.04)
+│       ├── ci.yml              # Build, fmt, clippy, structural rules, test, qmllint, & Linux packaging
+│       ├── coverage.yml        # Code coverage workflow
+│       ├── cleanup-pr-cache.yml # PR cache cleanup workflow
+│       ├── release.yml         # Release & SHA256SUMS artifact publishing workflow
+│       └── deploy-website.yml  # Fumadocs static site build & deploy workflow
 ├── .agents/                    # Antigravity lifecycle hooks
 ├── packaging/                  # Linux desktop entry & icon assets (packaging/linux/)
 ├── scripts/
@@ -143,13 +145,14 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │   │   │   ├── transport.rs    # HidTransport, HidDeviceEnumerator, Sleeper traits + HidApiBackend
 │   │   │   ├── updater.rs      # DualSenseUpdater bounded polling state machine & UpdateProgress
 │   │   │   └── tests/          # Extracted unit tests (*_test.rs)
-│   │   └── tests/              # Integration tests (board_detection_test.rs, update_flow_test.rs)
+│   │   └── tests/              # Integration tests (board_detection_test.rs, update_flow_test.rs, opt-in real_firmware_test.rs)
 │   └── dualsense-ui/           # Headless-testable ViewModel, HTTP client, friendly errors, async runtime
 │       ├── src/
 │       │   ├── lib.rs          # Public crate re-exports
 │       │   ├── viewmodel/      # Modular Elm/TEA ViewModel (mod, types, state, transitions, snapshot, progress)
 │       │   ├── controller.rs   # AppController & AppRuntime (Tokio workers + 800 ms live USB device polling)
 │       │   ├── http.rs         # UreqHttpClient (ureq + rustls) with streaming progress & cancellation
+│       │   ├── flash_report.rs # Anonymized OS/hardware/flash metrics & prefilled GitHub issue URL builder
 │       │   ├── error_map.rs    # FriendlyError plain-English mapping for CoreError / UpdateFailure
 │       │   └── tests/          # Extracted unit tests (*_test.rs)
 │       └── tests/              # Integration tests (controller_flows_test.rs, disconnect_monitor_test.rs, http_live_test.rs)
@@ -165,7 +168,9 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 └── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
     ├── Main.qml                # Kirigami.ApplicationWindow + MenuBar + 6-view StackLayout wizard
     ├── StepIndicator.qml       # 4-step progress breadcrumb header
-    └── LicensesWindow.qml      # Third-party open-source licenses viewer window
+    ├── LicensesWindow.qml      # Third-party open-source licenses viewer window
+    ├── AboutWindow.qml         # About dialog with version, disclaimer, and GitHub / Pages links
+    └── FlashReportWindow.qml   # Optional post-flash anonymized report preview, copy, & GitHub issue opener
 ```
 
 ### Workspace Dependencies (`Cargo.toml`)

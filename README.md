@@ -37,7 +37,8 @@ Launch `dualsense-updater` and follow the four guided KDE Kirigami wizard steps:
 3. **Review** — Compares current and target firmware versions, warns if the controller is already on the same or newer version or if the target is untested (DualSense Edge), and requires explicit confirmation that firmware updates cannot be reversed.
 4. **Update** — Streams download progress (with safe cancellation before flashing begins), initializes the update, writes firmware blocks, verifies, and finalizes. If an error occurs, plain-English recovery hints and `Scan Controllers` / `Try Again` / `Start Over` actions are shown.
 
-- **Built-in Licenses Window**: Open **Help → Licenses** in the application menu bar at any time to inspect the bundled third-party crate notices, `GPL-3.0-or-later` license text, and `nchie` MIT attribution.
+- **Built-in About & Licenses Windows**: Open **Help → About Unofficial DualSense Firmware Updater** for version info and project links (GitHub repository, website, issue tracker), or **Help → Licenses** to inspect the bundled third-party crate notices, `GPL-3.0-or-later` license text, and `nchie` MIT attribution.
+- **Optional Flash Run Reporting**: After a firmware update succeeds or fails, use **Flash Run Infos** or **Open GitHub Issue** to inspect or open a prefilled `[Flash Report]` GitHub issue containing anonymized OS, hardware revision, firmware version, and error metrics (never serial numbers or local file paths).
 
 ## Installation (AppImage & Prebuilt Archives)
 
@@ -89,6 +90,19 @@ QMAKE=/usr/bin/qmake6 cargo run --release
 ```
 
 Logging uses `env_logger` (default `info`). Set `RUST_LOG=debug` for verbose HID and update diagnostics.
+
+### Opt-In Verification Against Real Sony Firmware Binaries
+
+To verify firmware parsing, header validation, catalog matching, and simulated HID chunking against real official Sony `.bin` firmware files (kept strictly local and never committed or run on GitHub CI):
+
+1. Place one or more official Sony `.bin` images (for example `FWUPDATE000B.bin`, `FWUPDATE0004.bin`, `FWUPDATE000E.bin`, or `FWUPDATE0044.bin`) inside the gitignored `tmp/` directory at the repository root — or point `DUALSENSE_REAL_FW_PATH` at a `.bin` file elsewhere on disk.
+2. Run the feature-gated integration test suite:
+
+```sh
+cargo test -p dualsense-core --features real-firmware-tests --test real_firmware_test
+```
+
+Default `cargo test --workspace` and GitHub Actions CI omit `--features real-firmware-tests`, so CI stays self-contained without proprietary firmware binaries.
 
 ### Packaging an AppImage Locally
 

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 nchie
 // SPDX-FileCopyrightText: 2026 Azorimor
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT AND GPL-3.0-or-later
 
 use crate::error::*;
 use crate::protocol::{

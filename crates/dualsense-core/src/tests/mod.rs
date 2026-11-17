@@ -10,3 +10,5 @@ mod image_test;
 mod protocol_test;
 #[cfg(test)]
 mod transport_test;
+#[cfg(test)]
+mod updater_test;

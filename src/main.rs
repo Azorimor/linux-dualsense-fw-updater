@@ -1,9 +1,5 @@
-mod qt_bridge;
-mod snapshot_adapter;
-#[cfg(test)]
-mod tests;
-
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};
+extern crate dualsense_updater;
 
 const MAIN_QML_URL: &str = "qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml";
 

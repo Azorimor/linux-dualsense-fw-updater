@@ -108,7 +108,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 .
 ├── Cargo.toml                  # 3-member workspace manifest + pinned workspace dependencies
 ├── Cargo.lock                  # Resolved dependency lockfile
-├── build.rs                    # Auto-sets QMAKE=/usr/bin/qmake6; builds cxx-qt, QML module, & generated_licenses.rs
+├── build.rs                    # Auto-sets QMAKE=/usr/bin/qmake6; builds cxx-qt, QML module, icon QResources, & generated_licenses.rs
 ├── deny.toml                   # cargo-deny license, advisory, ban, and source policy
 ├── rustfmt.toml                # Workspace Rust formatting configuration
 ├── clippy.toml                 # Workspace Clippy configuration (msrv = "1.85.0", complexity thresholds)
@@ -127,12 +127,18 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │       ├── release.yml         # Release & SHA256SUMS artifact publishing workflow
 │       └── deploy-website.yml  # Fumadocs static site build & deploy workflow
 ├── .agents/                    # Antigravity lifecycle hooks
-├── packaging/                  # Linux desktop entry & icon assets (packaging/linux/)
+├── assets/                     # Brand SVGs (`logo.svg`, `logo-symbol.svg`), Vectorcraft source, & GUI screenshots (`assets/desktop/` -> `packaging/linux/icons/`, `assets/web/` -> `website/public/`)
+├── packaging/                  # Linux desktop integration assets
+│   └── linux/
+│       ├── dev.dualsense.updater.desktop # XDG desktop entry (`dev.dualsense.updater`)
+│       ├── install-desktop.sh  # User/system XDG desktop entry & hicolor icon installer (`--user`, `--system`, `--prefix`, `--exec`, `--uninstall`)
+│       └── icons/              # Canonical app icons (`16x16`..`512x512/icon.png` + `scalable/icon.svg`; moved from `assets/desktop`)
 ├── scripts/
 │   ├── coverage.sh             # cargo-llvm-cov HTML & LCOV report script
-│   ├── package-appimage.sh     # Portable .tar.gz & .AppImage packager
+│   ├── package-appimage.sh     # Portable .tar.gz & .AppImage packager (bundles desktop entry, hicolor icons, `.DirIcon`, & `install-desktop.sh`)
 │   └── verify_structural_rules.py # Checks file length, test layout, SPDX headers, & AGENTS.md paths
 ├── website/                    # Fumadocs / Next.js static documentation website
+│   └── public/                 # Static web brand assets (`favicon.svg`, `favicon-16x16.png`, `favicon-32x32.png`, `favicon-48x48.png`, `icon-192x192.png`, `icon-512x512.png`, `apple-touch-icon.png`, `site.webmanifest`; moved from `assets/web`)
 ├── crates/
 │   ├── dualsense-core/         # Core HID protocol, image validation, catalog client, update state machine
 │   │   ├── src/
@@ -157,14 +163,17 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │       │   └── tests/          # Extracted unit tests (*_test.rs)
 │       └── tests/              # Integration tests (controller_flows_test.rs, disconnect_monitor_test.rs, http_live_test.rs)
 ├── src/                        # Root `dualsense-updater` Qt6/Kirigami desktop crate
-│   ├── lib.rs                  # Exposes qt_bridge, snapshot_adapter, licenses, & license_report
-│   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, org.kde.desktop + Fusion fallback
+│   ├── lib.rs                  # Exposes qt_bridge, app_icon, snapshot_adapter, licenses, & license_report
+│   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, desktop ID/window icon, org.kde.desktop + Fusion fallback
+│   ├── app_icon.rs             # cxx-qt FFI wrapper, `DESKTOP_FILE_ID`, & `EMBEDDED_APP_ICON_URL`
+│   ├── app_icon.h              # C++ header for `configure_application_window_icon()`
+│   ├── app_icon.cpp            # Theme icon lookup (`dev.dualsense.updater`) with embedded multi-res Qt resource fallback
 │   ├── qt_bridge.rs            # cxx-qt DualSenseBridge QObject binding DefaultAppRuntime & licensesText to QML
 │   ├── snapshot_adapter.rs     # Pure Rust AdaptedSnapshot & file:// URL parser
 │   ├── licenses.rs             # Bundled license text loader & query helpers
 │   ├── license_report.rs       # Cargo.lock & crate metadata parser/formatter for third-party notices
 │   └── tests/                  # Extracted unit tests (snapshot_adapter_test.rs, snapshot_state_test.rs, licenses_test.rs)
-├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs)
+├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs, desktop_icon_test.rs)
 └── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
     ├── Main.qml                # Kirigami.ApplicationWindow + MenuBar + 6-view StackLayout wizard
     ├── StepIndicator.qml       # 4-step progress breadcrumb header

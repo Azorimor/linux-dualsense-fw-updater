@@ -49,12 +49,18 @@ Download the latest release artifacts from [GitHub Releases](https://github.com/
   chmod +x linux-dualsense-fw-updater-<tag>-x86_64.AppImage
   ./linux-dualsense-fw-updater-<tag>-x86_64.AppImage
   ```
+  The AppImage embeds `dev.dualsense.updater.desktop`, `.DirIcon`, and the hicolor PNG/SVG icon set (`16x16`–`512x512` + `scalable`) for desktop launcher / AppImage integration, and the window itself embeds multi-resolution Qt resource icons as a fallback.
 - **Tarball (`x86_64`)**:
   ```sh
   tar -xzf linux-dualsense-fw-updater-<tag>-x86_64.tar.gz
   cd linux-dualsense-fw-updater-<tag>-x86_64
   ./dualsense-updater
   ```
+  To register the `.desktop` entry and hicolor icons from the extracted tarball directory, run:
+  ```sh
+  ./install-desktop.sh
+  ```
+  By default this installs into `${XDG_DATA_HOME:-$HOME/.local/share}` and points `Exec=` at `./dualsense-updater` when no `dualsense-updater` binary is already on `PATH`. Pass `--system` (with `sudo`) for `/usr/local/share`, `--prefix DIR`, `--exec PATH`, or `--uninstall` to remove the entry and icons.
 
 > **USB Permissions (`udev`)**: On Linux, you may need udev rules granting your user read/write access to DualSense HID devices (`/dev/hidraw*` / USB vendor ID `054c`) to inspect or flash without root privileges.
 
@@ -104,6 +110,18 @@ cargo test -p dualsense-core --features real-firmware-tests --test real_firmware
 
 Default `cargo test --workspace` and GitHub Actions CI omit `--features real-firmware-tests`, so CI stays self-contained without proprietary firmware binaries.
 
+### Desktop Entry & Icon Installation (From Source)
+
+After installing or placing `dualsense-updater` on your `PATH` (or passing `--exec`), install the XDG desktop entry (`dev.dualsense.updater`) and hicolor icon theme (`16x16`–`512x512` PNGs and `scalable/icon.svg`) using:
+
+```sh
+./packaging/linux/install-desktop.sh              # installs into ~/.local/share (default)
+./packaging/linux/install-desktop.sh --exec "$PWD/target/release/dualsense-updater"
+sudo ./packaging/linux/install-desktop.sh --system
+```
+
+Use `./packaging/linux/install-desktop.sh --uninstall` (with `--system` or `--prefix DIR` if applicable) to remove the installed `.desktop` file and icons.
+
 ### Packaging an AppImage Locally
 
 After building the release binary, package both the portable `.tar.gz` and `.AppImage` into `dist/`:
@@ -112,7 +130,7 @@ After building the release binary, package both the portable `.tar.gz` and `.App
 ./scripts/package-appimage.sh target/release/dualsense-updater v0.1.0 dist
 ```
 
-Desktop integration assets live in `packaging/linux/dev.dualsense.updater.desktop` and `packaging/linux/dev.dualsense.updater.svg`.
+Desktop integration assets live in `packaging/linux/dev.dualsense.updater.desktop`, `packaging/linux/install-desktop.sh`, and `packaging/linux/icons/` (`16x16`, `22x22`, `32x32`, `48x48`, `64x64`, `128x128`, `256x256`, `512x512` PNGs plus `scalable/icon.svg`). `scripts/package-appimage.sh` bundles the hicolor icons, `.DirIcon`, `.desktop` file, and `install-desktop.sh` into the `.tar.gz` and `.AppImage` (`AppDir`).
 
 ## Testing, Coverage, and Structural Checks
 

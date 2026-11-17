@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build && next-image-export-optimizer",
     "start": "next start",
-    "test": "node --test src/lib/github-release.test.ts",
+    "test": "node --test src/lib/*.test.ts",
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {

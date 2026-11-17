@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::error_map::FriendlyError;
+use crate::flash_report::FlashReport;
 
 use super::progress::ProgressSnapshot;
 use super::state::AppState;
@@ -54,6 +55,7 @@ pub struct UiSnapshot {
     pub can_start_update: bool,
     pub can_cancel: bool,
     pub can_go_back: bool,
+    pub flash_report: Option<FlashReport>,
 }
 
 impl AppState {
@@ -128,6 +130,11 @@ impl AppState {
         let can_cancel = self.busy.is_some_and(BusyOperation::is_cancellable);
         let can_go_back =
             !is_busy && matches!(self.step, AppStep::SelectFirmware | AppStep::ConfirmUpdate);
+        let flash_report = if matches!(self.step, AppStep::Completed | AppStep::Error) {
+            self.flash_report.clone()
+        } else {
+            None
+        };
 
         UiSnapshot {
             step: self.step,
@@ -170,6 +177,7 @@ impl AppState {
             can_start_update,
             can_cancel,
             can_go_back,
+            flash_report,
         }
     }
 

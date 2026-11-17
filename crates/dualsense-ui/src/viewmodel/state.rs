@@ -5,6 +5,7 @@
 use dualsense_core::{FirmwareRelease, KNOWN_TARGETS};
 
 use crate::error_map::{FriendlyError, map_core_error};
+use crate::flash_report::{FlashReport, PendingFlashAttempt, SystemEnvironmentInfo};
 
 use super::progress::ProgressSnapshot;
 use super::types::{
@@ -31,6 +32,9 @@ pub struct AppState {
     pub(super) progress: ProgressSnapshot,
     pub(super) error: Option<FriendlyError>,
     pub(super) busy: Option<BusyOperation>,
+    pub(super) system_info: SystemEnvironmentInfo,
+    pub(super) pending_flash_attempt: Option<PendingFlashAttempt>,
+    pub(super) flash_report: Option<FlashReport>,
 }
 
 impl Default for AppState {
@@ -42,6 +46,11 @@ impl Default for AppState {
 impl AppState {
     /// Creates the initial application state with known DualSense hardware targets pre-populated.
     pub fn new() -> Self {
+        Self::with_system_info(SystemEnvironmentInfo::detect())
+    }
+
+    /// Creates initial application state with an explicit [`SystemEnvironmentInfo`] (useful for deterministic tests).
+    pub fn with_system_info(system_info: SystemEnvironmentInfo) -> Self {
         let targets = KNOWN_TARGETS
             .iter()
             .map(|t| {
@@ -69,6 +78,9 @@ impl AppState {
             progress: ProgressSnapshot::idle(),
             error: None,
             busy: None,
+            system_info,
+            pending_flash_attempt: None,
+            flash_report: None,
         }
     }
 
@@ -156,6 +168,8 @@ impl AppState {
             AppEvent::DismissError => {
                 if self.step == AppStep::Error && self.busy.is_none() {
                     self.error = None;
+                    self.pending_flash_attempt = None;
+                    self.flash_report = None;
                     self.step = self.previous_step;
                     self.progress = ProgressSnapshot::idle();
                     self.banner = None;
@@ -170,6 +184,8 @@ impl AppState {
                 self.previous_step = AppStep::DetectController;
                 self.error = None;
                 self.completed_version = None;
+                self.pending_flash_attempt = None;
+                self.flash_report = None;
                 self.warning_acknowledged = false;
                 self.progress = ProgressSnapshot::idle();
                 self.banner = None;

@@ -8,6 +8,8 @@ use dualsense_core::{
     CoreError, DownloadProgress, FirmwareCatalog, HidDeviceInfo, find_known_target,
 };
 
+use crate::flash_report::{FlashReport, PendingFlashAttempt};
+
 use super::progress::{ProgressSnapshot, ProgressStage};
 use super::state::AppState;
 use super::types::{
@@ -22,6 +24,8 @@ impl AppState {
         }
         self.error = None;
         self.completed_version = None;
+        self.pending_flash_attempt = None;
+        self.flash_report = None;
         if matches!(self.step, AppStep::Error | AppStep::Completed) {
             self.step = AppStep::DetectController;
         }
@@ -132,15 +136,25 @@ impl AppState {
         {
             return Vec::new();
         }
-        let Some(device) = self.selected_device().map(DeviceSummary::target) else {
+        let Some(selected_summary) = self.selected_device().cloned() else {
             return Vec::new();
         };
+        let device = selected_summary.target();
 
         match self.source_kind {
             FirmwareSourceKind::OfficialCatalog => {
                 let Some(release) = self.selected_release().cloned() else {
                     return Vec::new();
                 };
+                let is_untested = release.target_info.is_none_or(|info| !info.tested);
+                self.pending_flash_attempt = Some(PendingFlashAttempt::from_device(
+                    &selected_summary,
+                    FirmwareSourceKind::OfficialCatalog,
+                    Some(release.target_id.clone()),
+                    format!("0x{:04x}", release.version),
+                    is_untested,
+                ));
+                self.flash_report = None;
                 self.step = AppStep::Updating;
                 self.error = None;
                 self.completed_version = None;
@@ -159,6 +173,14 @@ impl AppState {
                 let Some(local) = self.local_firmware.as_ref() else {
                     return Vec::new();
                 };
+                self.pending_flash_attempt = Some(PendingFlashAttempt::from_device(
+                    &selected_summary,
+                    FirmwareSourceKind::LocalFile,
+                    None,
+                    local.formatted_version.clone(),
+                    selected_summary.is_edge,
+                ));
+                self.flash_report = None;
                 self.step = AppStep::Updating;
                 self.error = None;
                 self.completed_version = None;
@@ -281,6 +303,8 @@ impl AppState {
             self.selected_device_path = None;
             self.warning_acknowledged = false;
             self.error = None;
+            self.pending_flash_attempt = None;
+            self.flash_report = None;
             self.step = AppStep::DetectController;
             self.previous_step = AppStep::DetectController;
             self.refresh_target_comparisons();
@@ -525,6 +549,8 @@ impl AppState {
         let was_flashing = matches!(self.busy, Some(BusyOperation::FlashingFirmware));
         self.busy = None;
 
+        let attempt = self.pending_flash_attempt.take();
+
         match result {
             Ok(version) => {
                 if let Some(selected_path) = &self.selected_device_path
@@ -535,6 +561,15 @@ impl AppState {
                 }
                 self.refresh_target_comparisons();
                 self.completed_version = Some(version);
+                self.flash_report = attempt.as_ref().map(|pending| {
+                    FlashReport::build(
+                        pending,
+                        &self.system_info,
+                        Some(format!("0x{version:04x}")),
+                        None,
+                        None,
+                    )
+                });
                 self.warning_acknowledged = false;
                 self.step = AppStep::Completed;
                 self.progress = ProgressSnapshot::completed();
@@ -546,6 +581,7 @@ impl AppState {
                 ));
             }
             Err(CoreError::Cancelled) => {
+                self.flash_report = None;
                 self.step = AppStep::ConfirmUpdate;
                 self.warning_acknowledged = false;
                 self.progress = ProgressSnapshot::idle();
@@ -565,6 +601,20 @@ impl AppState {
                 self.progress = ProgressSnapshot::idle();
                 self.warning_acknowledged = false;
                 self.enter_error(err, AppStep::ConfirmUpdate);
+                let stage = if was_flashing {
+                    "Flashing (USB HID)"
+                } else {
+                    "Download & Verification"
+                };
+                self.flash_report = attempt.as_ref().map(|pending| {
+                    FlashReport::build(
+                        pending,
+                        &self.system_info,
+                        None,
+                        Some(stage),
+                        self.error.as_ref(),
+                    )
+                });
             }
         }
         Vec::new()

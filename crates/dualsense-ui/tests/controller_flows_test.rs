@@ -72,6 +72,16 @@ fn end_to_end_scan_catalog_download_and_update_succeeds() {
         completed.banner.as_ref().map(|b| b.severity),
         Some(BannerSeverity::Positive)
     );
+    let report = completed
+        .flash_report
+        .as_ref()
+        .expect("flash_report generated on successful update");
+    assert!(report.succeeded);
+    assert!(report.title.starts_with("[Flash Report] Success"));
+    assert!(report.markdown.contains("0x0520"));
+    assert!(report.markdown.contains("0x0630"));
+    assert!(!report.markdown.contains("ABC123"));
+    assert!(!report.markdown.contains("/dev/hidraw0"));
 
     let history = recorded.lock().expect("lock history");
     assert!(
@@ -480,6 +490,17 @@ fn end_to_end_corrupt_or_mismatched_download_fails_with_friendly_error_before_st
         );
         assert!(!err_snap.error_message.is_empty(), "{label}");
         assert!(!err_snap.recovery_hint.is_empty(), "{label}");
+        let err_report = err_snap
+            .flash_report
+            .as_ref()
+            .expect("flash_report generated on failed update");
+        assert!(!err_report.succeeded, "{label}");
+        assert!(
+            err_report.title.starts_with("[Flash Report] Failed"),
+            "{label}: {}",
+            err_report.title
+        );
+        assert!(!err_report.markdown.contains("STD-01"), "{label}");
 
         let sent = enum_mock.sent_reports("/dev/hidraw0");
         assert!(

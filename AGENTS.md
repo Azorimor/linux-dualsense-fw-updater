@@ -101,6 +101,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ├── README.md                   # Linux prerequisites, build/run/test guide, Sony firmware notes, disclaimer
 ├── LICENSE                     # MIT license
 ├── .githooks/                  # Enforced git hooks (pre-commit, commit-msg, pre-push)
+├── .github/workflows/ci.yml    # Manual (workflow_dispatch) Ubuntu 24.04 CI, mold, & coverage workflow
 ├── .agents/                    # Antigravity lifecycle hooks
 ├── crates/
 │   ├── dualsense-core/         # Core HID protocol, image validation, catalog client, update state machine

@@ -81,6 +81,8 @@ To generate workspace code coverage reports (requires `cargo-llvm-cov` and the `
 
 This writes LCOV data to `target/coverage/lcov.info`, HTML reports to `target/coverage/html/index.html`, and prints a workspace summary table.
 
+GitHub Actions CI (`.github/workflows/ci.yml`) is configured for manual `workflow_dispatch` runs on `ubuntu-24.04` to check formatting, clippy, headless tests, `mold`-linked release builds, and workspace coverage artifacts.
+
 ## Sony Firmware Sources & Hardware Targets
 
 Sony publishes the latest version metadata at:

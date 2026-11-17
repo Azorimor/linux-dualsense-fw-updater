@@ -9,6 +9,7 @@ path = [
     "Cargo.lock",
     ".gitignore",
     ".githooks/**",
+    ".github/ISSUE_TEMPLATE/**",
     ".agents/**",
     "assets/**",
     "packaging/**",

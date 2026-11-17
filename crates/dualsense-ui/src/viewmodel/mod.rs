@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 pub mod progress;
 pub mod snapshot;
 pub mod state;

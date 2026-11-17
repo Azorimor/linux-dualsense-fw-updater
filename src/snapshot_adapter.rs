@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Pure Rust adapter converting [`dualsense_ui::UiSnapshot`] and QML inputs
 //! into flat, headless-testable state for the `cxx-qt` bridge.
 
@@ -105,6 +109,12 @@ pub struct AdaptedSnapshot {
     pub can_start_update: bool,
     pub can_cancel: bool,
     pub can_go_back: bool,
+
+    pub has_flash_report: bool,
+    pub flash_report_succeeded: bool,
+    pub flash_report_title: String,
+    pub flash_report_markdown: String,
+    pub flash_report_issue_url: String,
 }
 
 impl AdaptedSnapshot {
@@ -260,6 +270,23 @@ impl AdaptedSnapshot {
             .unwrap_or_default();
         let has_unsupported_board_warning = !unsupported_board_warning.is_empty();
 
+        let (
+            has_flash_report,
+            flash_report_succeeded,
+            flash_report_title,
+            flash_report_markdown,
+            flash_report_issue_url,
+        ) = match &snapshot.flash_report {
+            Some(report) => (
+                true,
+                report.succeeded,
+                report.title.clone(),
+                report.markdown.clone(),
+                report.issue_url.clone(),
+            ),
+            None => (false, false, String::new(), String::new(), String::new()),
+        };
+
         Self {
             step_index: i32::from(snapshot.step_index),
             step_title: snapshot.step_title.clone(),
@@ -335,6 +362,11 @@ impl AdaptedSnapshot {
             can_start_update: snapshot.can_start_update,
             can_cancel: snapshot.can_cancel,
             can_go_back: snapshot.can_go_back,
+            has_flash_report,
+            flash_report_succeeded,
+            flash_report_title,
+            flash_report_markdown,
+            flash_report_issue_url,
         }
     }
 }

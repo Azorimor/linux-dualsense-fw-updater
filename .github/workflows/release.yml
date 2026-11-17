@@ -1,0 +1,114 @@
+# SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional explicit tag (e.g. v0.1.0) to build and attach artifacts to; leave empty to run release-plz"
+        type: string
+        required: false
+        default: ""
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-plz:
+    name: Release-plz
+    if: ${{ inputs.release_tag == '' && !startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-24.04
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      tag_name: ${{ steps.tag.outputs.tag_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run release-plz release-pr
+        id: release-pr
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run release-plz release
+        id: release
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract created release tag
+        id: tag
+        if: steps.release.outputs.releases_created == 'true'
+        run: |
+          TAG=$(echo '${{ steps.release.outputs.releases }}' | jq -r '.[0].tag // empty')
+          echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+
+  build-all:
+    name: Build Release Artifacts
+    needs: [release-plz]
+    if: ${{ always() && (inputs.release_tag != '' || startsWith(github.ref, 'refs/tags/v') || needs.release-plz.outputs.releases_created == 'true') }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      is_release: true
+      release_tag: ${{ inputs.release_tag != '' && inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name || needs.release-plz.outputs.tag_name) }}
+
+  publish-release:
+    name: Publish Linux Release Assets
+    needs: [release-plz, build-all]
+    if: ${{ success() && (inputs.release_tag != '' || startsWith(github.ref, 'refs/tags/v') || needs.release-plz.outputs.releases_created == 'true') }}
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download Linux release artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: linux-release-artifacts
+          path: dist
+
+      - name: Generate SHA256 checksums and upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+          REF_NAME: ${{ github.ref_name }}
+          GITHUB_REF: ${{ github.ref }}
+          PLZ_TAG: ${{ needs.release-plz.outputs.tag_name }}
+        run: |
+          TAG="${INPUT_TAG}"
+          if [[ -z "$TAG" ]] && [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${REF_NAME}"
+          fi
+          if [[ -z "$TAG" ]]; then
+            TAG="${PLZ_TAG}"
+          fi
+          cd dist
+          sha256sum *.tar.gz *.AppImage > SHA256SUMS.txt
+          ls -lh
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" *.tar.gz *.AppImage SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" *.tar.gz *.AppImage SHA256SUMS.txt \
+              --title "$TAG" \
+              --generate-notes
+          fi

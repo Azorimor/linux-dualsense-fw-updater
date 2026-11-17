@@ -1,20 +1,29 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod common;
 
 use std::sync::{Arc, Mutex};
 
 use common::{
     ArcEnumerator, MockEnumerator, MockHttp, NoopSleeper, SAMPLE_CATALOG_JSON, fast_update_config,
-    make_device, make_firmware_image_bytes, wait_until,
+    make_device, make_firmware_image_bytes, make_official_firmware_image_bytes, wait_until,
 };
 use dualsense_core::{
-    CoreError, DEFAULT_PID, DUALSENSE_EDGE_PID, REPORT_ID_UPDATE_COMMAND, StartUpdateStatusCode,
-    UpdateCommand, WRITE_BLOCK_SIZE,
+    CoreError, DEFAULT_PID, DUALSENSE_EDGE_PID, FirmwareImage, REPORT_ID_UPDATE_COMMAND,
+    StartUpdateStatusCode, UpdateCommand,
 };
 use dualsense_ui::{AppEvent, AppRuntime, AppStep, BannerSeverity, ProgressStage, UiSnapshot};
 
 #[test]
 fn end_to_end_scan_catalog_download_and_update_succeeds() {
-    let image_bytes = make_firmware_image_bytes(WRITE_BLOCK_SIZE + 128, 0x0630);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES + 128,
+        DEFAULT_PID,
+        0x0004,
+        0x0630,
+    );
     let enum_mock = Arc::new(MockEnumerator::with_devices(vec![make_device(
         "/dev/hidraw0",
         DEFAULT_PID,
@@ -63,6 +72,16 @@ fn end_to_end_scan_catalog_download_and_update_succeeds() {
         completed.banner.as_ref().map(|b| b.severity),
         Some(BannerSeverity::Positive)
     );
+    let report = completed
+        .flash_report
+        .as_ref()
+        .expect("flash_report generated on successful update");
+    assert!(report.succeeded);
+    assert!(report.title.starts_with("[Flash Report] Success"));
+    assert!(report.markdown.contains("0x0520"));
+    assert!(report.markdown.contains("0x0630"));
+    assert!(!report.markdown.contains("ABC123"));
+    assert!(!report.markdown.contains("/dev/hidraw0"));
 
     let history = recorded.lock().expect("lock history");
     assert!(
@@ -244,7 +263,12 @@ fn end_to_end_failure_paths_surface_plain_english_and_recovery() {
         StartUpdateStatusCode::HeaderVersionCheckError as u8,
     );
 
-    let image_bytes = make_firmware_image_bytes(512, 0x0630);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+        DEFAULT_PID,
+        0x0004,
+        0x0630,
+    );
     let runtime2 = AppRuntime::with_backends(
         enum_mock2,
         MockHttp::with_catalog_and_image(SAMPLE_CATALOG_JSON, image_bytes),
@@ -274,7 +298,12 @@ fn end_to_end_failure_paths_surface_plain_english_and_recovery() {
 
 #[test]
 fn end_to_end_bdm050_board_and_midnight_black_color_auto_selects_target() {
-    let image_bytes = make_firmware_image_bytes(WRITE_BLOCK_SIZE + 64, 0x0630);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES + 64,
+        DEFAULT_PID,
+        0x000B,
+        0x0630,
+    );
     let enum_mock =
         MockEnumerator::with_devices(vec![make_device("/dev/hidraw0", DEFAULT_PID, "")]);
     enum_mock.push_firmware_info_with_hw("/dev/hidraw0", 0x0520, 0x000B, 0x0000_0811);
@@ -401,4 +430,87 @@ fn end_to_end_unsupported_bdm010_and_missing_serial_behave_safely() {
     assert!(!snap_unknown.can_check_updates);
     assert!(snap_unknown.unsupported_board_warning.is_some());
     runtime_unknown.shutdown();
+}
+
+#[test]
+fn end_to_end_corrupt_or_mismatched_download_fails_with_friendly_error_before_start_update() {
+    let cases = [
+        (
+            "corrupt HTML error payload",
+            b"<html><body>502 Bad Gateway</body></html>".to_vec(),
+            "invalid",
+        ),
+        (
+            "mismatched target ID",
+            make_official_firmware_image_bytes(
+                FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+                DEFAULT_PID,
+                0x000B,
+                0x0630,
+            ),
+            "does not match controller",
+        ),
+    ];
+
+    for (label, bad_bytes, expected_title_substr) in cases {
+        let enum_mock = Arc::new(MockEnumerator::with_devices(vec![make_device(
+            "/dev/hidraw0",
+            DEFAULT_PID,
+            "STD-01",
+        )]));
+        enum_mock.push_firmware_info("/dev/hidraw0", 0x0520);
+
+        let runtime = AppRuntime::with_backends(
+            ArcEnumerator(Arc::clone(&enum_mock)),
+            MockHttp::with_catalog_and_image(SAMPLE_CATALOG_JSON, bad_bytes),
+            NoopSleeper,
+            fast_update_config(),
+            |_| {},
+        )
+        .expect("start runtime");
+
+        let mut rx = runtime.subscribe();
+        runtime.dispatch(AppEvent::ScanDevices);
+        wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
+
+        runtime.dispatch(AppEvent::ContinueToFirmwareStep);
+        runtime.dispatch(AppEvent::CheckForUpdates);
+        wait_until(&mut rx, |s| !s.is_busy && s.catalog_checked);
+
+        runtime.dispatch(AppEvent::ContinueToConfirmStep);
+        runtime.dispatch(AppEvent::SetWarningAcknowledged(true));
+        wait_until(&mut rx, |s| s.can_start_update);
+
+        runtime.dispatch(AppEvent::StartUpdate);
+        let err_snap = wait_until(&mut rx, |s| s.step == AppStep::Error);
+        assert!(
+            err_snap.error_title.contains(expected_title_substr),
+            "unexpected error_title for {label}: {}",
+            err_snap.error_title
+        );
+        assert!(!err_snap.error_message.is_empty(), "{label}");
+        assert!(!err_snap.recovery_hint.is_empty(), "{label}");
+        let err_report = err_snap
+            .flash_report
+            .as_ref()
+            .expect("flash_report generated on failed update");
+        assert!(!err_report.succeeded, "{label}");
+        assert!(
+            err_report.title.starts_with("[Flash Report] Failed"),
+            "{label}: {}",
+            err_report.title
+        );
+        assert!(!err_report.markdown.contains("STD-01"), "{label}");
+
+        let sent = enum_mock.sent_reports("/dev/hidraw0");
+        assert!(
+            !sent.iter().any(|r| {
+                r.len() >= 2
+                    && r[0] == REPORT_ID_UPDATE_COMMAND
+                    && r[1] == UpdateCommand::StartUpdate as u8
+            }),
+            "StartUpdate must never be sent for {label}"
+        );
+        runtime.shutdown();
+    }
 }

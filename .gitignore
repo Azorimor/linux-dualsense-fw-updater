@@ -1,6 +1,7 @@
 debug/
 target/
 .qmlls.ini
+tmp/
 
 **/*.rs.bk
 *.pdb

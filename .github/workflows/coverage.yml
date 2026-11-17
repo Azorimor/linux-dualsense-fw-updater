@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Coverage
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - "website/**"
+      - "*.md"
+      - "LICENSES/**"
+      - "REUSE.toml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  QMAKE: /usr/bin/qmake6
+  CARGO_TERM_COLOR: always
+
+jobs:
+  coverage:
+    name: Workspace Coverage (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain with llvm-tools
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Install Ubuntu 24.04 system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            clang \
+            mold \
+            pkg-config \
+            libhidapi-dev \
+            libudev-dev \
+            libusb-1.0-0-dev \
+            libgl-dev \
+            libxkbcommon-dev \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            qt6-declarative-dev-tools \
+            qmake6 \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qtquick-layouts
+
+      - name: Cache Rust dependencies and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Generate coverage report and print summary
+        run: |
+          ./scripts/coverage.sh
+          {
+            echo "## Workspace Code Coverage"
+            echo ""
+            echo '```text'
+            cargo llvm-cov report --workspace --summary-only
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report
+          path: target/coverage/
+          if-no-files-found: error

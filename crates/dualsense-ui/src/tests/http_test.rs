@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::io::{Read as _, Write as _};
 use std::net::TcpListener;
 use std::thread;
@@ -196,4 +200,103 @@ fn rejects_invalid_utf8_and_oversized_responses() {
         .expect_err("oversized content-length should fail");
     assert!(matches!(err2, CoreError::CatalogHttp(_)));
     handle2.join().expect("server thread");
+}
+
+#[test]
+fn download_with_progress_rejects_text_html_xml_json_and_empty_responses() {
+    let client = UreqHttpClient::new();
+    let cancel = CancellationToken::new();
+
+    for content_type in [
+        "text/html; charset=utf-8",
+        "application/xhtml+xml",
+        "text/xml",
+        "application/xml",
+        "application/json",
+        "text/plain",
+    ] {
+        let body = b"<html><body>Error</body></html>";
+        let (base_url, handle) = spawn_http_server(move |mut stream| {
+            drain_request(&mut stream);
+            let headers = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(headers.as_bytes()).expect("write headers");
+            stream.write_all(body).expect("write body");
+        });
+
+        let err = client
+            .download_with_progress(&format!("{base_url}/fw.bin"), &cancel, &mut |_| {})
+            .expect_err(&format!("expected error for Content-Type {content_type}"));
+        match err {
+            CoreError::CatalogHttp(msg) => assert!(msg.contains("web page or text")),
+            other => panic!("unexpected error for {content_type}: {other:?}"),
+        }
+        handle.join().expect("server thread");
+    }
+
+    // application/octet-stream is accepted
+    let (ok_url, ok_handle) = spawn_http_server(move |mut stream| {
+        drain_request(&mut stream);
+        let headers = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 4\r\nConnection: close\r\n\r\n";
+        stream.write_all(headers.as_bytes()).expect("write headers");
+        stream.write_all(&[1, 2, 3, 4]).expect("write body");
+    });
+    let ok_bytes = client
+        .download_with_progress(&format!("{ok_url}/fw.bin"), &cancel, &mut |_| {})
+        .expect("octet-stream succeeds");
+    assert_eq!(ok_bytes, vec![1, 2, 3, 4]);
+    ok_handle.join().expect("server thread");
+
+    // Content-Length: 0 is rejected
+    let (zero_url, zero_handle) = spawn_http_server(move |mut stream| {
+        drain_request(&mut stream);
+        let headers = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+        stream.write_all(headers.as_bytes()).expect("write headers");
+    });
+    let zero_err = client
+        .download_with_progress(&format!("{zero_url}/empty.bin"), &cancel, &mut |_| {})
+        .expect_err("zero content-length should fail");
+    assert!(matches!(zero_err, CoreError::CatalogHttp(msg) if msg.contains("empty")));
+    zero_handle.join().expect("server thread");
+
+    // Empty chunked body without Content-Length is also rejected
+    let (empty_chunk_url, empty_chunk_handle) = spawn_http_server(move |mut stream| {
+        drain_request(&mut stream);
+        let headers =
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n0\r\n\r\n";
+        stream
+            .write_all(headers.as_bytes())
+            .expect("write empty chunked");
+    });
+    let empty_err = client
+        .download_with_progress(
+            &format!("{empty_chunk_url}/empty.bin"),
+            &cancel,
+            &mut |_| {},
+        )
+        .expect_err("empty body should fail");
+    assert!(matches!(empty_err, CoreError::CatalogHttp(msg) if msg.contains("empty")));
+    empty_chunk_handle.join().expect("server thread");
+}
+
+#[test]
+fn download_with_progress_rejects_truncated_content_length_response() {
+    let (base_url, handle) = spawn_http_server(move |mut stream| {
+        drain_request(&mut stream);
+        let headers = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 4096\r\nConnection: close\r\n\r\n";
+        stream.write_all(headers.as_bytes()).expect("write headers");
+        stream
+            .write_all(&[0x5Au8; 512])
+            .expect("write truncated body");
+    });
+
+    let client = UreqHttpClient::new();
+    let cancel = CancellationToken::new();
+    let err = client
+        .download_with_progress(&format!("{base_url}/truncated.bin"), &cancel, &mut |_| {})
+        .expect_err("truncated response must fail");
+    assert!(matches!(err, CoreError::CatalogHttp(_)));
+    handle.join().expect("server thread");
 }

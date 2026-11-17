@@ -1,12 +1,19 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod common;
 
-use common::{MockSonyHttp, NoopSleeper, SimDualSenseController, synthetic_firmware};
+use common::{
+    MockSonyHttp, NoopSleeper, SimDualSenseController, synthetic_firmware,
+    synthetic_official_firmware,
+};
 use dualsense_core::{
     CancellationToken, CoreError, DEFAULT_PID, DEFAULT_VID, DualSenseUpdater,
     FirmwareCatalogClient, FirmwareImage, HidDeviceEnumerator, HidDeviceInfo, HidTransport,
     StartUpdateError, StartUpdateStatusCode, UpdateConfig, UpdateFailure, UpdatePhase,
-    UpdateProgress, VerifyUpdateImageError, VerifyUpdateStatusCode, WRITE_BLOCK_SIZE,
-    WriteUpdateImageError, WriteUpdateStatusCode,
+    UpdateProgress, VerifyUpdateImageError, VerifyUpdateStatusCode, WriteUpdateImageError,
+    WriteUpdateStatusCode,
 };
 
 struct MockEnumerator;
@@ -46,8 +53,13 @@ impl HidDeviceEnumerator for MockEnumerator {
 
 #[test]
 fn end_to_end_catalog_download_and_multi_block_update_succeeds() {
-    // 2.5 blocks (> 64 KiB) to verify multi-block 0x8000 splitting and 0x39 chunking.
-    let raw_fw = synthetic_firmware(WRITE_BLOCK_SIZE * 2 + 513, 0x0630);
+    // >= 256 KiB (8+ blocks) to verify official Sony header validation, 0x8000 splitting, and 0x39 chunking.
+    let raw_fw = synthetic_official_firmware(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES + 513,
+        DEFAULT_PID,
+        0x000B,
+        0x0630,
+    );
     let catalog_client = FirmwareCatalogClient::new(MockSonyHttp {
         image_bytes: raw_fw.clone(),
     });
@@ -63,7 +75,7 @@ fn end_to_end_catalog_download_and_multi_block_update_succeeds() {
         .expect("download firmware");
     assert_eq!(dl_events.len(), 2);
     assert_eq!(image.version(), 0x0630);
-    assert_eq!(image.block_count(), 3);
+    assert_eq!(image.block_count(), 9);
 
     let sim = SimDualSenseController::new(0x0520);
     let updater = DualSenseUpdater::with_sleeper_and_config(
@@ -196,4 +208,71 @@ fn end_to_end_failure_paths_and_mid_transfer_cancellation() {
         .unwrap_err();
     assert_eq!(err_cancel, CoreError::Cancelled);
     assert!(!*updater_cancel.device().transport().finalized.borrow());
+}
+
+#[test]
+fn end_to_end_catalog_download_rejects_corrupt_html_undersized_and_mismatched_images() {
+    let cancel = CancellationToken::new();
+
+    let cases: Vec<(&str, Vec<u8>)> = vec![
+        (
+            "small HTML error page",
+            b"<html><title>Error 502</title><body>Gateway error</body></html>".to_vec(),
+        ),
+        (
+            "undersized Sony binary",
+            synthetic_official_firmware(64 * 1024, DEFAULT_PID, 0x000B, 0x0630),
+        ),
+        (
+            "random 256 KiB payload without Sony signature",
+            synthetic_firmware(FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES, 0x0630),
+        ),
+        (
+            "mismatched target ID",
+            synthetic_official_firmware(
+                FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+                DEFAULT_PID,
+                0x0004,
+                0x0630,
+            ),
+        ),
+        (
+            "mismatched USB PID",
+            synthetic_official_firmware(
+                FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+                0x0df2,
+                0x000B,
+                0x0630,
+            ),
+        ),
+        (
+            "mismatched firmware version",
+            synthetic_official_firmware(
+                FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+                DEFAULT_PID,
+                0x000B,
+                0x0641,
+            ),
+        ),
+    ];
+
+    for (label, bad_bytes) in cases {
+        let client = FirmwareCatalogClient::new(MockSonyHttp {
+            image_bytes: bad_bytes,
+        });
+        let catalog = client.fetch_catalog(&cancel).expect("fetch catalog");
+        let release = catalog.release_for_target("000B").expect("target 000B");
+        let err = client
+            .download_firmware(release, &cancel, &mut |_| {})
+            .expect_err(&format!("expected failure for {label}"));
+        assert!(
+            matches!(
+                err,
+                CoreError::InvalidDownloadedFirmware(_)
+                    | CoreError::FirmwareTargetMismatch { .. }
+                    | CoreError::FirmwareVersionMismatch { .. }
+            ),
+            "unexpected error for {label}: {err:?}"
+        );
+    }
 }

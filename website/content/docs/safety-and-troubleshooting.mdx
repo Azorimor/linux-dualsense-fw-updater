@@ -1,0 +1,58 @@
+---
+title: Safety, USB Permissions & Troubleshooting
+description: Firmware update irreversibility, Linux udev rules for /dev/hidraw access, and common recovery guidance.
+---
+
+{/*
+SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+*/}
+
+## Firmware Safety Notes
+
+- **Updates are irreversible:** Once flashing begins, firmware upgrades are auto-committed by the DualSense controller even if verify and finalize steps do not run.
+- **Controller verification:** In practice, the DualSense bootloader validates the firmware image signature and target SoC before committing, so flashing a wrong target fails verification rather than bricking the hardware. However, **never** disconnect the USB cable while blocks are being written.
+- **Already up-to-date controllers:** A controller already running the target or a newer firmware version may reject commands past the start-update phase because Sony&apos;s firmware blocks downgrades and same-version re-flashing.
+
+<Callout type="warn" title="DualSense Edge (0044) Notice">
+  The update protocol implementation has only been tested on standard DualSense hardware. DualSense Edge (`0x0df2` / target `0044`) is explicitly flagged in the Review step before flashing.
+</Callout>
+
+---
+
+## Linux USB Permissions (`udev`)
+
+On Linux, opening DualSense HID devices (`/dev/hidraw*`) without root privileges requires `uaccess` or read/write permissions for Sony&apos;s USB Vendor ID (`054c`).
+
+Many desktop distributions already provide `hidraw` rules (for example via Steam or `systemd`), but if the updater reports a permission error when opening the controller, create `/etc/udev/rules.d/70-dualsense-updater.rules`:
+
+```text
+# Sony DualSense (USB)
+KERNEL=="hidraw*", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="0ce6", MODE="0660", TAG+="uaccess"
+# Sony DualSense Edge (USB)
+KERNEL=="hidraw*", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="0df2", MODE="0660", TAG+="uaccess"
+```
+
+Then reload `udev` rules and replug your controller:
+
+```sh
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+---
+
+## Troubleshooting
+
+### Controller not detected
+- Confirm you are using a **data-capable** USB-C cable (charge-only cables will power the controller without exposing HID endpoints).
+- Disconnect Bluetooth pairing or hold the PS button briefly / replug USB so the controller enumerates over USB HID.
+- Verify the kernel sees the HID device with `lsusb | grep 054c`.
+
+### Update fails right after starting
+- Check whether the controller is already on the same or newer firmware version. Sony&apos;s firmware rejects downgrades and duplicate flashes past `StartUpdate`.
+- Ensure the selected `.bin` image matches your controller&apos;s target ID (`0004`, `000B`, `000E`, or `0044`).
+
+### Missing Kirigami QML style at launch
+- If the app launches with minimal styling or logs QML module warnings, confirm `org.kde.kirigami` (KF6) is installed on your system. You can also test with `QT_QUICK_CONTROLS_STYLE=Fusion`.

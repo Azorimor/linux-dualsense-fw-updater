@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use dualsense_core::{
     CoreError, FinalizeUpdateError, StartUpdateError, UpdateFailure, VerifyUpdateImageError,
     WriteUpdateImageError,
@@ -126,6 +130,36 @@ pub fn map_core_error(err: &CoreError) -> FriendlyError {
                     .to_string(),
             recovery_hint:
                 "Make sure you selected the right DualSense model revision, or use a local firmware .bin file."
+                    .to_string(),
+            technical_detail,
+        },
+        CoreError::InvalidDownloadedFirmware(_) => FriendlyError {
+            error_title: "Downloaded firmware file is invalid".to_string(),
+            error_message:
+                "The file downloaded from Sony's server is incomplete, corrupted, or not a valid DualSense firmware image."
+                    .to_string(),
+            recovery_hint:
+                "Check your internet connection or proxy/VPN settings and try downloading again, or choose a verified local firmware .bin file."
+                    .to_string(),
+            technical_detail,
+        },
+        CoreError::FirmwareTargetMismatch { expected, actual } => FriendlyError {
+            error_title: "Downloaded firmware does not match controller".to_string(),
+            error_message: format!(
+                "The downloaded firmware is meant for controller target {actual}, not the selected target {expected}."
+            ),
+            recovery_hint:
+                "Check for updates again to refresh Sony's catalog, or confirm you selected the right controller model."
+                    .to_string(),
+            technical_detail,
+        },
+        CoreError::FirmwareVersionMismatch { expected, actual } => FriendlyError {
+            error_title: "Downloaded firmware version mismatch".to_string(),
+            error_message: format!(
+                "Expected firmware version 0x{expected:04x} from Sony's catalog, but the downloaded file contains version 0x{actual:04x}."
+            ),
+            recovery_hint:
+                "Try downloading the update again, or install from a verified local firmware .bin file."
                     .to_string(),
             technical_detail,
         },

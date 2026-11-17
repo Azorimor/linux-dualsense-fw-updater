@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Coding Agent Instructions
 
 This file governs all AI coding agents working in `dualsense-updater-rs`.
@@ -76,7 +82,12 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 ## 3. Current Project Overview
 
-`dualsense-updater` (`v0.1.0`, Rust `edition = "2024"`, MIT license) is a Linux KDE Kirigami desktop application (organized as a 3-crate Cargo workspace) for inspecting and updating Sony PlayStation DualSense (`0x054c:0x0ce6`) and DualSense Edge (`0x054c:0x0df2`) firmware over USB HID.
+`dualsense-updater` (`v0.0.0`, Rust `edition = "2024"`, `GPL-3.0-or-later`) is a Linux KDE Kirigami desktop application (organized as a 3-crate Cargo workspace) for inspecting and updating Sony PlayStation DualSense (`0x054c:0x0ce6`) and DualSense Edge (`0x054c:0x0df2`) firmware over USB HID.
+
+### Licensing & FSFE REUSE Compliance (Mandatory)
+- **Project license:** `GPL-3.0-or-later` (`Cargo.toml`, `LICENSES/GPL-3.0-or-later.txt`).
+- **Inherited core files:** The 10 files adapted from `nchie`'s original CLI project (`crates/dualsense-core/src/{error,image,protocol,transport,updater}.rs` and `crates/dualsense-core/src/tests/*_test.rs` for those 5 modules) retain `SPDX-FileCopyrightText: 2026 nchie`, `SPDX-FileCopyrightText: 2026 Azorimor`, and `SPDX-License-Identifier: MIT AND GPL-3.0-or-later` (`LICENSES/MIT.txt`).
+- **New files rule:** Every newly added commentable file must include `SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>` and `SPDX-License-Identifier: GPL-3.0-or-later` headers (or be explicitly covered in `REUSE.toml` if non-commentable). Always verify with `reuse lint` and `cargo deny --locked --all-features check licenses`.
 
 ### Hardware & Firmware Context
 - **Upgrade irreversibility:** Firmware upgrades are auto-committed by the controller even if verify and finalize steps are not executed.
@@ -97,12 +108,37 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 .
 ├── Cargo.toml                  # 3-member workspace manifest + pinned workspace dependencies
 ├── Cargo.lock                  # Resolved dependency lockfile
-├── build.rs                    # Auto-sets QMAKE=/usr/bin/qmake6 if unset; builds cxx-qt + dev.dualsense.updater QML module
+├── build.rs                    # Auto-sets QMAKE=/usr/bin/qmake6; builds cxx-qt, QML module, icon QResources, & generated_licenses.rs
+├── deny.toml                   # cargo-deny license, advisory, ban, and source policy
+├── rustfmt.toml                # Workspace Rust formatting configuration
+├── clippy.toml                 # Workspace Clippy configuration (msrv = "1.85.0", complexity thresholds)
+├── cliff.toml                  # git-cliff Conventional Commits changelog template
+├── release-plz.toml            # release-plz automated changelog & GitHub release config
 ├── README.md                   # Linux prerequisites, build/run/test guide, Sony firmware notes, disclaimer
-├── LICENSE                     # MIT license
+├── REUSE.toml                  # FSFE REUSE metadata for non-commentable and config assets
+├── LICENSES/                   # Full SPDX license texts (GPL-3.0-or-later.txt, MIT.txt)
 ├── .githooks/                  # Enforced git hooks (pre-commit, commit-msg, pre-push)
-├── .github/workflows/ci.yml    # Manual (workflow_dispatch) Ubuntu 24.04 CI, mold, & coverage workflow
+├── .github/
+│   ├── ISSUE_TEMPLATE/         # GitHub issue templates (`flash_report.md` prefill target; others live on main)
+│   └── workflows/              # GitHub Actions workflows (Ubuntu 24.04)
+│       ├── ci.yml              # Build, fmt, clippy, structural rules, test, qmllint, & Linux packaging
+│       ├── coverage.yml        # Code coverage workflow
+│       ├── cleanup-pr-cache.yml # PR cache cleanup workflow
+│       ├── release.yml         # Release & SHA256SUMS artifact publishing workflow
+│       └── deploy-website.yml  # Fumadocs static site build & deploy workflow
 ├── .agents/                    # Antigravity lifecycle hooks
+├── assets/                     # Brand SVGs (`logo.svg`, `logo-symbol.svg`), Vectorcraft source, & GUI screenshots (`assets/desktop/` -> `packaging/linux/icons/`, `assets/web/` -> `website/public/`)
+├── packaging/                  # Linux desktop integration assets
+│   └── linux/
+│       ├── dev.dualsense.updater.desktop # XDG desktop entry (`dev.dualsense.updater`)
+│       ├── install-desktop.sh  # User/system XDG desktop entry & hicolor icon installer (`--user`, `--system`, `--prefix`, `--exec`, `--uninstall`)
+│       └── icons/              # Canonical app icons (`16x16`..`512x512/icon.png` + `scalable/icon.svg`; moved from `assets/desktop`)
+├── scripts/
+│   ├── coverage.sh             # cargo-llvm-cov HTML & LCOV report script
+│   ├── package-appimage.sh     # Portable .tar.gz & .AppImage packager (bundles desktop entry, hicolor icons, `.DirIcon`, & `install-desktop.sh`)
+│   └── verify_structural_rules.py # Checks file length, test layout, SPDX headers, & AGENTS.md paths
+├── website/                    # Fumadocs / Next.js static documentation website
+│   └── public/                 # Static web brand assets (`favicon.svg`, `favicon-16x16.png`, `favicon-32x32.png`, `favicon-48x48.png`, `icon-192x192.png`, `icon-512x512.png`, `apple-touch-icon.png`, `site.webmanifest`; moved from `assets/web`)
 ├── crates/
 │   ├── dualsense-core/         # Core HID protocol, image validation, catalog client, update state machine
 │   │   ├── src/
@@ -115,26 +151,35 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │   │   │   ├── transport.rs    # HidTransport, HidDeviceEnumerator, Sleeper traits + HidApiBackend
 │   │   │   ├── updater.rs      # DualSenseUpdater bounded polling state machine & UpdateProgress
 │   │   │   └── tests/          # Extracted unit tests (*_test.rs)
-│   │   └── tests/              # Integration tests (board_detection_test.rs, update_flow_test.rs)
+│   │   └── tests/              # Integration tests (board_detection_test.rs, update_flow_test.rs, opt-in real_firmware_test.rs)
 │   └── dualsense-ui/           # Headless-testable ViewModel, HTTP client, friendly errors, async runtime
 │       ├── src/
 │       │   ├── lib.rs          # Public crate re-exports
 │       │   ├── viewmodel/      # Modular Elm/TEA ViewModel (mod, types, state, transitions, snapshot, progress)
 │       │   ├── controller.rs   # AppController & AppRuntime (Tokio workers + 800 ms live USB device polling)
 │       │   ├── http.rs         # UreqHttpClient (ureq + rustls) with streaming progress & cancellation
+│       │   ├── flash_report.rs # Anonymized OS/hardware/flash metrics & prefilled GitHub issue URL builder
 │       │   ├── error_map.rs    # FriendlyError plain-English mapping for CoreError / UpdateFailure
 │       │   └── tests/          # Extracted unit tests (*_test.rs)
 │       └── tests/              # Integration tests (controller_flows_test.rs, disconnect_monitor_test.rs, http_live_test.rs)
 ├── src/                        # Root `dualsense-updater` Qt6/Kirigami desktop crate
-│   ├── lib.rs                  # Exposes qt_bridge & snapshot_adapter for headless integration tests
-│   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, org.kde.desktop + Fusion fallback
-│   ├── qt_bridge.rs            # cxx-qt DualSenseBridge QObject binding DefaultAppRuntime to QML
+│   ├── lib.rs                  # Exposes qt_bridge, app_icon, snapshot_adapter, licenses, & license_report
+│   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, desktop ID/window icon, org.kde.desktop + Fusion fallback
+│   ├── app_icon.rs             # cxx-qt FFI wrapper, `DESKTOP_FILE_ID`, & `EMBEDDED_APP_ICON_URL`
+│   ├── app_icon.h              # C++ header for `configure_application_window_icon()`
+│   ├── app_icon.cpp            # Theme icon lookup (`dev.dualsense.updater`) with embedded multi-res Qt resource fallback
+│   ├── qt_bridge.rs            # cxx-qt DualSenseBridge QObject binding DefaultAppRuntime & licensesText to QML
 │   ├── snapshot_adapter.rs     # Pure Rust AdaptedSnapshot & file:// URL parser
-│   └── tests/                  # Extracted unit tests (snapshot_adapter_test.rs, snapshot_state_test.rs)
-├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs)
+│   ├── licenses.rs             # Bundled license text loader & query helpers
+│   ├── license_report.rs       # Cargo.lock & crate metadata parser/formatter for third-party notices
+│   └── tests/                  # Extracted unit tests (snapshot_adapter_test.rs, snapshot_state_test.rs, licenses_test.rs)
+├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs, desktop_icon_test.rs)
 └── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
-    ├── Main.qml                # Kirigami.ApplicationWindow + 6-view StackLayout wizard
-    └── StepIndicator.qml       # 4-step progress breadcrumb header
+    ├── Main.qml                # Kirigami.ApplicationWindow + MenuBar + 6-view StackLayout wizard
+    ├── StepIndicator.qml       # 4-step progress breadcrumb header
+    ├── LicensesWindow.qml      # Third-party open-source licenses viewer window
+    ├── AboutWindow.qml         # About dialog with version, disclaimer, and GitHub / Pages links
+    └── FlashReportWindow.qml   # Optional post-flash anonymized report preview, copy, & GitHub issue opener
 ```
 
 ### Workspace Dependencies (`Cargo.toml`)
@@ -153,6 +198,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 - **Qt6 / `qmake6` discovery:** `build.rs` defaults `QMAKE` to `/usr/bin/qmake6` when unset and present; export `QMAKE=/path/to/qmake6` on systems where `qmake` defaults to Qt 5 or `qmake6` is elsewhere.
 - **Headless CI compatibility:** All 3 workspace crates decouple business logic and snapshot adaptation from Qt event loops, display servers, and physical DualSense hardware so `cargo test --workspace` runs completely headlessly.
 - **Kirigami style & QML linting:** `src/main.rs` sets `org.kde.desktop` (when `QT_QUICK_CONTROLS_STYLE` is unset) with `Fusion` fallback. Keep QML strictly typed (`pragma ComponentBehavior: Bound`, `required property` on delegates) so `qmllint` passes with zero warnings.
+- **Linux system dev libraries:** `libhidapi-dev`, `libudev-dev`, `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, `pkg-config`, and Qt 6 dev packages.
 - **Offscreen smoke check:** Running with `QT_QPA_PLATFORM=offscreen` verifies `QQmlApplicationEngine` loads `qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml` cleanly without X11/Wayland (using `timeout` because the Qt event loop stays open until closed).
 
 ---
@@ -164,7 +210,10 @@ Linux builds use the `mold` linker via `.cargo/config.toml` (`-C link-arg=-fuse-
 ```sh
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
+python3 scripts/verify_structural_rules.py
 cargo test --workspace
+reuse lint
+cargo deny --locked --all-features check licenses
 ./scripts/coverage.sh  # requires cargo-llvm-cov + llvm-tools; writes target/coverage/{lcov.info,html/index.html}
 cargo check
 /usr/lib/qt6/bin/qmllint -I target/cxxqt/qml_modules -I /usr/lib/qt6/qml qml/StepIndicator.qml qml/Main.qml

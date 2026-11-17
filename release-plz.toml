@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[workspace]
+allow_dirty = false
+changelog_config = "cliff.toml"
+changelog_update = true
+dependencies_update = false
+git_release_enable = true
+git_tag_enable = true
+pr_branch_prefix = "release-plz-"
+pr_labels = ["release"]
+publish = false
+repo_url = "https://github.com/Azorimor/linux-dualsense-fw-updater"
+semver_check = false
+
+[[package]]
+name = "dualsense-updater"
+changelog_path = "CHANGELOG.md"
+changelog_include = ["dualsense-core", "dualsense-ui"]
+git_release_enable = true
+git_tag_name = "v{{ version }}"
+release = true
+
+[[package]]
+name = "dualsense-core"
+changelog_update = false
+git_release_enable = false
+git_tag_enable = false
+release = false
+
+[[package]]
+name = "dualsense-ui"
+changelog_update = false
+git_release_enable = false
+git_tag_enable = false
+release = false

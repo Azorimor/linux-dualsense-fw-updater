@@ -1,9 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 [package]
 name = "dualsense-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Core DualSense USB HID firmware inspection and update library"
+
+[features]
+real-firmware-tests = []
 
 [dependencies]
 hidapi.workspace = true

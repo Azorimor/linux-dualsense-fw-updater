@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 nchie
 // SPDX-FileCopyrightText: 2026 Azorimor
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT AND GPL-3.0-or-later
 
 use crate::protocol::{
     StartUpdateStatusCode, UpdateCommand, VerifyUpdateStatusCode, WriteUpdateStatusCode,
@@ -96,6 +96,19 @@ pub enum CoreError {
 
     #[error("No firmware release was found for controller target {0}.")]
     CatalogTargetNotFound(String),
+
+    #[error(
+        "The downloaded firmware file is corrupted or not a valid Sony DualSense firmware image."
+    )]
+    InvalidDownloadedFirmware(String),
+
+    #[error("The downloaded firmware is for controller target {actual}, expected {expected}.")]
+    FirmwareTargetMismatch { expected: String, actual: String },
+
+    #[error(
+        "The downloaded firmware version (0x{actual:04x}) does not match the expected release (0x{expected:04x})."
+    )]
+    FirmwareVersionMismatch { expected: u16, actual: u16 },
 }
 
 impl CoreError {
@@ -148,6 +161,15 @@ impl CoreError {
             Self::CatalogParse(detail) => format!("Catalog parse error: {detail}"),
             Self::CatalogTargetNotFound(target) => {
                 format!("Catalog target not found: {target}")
+            }
+            Self::InvalidDownloadedFirmware(detail) => {
+                format!("Invalid downloaded firmware: {detail}")
+            }
+            Self::FirmwareTargetMismatch { expected, actual } => {
+                format!("Firmware target mismatch: expected {expected}, got {actual}")
+            }
+            Self::FirmwareVersionMismatch { expected, actual } => {
+                format!("Firmware version mismatch: expected 0x{expected:04x}, got 0x{actual:04x}")
             }
         }
     }

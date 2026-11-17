@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::io::Read;
 use std::time::Duration;
 
@@ -50,6 +54,12 @@ impl Default for UreqHttpClient {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum ExpectedContent {
+    Text,
+    BinaryFirmware,
+}
+
 impl UreqHttpClient {
     /// Creates an HTTP client with default timeouts and rustls TLS verification.
     pub fn new() -> Self {
@@ -74,6 +84,7 @@ impl UreqHttpClient {
         &self,
         url: &str,
         max_bytes: u64,
+        expected_content: ExpectedContent,
         cancel: &CancellationToken,
         on_progress: &mut dyn FnMut(DownloadProgress),
     ) -> Result<Vec<u8>> {
@@ -90,10 +101,30 @@ impl UreqHttpClient {
             return Err(CoreError::Cancelled);
         }
 
+        if expected_content == ExpectedContent::BinaryFirmware
+            && let Some(content_type) = response
+                .headers()
+                .get("content-type")
+                .and_then(|value| value.to_str().ok())
+            && is_rejected_firmware_content_type(content_type)
+        {
+            log::warn!("Rejected non-binary firmware Content-Type {content_type:?} for {url}");
+            return Err(CoreError::CatalogHttp(
+                "Sony's update server returned a web page or text response instead of a firmware file."
+                    .to_string(),
+            ));
+        }
+
         let total_bytes = response
             .body()
             .content_length()
             .and_then(|len| usize::try_from(len).ok());
+
+        if total_bytes == Some(0) {
+            return Err(CoreError::CatalogHttp(empty_response_message(
+                expected_content,
+            )));
+        }
 
         if let Some(len) = total_bytes
             && (len as u64) > max_bytes
@@ -141,6 +172,24 @@ impl UreqHttpClient {
             return Err(CoreError::Cancelled);
         }
 
+        if bytes.is_empty() {
+            return Err(CoreError::CatalogHttp(empty_response_message(
+                expected_content,
+            )));
+        }
+
+        if let Some(expected) = total_bytes
+            && bytes.len() != expected
+        {
+            log::warn!(
+                "HTTP response length mismatch for {url}: expected {expected} bytes, got {} bytes",
+                bytes.len()
+            );
+            return Err(CoreError::CatalogHttp(
+                "The download ended early and did not match the expected file size.".to_string(),
+            ));
+        }
+
         Ok(bytes)
     }
 }
@@ -148,8 +197,13 @@ impl UreqHttpClient {
 impl HttpClient for UreqHttpClient {
     fn get_text(&self, url: &str, cancel: &CancellationToken) -> Result<String> {
         let mut noop = |_| {};
-        let bytes =
-            self.read_stream_with_cancel(url, self.config.max_text_bytes, cancel, &mut noop)?;
+        let bytes = self.read_stream_with_cancel(
+            url,
+            self.config.max_text_bytes,
+            ExpectedContent::Text,
+            cancel,
+            &mut noop,
+        )?;
         String::from_utf8(bytes).map_err(|_| {
             CoreError::CatalogParse(
                 "The update server returned text that could not be decoded as UTF-8.".to_string(),
@@ -163,7 +217,38 @@ impl HttpClient for UreqHttpClient {
         cancel: &CancellationToken,
         on_progress: &mut dyn FnMut(DownloadProgress),
     ) -> Result<Vec<u8>> {
-        self.read_stream_with_cancel(url, self.config.max_download_bytes, cancel, on_progress)
+        self.read_stream_with_cancel(
+            url,
+            self.config.max_download_bytes,
+            ExpectedContent::BinaryFirmware,
+            cancel,
+            on_progress,
+        )
+    }
+}
+
+fn is_rejected_firmware_content_type(header_value: &str) -> bool {
+    let media_type = header_value
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    media_type.starts_with("text/")
+        || matches!(
+            media_type.as_str(),
+            "application/xhtml+xml" | "application/xml" | "application/json"
+        )
+        || media_type.ends_with("+xml")
+        || media_type.ends_with("+json")
+}
+
+fn empty_response_message(expected_content: ExpectedContent) -> String {
+    match expected_content {
+        ExpectedContent::Text => "Sony's update server returned an empty response.".to_string(),
+        ExpectedContent::BinaryFirmware => {
+            "Sony's update server returned an empty firmware file.".to_string()
+        }
     }
 }
 

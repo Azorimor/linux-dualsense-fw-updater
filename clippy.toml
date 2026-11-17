@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+msrv = "1.85.0"
+too-many-arguments-threshold = 8
+cognitive-complexity-threshold = 25

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 nchie
 // SPDX-FileCopyrightText: 2026 Azorimor
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT AND GPL-3.0-or-later
 
 use crate::error::*;
 use crate::protocol::{
@@ -207,6 +207,15 @@ fn technical_detail_covers_all_core_error_variants() {
         CoreError::CatalogHttp("503".into()),
         CoreError::CatalogParse("bad json".into()),
         CoreError::CatalogTargetNotFound("000B".into()),
+        CoreError::InvalidDownloadedFirmware("missing Sony header".into()),
+        CoreError::FirmwareTargetMismatch {
+            expected: "000B".into(),
+            actual: "0004".into(),
+        },
+        CoreError::FirmwareVersionMismatch {
+            expected: 0x0630,
+            actual: 0x0641,
+        },
     ];
 
     for variant in variants {

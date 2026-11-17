@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Deploy Website
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - ".github/workflows/deploy-website.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    name: Build Fumadocs Static Site
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build and optimize static site
+        working-directory: website
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm run build
+          touch out/.nojekyll
+
+      - name: Upload static site artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: website-static-out
+          path: website/out/
+          if-no-files-found: error
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: pages
+          publish_dir: ./website/out
+          # cname: dualsense.example.com

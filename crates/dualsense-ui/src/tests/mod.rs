@@ -1,4 +1,9 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod error_map_test;
+mod flash_report_test;
 mod http_test;
 mod viewmodel_board_test;
 mod viewmodel_disconnect_test;

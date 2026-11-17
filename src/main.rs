@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};
 extern crate dualsense_updater;
 
@@ -19,6 +23,10 @@ fn main() {
             .as_mut()
             .set_application_version(&QString::from(env!("CARGO_PKG_VERSION")));
     }
+    QGuiApplication::set_desktop_file_name(&QString::from(
+        dualsense_updater::app_icon::DESKTOP_FILE_ID,
+    ));
+    dualsense_updater::app_icon::configure_window_icon();
 
     let mut engine = QQmlApplicationEngine::new();
     if let Some(mut engine_pin) = engine.as_mut() {

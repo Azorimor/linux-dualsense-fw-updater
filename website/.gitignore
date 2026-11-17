@@ -1,0 +1,8 @@
+node_modules/
+.next/
+out/
+.source/
+next-env.d.ts
+tsconfig.tsbuildinfo
+public/nextImageExportOptimizer/
+public/images/next-image-export-optimizer-hashes.json

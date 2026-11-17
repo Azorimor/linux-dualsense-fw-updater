@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -20,6 +24,69 @@ Kirigami.ApplicationWindow {
 
     DualSenseBridge {
         id: updater
+    }
+
+    LicensesWindow {
+        id: licensesWindow
+        licensesText: updater.licensesText
+    }
+
+    AboutWindow {
+        id: aboutWindow
+        appVersion: updater.appVersion
+        githubUrl: updater.githubUrl
+        githubPagesUrl: updater.githubPagesUrl
+        githubIssuesUrl: updater.githubIssuesUrl
+    }
+
+    FlashReportWindow {
+        id: flashReportWindow
+        reportTitle: updater.flashReportTitle
+        reportMarkdown: updater.flashReportMarkdown
+        issueUrl: updater.flashReportIssueUrl
+        issuesUrl: updater.githubIssuesUrl
+        reportSucceeded: updater.flashReportSucceeded
+    }
+
+    menuBar: QQC2.MenuBar {
+        QQC2.Menu {
+            title: "File"
+
+            QQC2.MenuItem {
+                text: "Scan Controllers"
+                enabled: updater.canScan
+                onTriggered: updater.scanControllers()
+            }
+
+            QQC2.MenuSeparator {}
+
+            QQC2.MenuItem {
+                text: "Quit"
+                onTriggered: Qt.quit()
+            }
+        }
+
+        QQC2.Menu {
+            title: "Help"
+
+            QQC2.MenuItem {
+                text: "Licenses"
+                onTriggered: {
+                    licensesWindow.show()
+                    licensesWindow.raise()
+                    licensesWindow.requestActivate()
+                }
+            }
+
+            QQC2.MenuItem {
+                text: "About Unofficial DualSense Firmware Updater"
+                onTriggered: {
+                    aboutWindow.show()
+                    aboutWindow.raise()
+                    aboutWindow.requestActivate()
+                }
+            }
+        }
     }
 
     FileDialog {
@@ -667,6 +734,50 @@ Kirigami.ApplicationWindow {
                             }
                         }
                     }
+
+                    Kirigami.AbstractCard {
+                        Layout.fillWidth: true
+                        visible: updater.hasFlashReport
+
+                        contentItem: ColumnLayout {
+                            spacing: Kirigami.Units.smallSpacing
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: "Optional: Share Flash Result on GitHub"
+                                font.bold: true
+                            }
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: "Open a prefilled GitHub issue with anonymized controller, firmware, and OS metrics (no serial numbers). You can review and edit everything before submitting."
+                                wrapMode: Text.WordWrap
+                                opacity: 0.82
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+
+                                QQC2.Button {
+                                    text: "Flash Run Infos"
+                                    icon.name: "document-properties"
+                                    onClicked: {
+                                        flashReportWindow.show()
+                                        flashReportWindow.raise()
+                                        flashReportWindow.requestActivate()
+                                    }
+                                }
+
+                                QQC2.Button {
+                                    text: "Open GitHub Issue"
+                                    icon.name: "internet-web-browser"
+                                    enabled: updater.flashReportIssueUrl.length > 0
+                                    onClicked: Qt.openUrlExternally(updater.flashReportIssueUrl)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // ---------------------------------------------------------
@@ -702,6 +813,50 @@ Kirigami.ApplicationWindow {
                                 Layout.fillWidth: true
                                 text: updater.recoveryHint
                                 wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+
+                    Kirigami.AbstractCard {
+                        Layout.fillWidth: true
+                        visible: updater.hasFlashReport
+
+                        contentItem: ColumnLayout {
+                            spacing: Kirigami.Units.smallSpacing
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: "Optional: Report Flash Attempt on GitHub"
+                                font.bold: true
+                            }
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: "Open a prefilled GitHub issue with anonymized controller, firmware, error, and OS metrics (no serial numbers) so maintainers can investigate compatibility."
+                                wrapMode: Text.WordWrap
+                                opacity: 0.82
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+
+                                QQC2.Button {
+                                    text: "Flash Run Infos"
+                                    icon.name: "document-properties"
+                                    onClicked: {
+                                        flashReportWindow.show()
+                                        flashReportWindow.raise()
+                                        flashReportWindow.requestActivate()
+                                    }
+                                }
+
+                                QQC2.Button {
+                                    text: "Open GitHub Issue"
+                                    icon.name: "internet-web-browser"
+                                    enabled: updater.flashReportIssueUrl.length > 0
+                                    onClicked: Qt.openUrlExternally(updater.flashReportIssueUrl)
+                                }
                             }
                         }
                     }

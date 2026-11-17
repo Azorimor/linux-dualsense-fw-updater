@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
@@ -100,23 +104,66 @@ fn extract_updater_usages(qml_src: &str) -> (BTreeSet<String>, BTreeSet<String>)
 fn qml_files_exist_and_declare_bound_component_behavior() {
     let main_path = repo_path("qml/Main.qml");
     let step_path = repo_path("qml/StepIndicator.qml");
+    let licenses_path = repo_path("qml/LicensesWindow.qml");
+    let about_path = repo_path("qml/AboutWindow.qml");
+    let flash_report_path = repo_path("qml/FlashReportWindow.qml");
 
     let main_qml = std::fs::read_to_string(&main_path).expect("read qml/Main.qml");
     let step_qml = std::fs::read_to_string(&step_path).expect("read qml/StepIndicator.qml");
+    let licenses_qml =
+        std::fs::read_to_string(&licenses_path).expect("read qml/LicensesWindow.qml");
+    let about_qml = std::fs::read_to_string(&about_path).expect("read qml/AboutWindow.qml");
+    let flash_report_qml =
+        std::fs::read_to_string(&flash_report_path).expect("read qml/FlashReportWindow.qml");
 
     assert!(main_qml.contains("pragma ComponentBehavior: Bound"));
     assert!(step_qml.contains("pragma ComponentBehavior: Bound"));
+    assert!(licenses_qml.contains("pragma ComponentBehavior: Bound"));
+    assert!(about_qml.contains("pragma ComponentBehavior: Bound"));
+    assert!(flash_report_qml.contains("pragma ComponentBehavior: Bound"));
 
     assert!(main_qml.contains("import dev.dualsense.updater"));
     assert!(main_qml.contains("import org.kde.kirigami as Kirigami"));
     assert!(main_qml.contains("DualSenseBridge {"));
     assert!(main_qml.contains("id: updater"));
+    assert!(main_qml.contains("LicensesWindow {"));
+    assert!(main_qml.contains("licensesText: updater.licensesText"));
+    assert!(main_qml.contains("AboutWindow {"));
+    assert!(main_qml.contains("appVersion: updater.appVersion"));
+    assert!(main_qml.contains("githubUrl: updater.githubUrl"));
+    assert!(main_qml.contains("githubPagesUrl: updater.githubPagesUrl"));
+    assert!(main_qml.contains("FlashReportWindow {"));
+    assert!(main_qml.contains("reportMarkdown: updater.flashReportMarkdown"));
+    assert!(main_qml.contains("menuBar: QQC2.MenuBar"));
+    assert!(main_qml.contains("text: \"Licenses\""));
+    assert!(main_qml.contains("text: \"About Unofficial DualSense Firmware Updater\""));
+    assert!(main_qml.contains("text: \"Flash Run Infos\""));
+    assert!(main_qml.contains("text: \"Open GitHub Issue\""));
     assert!(main_qml.contains("currentStepIndex: updater.stepIndex"));
     assert!(main_qml.contains("currentIndex: updater.stepIndex"));
     assert!(main_qml.contains("firmwareFileDialog.close()"));
 
     assert!(step_qml.contains("required property int currentStepIndex"));
     assert!(step_qml.contains("required property int index"));
+
+    assert!(licenses_qml.contains("required property string licensesText"));
+    assert!(licenses_qml.contains("title: \"Licenses & Third-Party Notices\""));
+    assert!(licenses_qml.contains("QQC2.TextArea"));
+    assert!(licenses_qml.contains("readOnly: true"));
+    assert!(licenses_qml.contains("text: \"Close\""));
+
+    assert!(about_qml.contains("required property string appVersion"));
+    assert!(about_qml.contains("required property string githubUrl"));
+    assert!(about_qml.contains("required property string githubPagesUrl"));
+    assert!(about_qml.contains("title: \"About Unofficial DualSense Firmware Updater\""));
+    assert!(about_qml.contains(dualsense_updater::app_icon::EMBEDDED_APP_ICON_URL));
+
+    assert!(flash_report_qml.contains("required property string reportTitle"));
+    assert!(flash_report_qml.contains("required property string reportMarkdown"));
+    assert!(flash_report_qml.contains("required property string issueUrl"));
+    assert!(flash_report_qml.contains("title: \"Flash Run Infos\""));
+    assert!(flash_report_qml.contains("text: \"Copy Report\""));
+    assert!(flash_report_qml.contains("text: \"Open GitHub Issue\""));
 }
 
 #[test]

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use dualsense_core::{
     CoreError, FinalizeUpdateError, StartUpdateError, UpdateCommand, UpdateFailure, UpdatePhase,
     VerifyUpdateImageError, WriteUpdateImageError,
@@ -56,12 +60,41 @@ fn maps_every_core_error_variant_to_plain_english() {
         CoreError::CatalogHttp("".to_string()),
         CoreError::CatalogParse("bad json".to_string()),
         CoreError::CatalogTargetNotFound("0099".to_string()),
+        CoreError::InvalidDownloadedFirmware("Missing Sony signature".to_string()),
+        CoreError::FirmwareTargetMismatch {
+            expected: "0004".to_string(),
+            actual: "000B".to_string(),
+        },
+        CoreError::FirmwareVersionMismatch {
+            expected: 0x0630,
+            actual: 0x0520,
+        },
     ];
 
     for err in &cases {
         let friendly = map_core_error(err);
         assert_user_friendly(&friendly);
     }
+
+    let invalid_dl = map_core_error(&CoreError::InvalidDownloadedFirmware(
+        "truncated".to_string(),
+    ));
+    assert!(invalid_dl.error_title.contains("invalid"));
+    assert!(invalid_dl.recovery_hint.contains("try downloading again"));
+
+    let target_mismatch = map_core_error(&CoreError::FirmwareTargetMismatch {
+        expected: "0004".to_string(),
+        actual: "000B".to_string(),
+    });
+    assert!(target_mismatch.error_message.contains("000B"));
+    assert!(target_mismatch.error_message.contains("0004"));
+
+    let version_mismatch = map_core_error(&CoreError::FirmwareVersionMismatch {
+        expected: 0x0630,
+        actual: 0x0520,
+    });
+    assert!(version_mismatch.error_message.contains("0x0630"));
+    assert!(version_mismatch.error_message.contains("0x0520"));
 
     let perm = map_core_error(&CoreError::Hid("Permission denied".to_string()));
     assert!(perm.error_title.contains("permission"));

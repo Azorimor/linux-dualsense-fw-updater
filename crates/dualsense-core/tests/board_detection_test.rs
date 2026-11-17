@@ -1,9 +1,14 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod common;
 
-use common::{MockSonyHttp, NoopSleeper, SimDualSenseController, synthetic_firmware};
+use common::{MockSonyHttp, NoopSleeper, SimDualSenseController, synthetic_official_firmware};
 use dualsense_core::{
     BoardModel, CancellationToken, DEFAULT_PID, DUALSENSE_EDGE_PID, DualSenseUpdater,
-    FirmwareCatalogClient, UpdateConfig, decode_ds5_color, resolve_controller_target,
+    FirmwareCatalogClient, FirmwareImage, UpdateConfig, decode_ds5_color,
+    resolve_controller_target,
 };
 
 #[test]
@@ -37,7 +42,12 @@ fn end_to_end_board_detection_serial_color_and_unsupported_handling() {
     assert_eq!(decode_ds5_color(&serial), Some("Cosmic Red"));
 
     // Resolve Sony catalog release using auto-detected target ID
-    let raw_fw = synthetic_firmware(512, 0x0630);
+    let raw_fw = synthetic_official_firmware(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+        DEFAULT_PID,
+        0x000B,
+        0x0630,
+    );
     let catalog_client = FirmwareCatalogClient::new(MockSonyHttp {
         image_bytes: raw_fw,
     });

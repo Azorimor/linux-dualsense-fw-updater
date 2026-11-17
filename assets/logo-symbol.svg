@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">
+  <title>Icon-Transparent</title>
+  <g id="Icon-Dark">
+  </g>
+  <g id="Icon-Transparent">
+    <path id="Update_Arrow__Transparent_" data-name="Update Arrow (Transparent)" d="M250.44 204.66 C254.147 200.553 257.853 200.553 261.56 204.66 L305.31 253.06 C311.603 260.02 310.06 263.5 300.68 263.5 L281.62 263.5 C279.54 263.5 278.5 264.54 278.5 266.62 L278.5 327.25 C278.5 331.417 276.417 333.5 272.25 333.5 L239.75 333.5 C235.583 333.5 233.5 331.417 233.5 327.25 L233.5 266.62 C233.5 264.54 232.46 263.5 230.38 263.5 L211.32 263.5 C201.94 263.5 200.397 260.02 206.69 253.06 Z" fill="#ff8a24"/>
+    <path id="Controller_Outline__Transparent_" data-name="Controller Outline (Transparent)" d="M178.5 323.5 L171 323.5 C143.5 323.5 128.5 376 101 376 C68.5 376 47.25 342.25 56 316 L93.5 204.75 C106.25 166.88 131 133.5 163.5 133.5 C188.5 133.5 201 148.5 226 148.5 L286 148.5 C311 148.5 323.5 133.5 348.5 133.5 C381 133.5 405.75 166.88 418.5 204.75 L456 316 C464.75 342.25 443.5 376 411 376 C383.5 376 368.5 323.5 341 323.5 L333.5 323.5" fill="none" stroke="#f2f2f2" stroke-width="35" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

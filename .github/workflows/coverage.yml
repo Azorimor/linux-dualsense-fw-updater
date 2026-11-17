@@ -5,17 +5,18 @@ name: Coverage
 
 on:
   workflow_dispatch:
-  # Uncomment once repository is public / ready for automatic PR coverage checks:
+  # Uncomment when public: enable automatic PR coverage checks:
   # pull_request:
   #   branches: [main, master]
   #   paths-ignore:
   #     - "website/**"
   #     - "*.md"
-  #     - "LICENSE"
+  #     - "LICENSES/**"
+  #     - "REUSE.toml"
 
 permissions:
   contents: read
-  # Uncomment if posting PR coverage comments when public:
+  # Uncomment when public: allow posting PR coverage comments:
   # pull-requests: write
 
 env:
@@ -50,6 +51,10 @@ jobs:
             mold \
             pkg-config \
             libhidapi-dev \
+            libudev-dev \
+            libusb-1.0-0-dev \
+            libgl-dev \
+            libxkbcommon-dev \
             qt6-base-dev \
             qt6-declarative-dev \
             qt6-declarative-dev-tools \

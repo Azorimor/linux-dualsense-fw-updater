@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "dualsense-core"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "hidapi",
  "log",
@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "dualsense-ui"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "dualsense-core",
  "log",
@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "dualsense-updater"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "cxx",
  "cxx-qt",

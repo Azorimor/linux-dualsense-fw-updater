@@ -41,6 +41,28 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  license-check:
+    name: REUSE & Dependency License Check
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check REUSE SPDX compliance
+        uses: fsfe/reuse-action@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Audit dependency licenses
+        run: cargo deny --locked --all-features check licenses
+
   check:
     name: Check, Test & Coverage (Ubuntu 24.04)
     runs-on: ubuntu-24.04
@@ -54,10 +76,10 @@ jobs:
         with:
           components: rustfmt, clippy, llvm-tools-preview
 
-      - name: Install cargo-deny and cargo-llvm-cov
+      - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-deny,cargo-llvm-cov
+          tool: cargo-llvm-cov
 
       # Note: Ubuntu 24.04 (noble) does not package KF6 Kirigami
       # (`qml6-module-org-kde-kirigami`), so QML runtime/lint steps requiring
@@ -87,9 +109,6 @@ jobs:
 
       - name: Cache Rust dependencies and build artifacts
         uses: Swatinem/rust-cache@v2
-
-      - name: Audit dependency licenses
-        run: cargo deny --locked --all-features check licenses
 
       - name: Check formatting
         run: cargo fmt --check
@@ -123,7 +142,7 @@ jobs:
 
   build-linux:
     name: Build & Package Linux Release (Ubuntu 24.04)
-    needs: [check]
+    needs: [check, license-check]
     if: ${{ inputs.is_release == true }}
     runs-on: ubuntu-24.04
 

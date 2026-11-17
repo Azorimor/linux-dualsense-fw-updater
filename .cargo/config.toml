@@ -1,2 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 [target.'cfg(target_os = "linux")']
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]

@@ -112,3 +112,10 @@ jobs:
               --title "$TAG" \
               --generate-notes
           fi
+
+  deploy-website:
+    name: Deploy Website With Latest Release
+    needs: [release-plz, build-all, publish-release]
+    if: ${{ success() && (inputs.release_tag != '' || startsWith(github.ref, 'refs/tags/v') || needs.release-plz.outputs.releases_created == 'true') }}
+    uses: ./.github/workflows/deploy-website.yml
+    secrets: inherit

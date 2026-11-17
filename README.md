@@ -164,7 +164,7 @@ To generate workspace code coverage reports (requires `cargo-llvm-cov` and the `
 
 This writes LCOV data to `target/coverage/lcov.info`, HTML reports to `target/coverage/html/index.html`, and prints a workspace summary table.
 
-GitHub Actions workflows under `.github/workflows/` (`ci.yml`, `coverage.yml`, `release.yml`, `deploy-website.yml`, `cleanup-pr-cache.yml`) target `ubuntu-24.04` and run on both manual `workflow_dispatch` and automatic pull-request, tag, release, and GitHub Pages triggers.
+GitHub Actions workflows under `.github/workflows/` (`ci.yml`, `release.yml`, `deploy-website.yml`, `cleanup-pr-cache.yml`) target `ubuntu-24.04` and run on both manual `workflow_dispatch` and automatic pull-request, tag, release, and GitHub Pages triggers. In `ci.yml`, fast checks (`reuse`, structural validation, `cargo fmt --check`, `cargo-deny`) gate the heavier Qt6/Rust `clippy` + single-pass test/coverage job (`./scripts/coverage.sh --locked`).
 
 ## Sony Firmware Sources & Hardware Targets
 

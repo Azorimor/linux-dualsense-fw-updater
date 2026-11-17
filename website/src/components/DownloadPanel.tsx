@@ -16,9 +16,9 @@ import {
 } from 'lucide-react';
 import {
   formatPublishedDate,
+  partitionReleaseAssets,
   type GitHubRelease,
   type ReleaseAsset,
-  type ReleaseAssetKind,
 } from '@/lib/github-release';
 import { REPO_URL } from '@/lib/layout.shared';
 
@@ -26,60 +26,104 @@ interface DownloadPanelProps {
   release: GitHubRelease | null;
 }
 
-const ASSET_LABELS: Record<ReleaseAssetKind, string> = {
-  appimage: 'Linux AppImage (x86_64)',
-  tarball: 'Portable Archive (.tar.gz)',
-  checksums: 'SHA-256 Checksums',
-};
+interface BuildVariantMeta {
+  title: string;
+  subtitle: string;
+  buttonLabel: string;
+}
 
-function AssetDownloadAction({
+function describeBuildVariant(asset: ReleaseAsset): BuildVariantMeta {
+  if (asset.kind === 'tarball') {
+    return {
+      title: 'Portable Archive (.tar.gz)',
+      subtitle:
+        'Extract and run directly, or install icons & desktop menu entry with install-desktop.sh (x86_64).',
+      buttonLabel: 'Download .tar.gz',
+    };
+  }
+  return {
+    title: 'Linux AppImage (x86_64)',
+    subtitle:
+      'Single self-contained executable with bundled Qt 6 runtime, desktop entry, and icons (chmod +x).',
+    buttonLabel: 'Download AppImage',
+  };
+}
+
+function BuildDownloadCard({
   asset,
   acknowledged,
 }: {
   asset: ReleaseAsset;
   acknowledged: boolean;
 }) {
-  const Icon =
-    asset.kind === 'checksums'
-      ? FileCheck2
-      : asset.kind === 'tarball'
-        ? Package
-        : Download;
-
-  if (!acknowledged) {
-    return (
-      <button
-        type="button"
-        disabled
-        aria-disabled="true"
-        className="inline-flex w-full cursor-not-allowed items-center justify-between gap-3 rounded-lg border border-fd-border bg-fd-muted px-4 py-3 text-left text-sm text-fd-muted-foreground opacity-55 sm:w-auto sm:min-w-64"
-      >
-        <span className="inline-flex items-center gap-2 font-medium">
-          <Icon className="size-4 shrink-0" />
-          <span>{ASSET_LABELS[asset.kind]}</span>
-        </span>
-        <span className="text-xs">{asset.formattedSize}</span>
-      </button>
-    );
-  }
+  const meta = describeBuildVariant(asset);
+  const Icon = asset.kind === 'tarball' ? Package : Download;
 
   return (
-    <a
-      href={asset.downloadUrl}
-      rel="noreferrer"
-      className="inline-flex w-full items-center justify-between gap-3 rounded-lg border border-fd-border bg-fd-primary px-4 py-3 text-left text-sm text-fd-primary-foreground transition-opacity hover:opacity-90 sm:w-auto sm:min-w-64"
-    >
-      <span className="inline-flex items-center gap-2 font-medium">
-        <Icon className="size-4 shrink-0" />
-        <span>{ASSET_LABELS[asset.kind]}</span>
-      </span>
-      <span className="text-xs opacity-80">{asset.formattedSize}</span>
-    </a>
+    <div className="flex flex-col justify-between gap-4 rounded-xl border border-fd-border bg-fd-background p-5">
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 font-semibold text-fd-foreground">
+            <Icon className="size-4 shrink-0" />
+            <h3>{meta.title}</h3>
+          </div>
+          <span className="shrink-0 rounded-md border border-fd-border bg-fd-secondary px-2 py-0.5 text-xs font-medium text-fd-secondary-foreground">
+            {asset.formattedSize}
+          </span>
+        </div>
+
+        <p className="text-xs leading-relaxed text-fd-muted-foreground">
+          {meta.subtitle}
+        </p>
+
+        <div className="space-y-1 pt-1 text-xs text-fd-muted-foreground">
+          <div className="truncate font-mono" title={asset.name}>
+            {asset.name}
+          </div>
+          {asset.sha256 ? (
+            <div className="break-all font-mono text-[11px] opacity-85">
+              sha256:{asset.sha256}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {acknowledged ? (
+        <a
+          href={asset.downloadUrl}
+          rel="noreferrer"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-primary px-4 py-2.5 text-sm font-medium text-fd-primary-foreground transition-opacity hover:opacity-90"
+        >
+          <Icon className="size-4 shrink-0" />
+          <span>{meta.buttonLabel}</span>
+        </a>
+      ) : (
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          className="inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-muted px-4 py-2.5 text-sm font-medium text-fd-muted-foreground opacity-55"
+        >
+          <Icon className="size-4 shrink-0" />
+          <span>{meta.buttonLabel}</span>
+        </button>
+      )}
+    </div>
   );
 }
 
 export function DownloadPanel({ release }: DownloadPanelProps) {
   const [acknowledged, setAcknowledged] = useState(false);
+
+  const partitioned = release ? partitionReleaseAssets(release.assets) : null;
+  const buildAssets = partitioned
+    ? [
+        ...(partitioned.appimage ? [partitioned.appimage] : []),
+        ...(partitioned.tarball ? [partitioned.tarball] : []),
+        ...partitioned.otherBuilds,
+      ]
+    : [];
+  const checksumsAsset = partitioned?.checksums ?? null;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-12 md:py-16">
@@ -156,17 +200,21 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
         </label>
       </section>
 
-      <section className="space-y-5 rounded-xl border border-fd-border bg-fd-card p-6">
+      <section className="space-y-6 rounded-xl border border-fd-border bg-fd-card p-6">
         {release ? (
           <>
             <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-fd-border pb-4">
               <div>
-                <h2 className="text-xl font-semibold text-fd-card-foreground">
-                  Latest Release: {release.name}
-                </h2>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="text-xl font-semibold text-fd-card-foreground">
+                    Latest Release: {release.name}
+                  </h2>
+                  <span className="rounded-md border border-fd-border bg-fd-secondary px-2 py-0.5 text-xs font-medium text-fd-secondary-foreground">
+                    {release.tagName}
+                  </span>
+                </div>
                 <p className="mt-1 text-xs text-fd-muted-foreground">
-                  Tag <code>{release.tagName}</code> &bull; Published{' '}
-                  {formatPublishedDate(release.publishedAt)}
+                  Published {formatPublishedDate(release.publishedAt)}
                 </p>
               </div>
               <a
@@ -175,34 +223,63 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-fd-muted-foreground hover:text-fd-foreground"
               >
-                Release Notes
+                GitHub Release Page
                 <ExternalLink className="size-3.5" />
               </a>
             </div>
 
-            {release.assets.length > 0 ? (
-              <div className="space-y-3">
+            {buildAssets.length > 0 ? (
+              <div className="space-y-5">
                 <p className="text-sm text-fd-muted-foreground">
                   {acknowledged
-                    ? 'Acknowledgment confirmed. Select an artifact below to download:'
-                    : 'Check the acknowledgment box above to unlock the download buttons.'}
+                    ? 'Acknowledgment confirmed. Choose either the AppImage or the portable archive below:'
+                    : 'Check the acknowledgment box above to unlock both download buttons.'}
                 </p>
-                <div className="flex flex-wrap gap-3">
-                  {release.assets.map((asset) => (
-                    <AssetDownloadAction
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {buildAssets.map((asset) => (
+                    <BuildDownloadCard
                       key={asset.name}
                       asset={asset}
                       acknowledged={acknowledged}
                     />
                   ))}
                 </div>
-                <ul className="space-y-1 pt-2 text-xs text-fd-muted-foreground">
-                  {release.assets.map((asset) => (
-                    <li key={asset.name}>
-                      <code>{asset.name}</code> ({asset.formattedSize})
-                    </li>
-                  ))}
-                </ul>
+
+                {checksumsAsset ? (
+                  <div className="flex flex-col justify-between gap-4 rounded-xl border border-fd-border bg-fd-background p-4 sm:flex-row sm:items-center">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm font-medium text-fd-foreground">
+                        <FileCheck2 className="size-4 shrink-0" />
+                        <span>SHA-256 Checksums ({checksumsAsset.name})</span>
+                        <span className="text-xs font-normal text-fd-muted-foreground">
+                          ({checksumsAsset.formattedSize})
+                        </span>
+                      </div>
+                      <p className="text-xs text-fd-muted-foreground">
+                        Verify downloaded files locally with{' '}
+                        <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-[11px] text-fd-foreground">
+                          sha256sum -c {checksumsAsset.name}
+                        </code>
+                      </p>
+                      {checksumsAsset.sha256 ? (
+                        <p className="break-all font-mono text-[11px] text-fd-muted-foreground">
+                          sha256:{checksumsAsset.sha256}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <a
+                      href={checksumsAsset.downloadUrl}
+                      rel="noreferrer"
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-secondary px-4 py-2 text-sm font-medium text-fd-secondary-foreground transition-colors hover:bg-fd-accent"
+                    >
+                      <FileCheck2 className="size-4 shrink-0" />
+                      <span>Download {checksumsAsset.name}</span>
+                      <ExternalLink className="size-3.5 shrink-0 opacity-75" />
+                    </a>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="space-y-3 text-sm text-fd-muted-foreground">

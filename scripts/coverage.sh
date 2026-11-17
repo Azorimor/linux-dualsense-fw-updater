@@ -26,7 +26,7 @@ COVERAGE_DIR="target/coverage"
 rm -rf "${COVERAGE_DIR}/html"
 mkdir -p "${COVERAGE_DIR}"
 
-cargo llvm-cov --workspace --all-targets --lcov --output-path "${COVERAGE_DIR}/lcov.info"
+cargo llvm-cov --workspace --all-targets "$@" --lcov --output-path "${COVERAGE_DIR}/lcov.info"
 cargo llvm-cov report --workspace --html --output-dir "${COVERAGE_DIR}"
 
 echo

@@ -11,6 +11,9 @@ import {
   formatBytes,
   formatPublishedDate,
   parseGitHubRelease,
+  parseLatestFromReleasesList,
+  parseSha256Digest,
+  partitionReleaseAssets,
 } from './github-release.ts';
 
 test('classifyReleaseAsset identifies AppImage, tarball, and checksums', () => {
@@ -62,7 +65,9 @@ test('parseGitHubRelease extracts sorted matching assets and skips drafts/non-ma
     assets: [
       {
         name: 'SHA256SUMS.txt',
-        size: 256,
+        size: 230,
+        digest:
+          'sha256:25fda8e6f57a9f19581df1b467533474ee8c2bf4f6a364e0c1e87d68d13bcc31',
         browser_download_url:
           'https://github.com/Azorimor/linux-dualsense-fw-updater/releases/download/v0.1.0/SHA256SUMS.txt',
       },
@@ -74,12 +79,16 @@ test('parseGitHubRelease extracts sorted matching assets and skips drafts/non-ma
       {
         name: 'dualsense-updater-0.1.0-x86_64.tar.gz',
         size: 10 * 1024 * 1024,
+        digest:
+          'sha256:141365fb377eb6b1e183514bd6493b8b78246e2bf32eb0bb4654f170ba226f08',
         browser_download_url:
           'https://github.com/Azorimor/linux-dualsense-fw-updater/releases/download/v0.1.0/dualsense-updater-0.1.0-x86_64.tar.gz',
       },
       {
         name: 'dualsense-updater-0.1.0-x86_64.AppImage',
         size: 25 * 1024 * 1024,
+        digest:
+          'sha256:24e3b06957841ae1ccf9c303b49dedc16df572b64ab5dd7840f2b45beec5ce94',
         browser_download_url:
           'https://github.com/Azorimor/linux-dualsense-fw-updater/releases/download/v0.1.0/dualsense-updater-0.1.0-x86_64.AppImage',
       },
@@ -95,6 +104,37 @@ test('parseGitHubRelease extracts sorted matching assets and skips drafts/non-ma
     ['appimage', 'tarball', 'checksums'],
   );
   assert.equal(parsed.assets[0].formattedSize, '25.0 MiB');
+  assert.equal(
+    parsed.assets[0].sha256,
+    '24e3b06957841ae1ccf9c303b49dedc16df572b64ab5dd7840f2b45beec5ce94',
+  );
+
+  const partitioned = partitionReleaseAssets(parsed.assets);
+  assert.equal(partitioned.appimage?.kind, 'appimage');
+  assert.equal(partitioned.tarball?.kind, 'tarball');
+  assert.equal(partitioned.checksums?.kind, 'checksums');
+  assert.equal(partitioned.otherBuilds.length, 0);
+
+  assert.equal(parseSha256Digest('sha256:not-hex'), undefined);
+  assert.equal(
+    parseLatestFromReleasesList([
+      {
+        tag_name: 'v0.2.0-rc1',
+        draft: false,
+        prerelease: true,
+        html_url: 'https://github.com/example/rc1',
+        assets: [],
+      },
+      {
+        tag_name: 'v0.1.0',
+        draft: false,
+        prerelease: false,
+        html_url: 'https://github.com/example/v0.1.0',
+        assets: [],
+      },
+    ])?.tagName,
+    'v0.1.0',
+  );
   assert.equal(
     parseGitHubRelease({
       tag_name: 'v0.1.0',

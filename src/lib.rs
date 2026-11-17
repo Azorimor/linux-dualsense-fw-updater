@@ -8,6 +8,7 @@ pub mod app_icon;
 pub mod license_report;
 pub mod licenses;
 pub mod qt_bridge;
+pub mod quick_style;
 pub mod snapshot_adapter;
 
 #[cfg(test)]

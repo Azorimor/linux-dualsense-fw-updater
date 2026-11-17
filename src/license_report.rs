@@ -147,19 +147,38 @@ pub fn format_license_bundle(
     out.push_str(root_license.trim());
     out.push_str("\n\n");
 
-    out.push_str("SYSTEM LIBRARY NOTICES\n");
+    out.push_str("SYSTEM LIBRARY NOTICES & SOURCE AVAILABILITY\n");
     out.push_str("------------------------------------------------------------\n");
     out.push_str(
-        "- Qt 6 (Qt Core, Qt Gui, Qt Qml, Qt Quick, Qt Quick Controls 2)\n  \
-         The Qt Company Ltd. — dynamically linked; available under LGPL-3.0-only / GPL-3.0-only.\n\n",
+        "- Qt 6 (Qt Core, Qt Gui, Qt Qml, Qt Quick, Qt Quick Controls 2, Qt Dialogs,\n  \
+         Qt Layouts, Qt ShaderTools, Qt Svg, Qt Wayland)\n  \
+         Copyright (C) The Qt Company Ltd. and contributors.\n  \
+         Dynamically linked; licensed under LGPL-3.0-only / GPL-3.0-only.\n  \
+         Upstream source (Qt 6.8.3 in AppImage): https://download.qt.io/official_releases/qt/6.8/6.8.3/single/qt-everywhere-src-6.8.3.tar.xz\n  \
+         Repository: https://code.qt.io/cgit/qt/\n\n",
     );
     out.push_str(
-        "- KDE Kirigami (KF6 Kirigami)\n  \
-         KDE Community — dynamically loaded QML module; available under LGPL-2.0-or-later / LGPL-2.1-or-later.\n\n",
+        "- KDE Kirigami (KDE Frameworks 6 Kirigami)\n  \
+         Copyright (C) KDE e.V. and contributors.\n  \
+         Dynamically loaded QML module; licensed under LGPL-2.0-or-later / LGPL-2.1-or-later / BSD-3-Clause.\n  \
+         Upstream source (Kirigami 6.10.0 in AppImage): https://download.kde.org/stable/frameworks/6.10/kirigami-6.10.0.tar.xz\n  \
+         Repository: https://invent.kde.org/frameworks/kirigami\n\n",
     );
     out.push_str(
         "- hidapi (system libhidapi-hidraw / hidapi)\n  \
-         Alan Ott / signal11 & libusb maintainers — available under BSD-3-Clause / GPL-3.0 / HIDAPI license.\n\n",
+         Alan Ott / signal11 & libusb maintainers — licensed under BSD-3-Clause / GPL-3.0 / HIDAPI license.\n  \
+         Repository: https://github.com/libusb/hidapi\n\n",
+    );
+    out.push_str(
+        "- AppImage Relinking & Written Source Offer (GPLv3 §6 / LGPLv3 §4 / LGPLv2.1 §6)\n  \
+         AppImage releases bundle dynamically linked shared libraries so you can extract and\n  \
+         replace/relink any `.so` library via `--appimage-extract`. Complete license texts and\n  \
+         library inventories live in `usr/share/licenses/linux-dualsense-fw-updater/` inside the\n  \
+         AppImage (`THIRD_PARTY_NOTICES.txt`, `BUNDLED_LIBRARIES.txt`, `LGPL-*.txt`, and\n  \
+         `system-packages/*.copyright`).\n  \
+         Corresponding source code and reproducible CI build scripts are published at:\n  \
+         https://github.com/Azorimor/linux-dualsense-fw-updater\n  \
+         Written source requests (valid for at least 3 years): azorimor@gmail.com\n\n",
     );
 
     out.push_str(&format!(

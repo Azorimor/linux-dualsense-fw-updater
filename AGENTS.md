@@ -121,7 +121,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ├── .github/
 │   ├── ISSUE_TEMPLATE/         # GitHub issue templates (`flash_report.md` prefill target; others live on main)
 │   └── workflows/              # GitHub Actions workflows (Ubuntu 24.04)
-│       ├── ci.yml              # Fast prechecks -> Clippy, single-pass test+coverage, & Linux packaging
+│       ├── ci.yml              # Fast prechecks -> Clippy, test+coverage, tarball (Qt 6.4), & self-contained Qt 6.8 + Kirigami AppImage packaging/smoke check
 │       ├── cleanup-pr-cache.yml # PR cache cleanup workflow
 │       ├── release.yml         # Release & SHA256SUMS artifact publishing workflow
 │       └── deploy-website.yml  # Fumadocs static site build & deploy workflow
@@ -134,7 +134,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │       └── icons/              # Canonical app icons (`16x16`..`512x512/icon.png` + `scalable/icon.svg`; moved from `assets/desktop`)
 ├── scripts/
 │   ├── coverage.sh             # cargo-llvm-cov HTML & LCOV report script
-│   ├── package-appimage.sh     # Portable .tar.gz & .AppImage packager (bundles desktop entry, hicolor icons, `.DirIcon`, & `install-desktop.sh`)
+│   ├── package-appimage.sh     # Portable .tar.gz & .AppImage packager (`--tarball-only`/`--appimage-only`, Wayland/offscreen/SVG plugins, desktop entry, icons, `install-desktop.sh`)
 │   └── verify_structural_rules.py # Checks file length, test layout, SPDX headers, & AGENTS.md paths
 ├── website/                    # Fumadocs / Next.js static documentation website
 │   └── public/                 # Static web brand assets (`favicon.svg`, `favicon-16x16.png`, `favicon-32x32.png`, `favicon-48x48.png`, `icon-192x192.png`, `icon-512x512.png`, `apple-touch-icon.png`, `site.webmanifest`; moved from `assets/web`)
@@ -162,16 +162,17 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │       │   └── tests/          # Extracted unit tests (*_test.rs)
 │       └── tests/              # Integration tests (controller_flows_test.rs, disconnect_monitor_test.rs, http_live_test.rs)
 ├── src/                        # Root `dualsense-updater` Qt6/Kirigami desktop crate
-│   ├── lib.rs                  # Exposes qt_bridge, app_icon, snapshot_adapter, licenses, & license_report
-│   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, desktop ID/window icon, org.kde.desktop + Fusion fallback
-│   ├── app_icon.rs             # cxx-qt FFI wrapper, `DESKTOP_FILE_ID`, & `EMBEDDED_APP_ICON_URL`
-│   ├── app_icon.h              # C++ header for `configure_application_window_icon()`
-│   ├── app_icon.cpp            # Theme icon lookup (`dev.dualsense.updater`) with embedded multi-res Qt resource fallback
+│   ├── lib.rs                  # Exposes qt_bridge, app_icon, quick_style, snapshot_adapter, licenses, & license_report
+│   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, desktop ID/window icon, runtime org.kde.desktop/Fusion style selection
+│   ├── app_icon.rs             # cxx-qt FFI wrapper, `DESKTOP_FILE_ID`, `EMBEDDED_APP_ICON_URL`, & `qml_imports_path()`
+│   ├── app_icon.h              # C++ header for `configure_application_window_icon()` & `qt_qml_imports_path()`
+│   ├── app_icon.cpp            # Theme icon lookup (`dev.dualsense.updater`), embedded icon fallback, & `QLibraryInfo::QmlImportsPath` helper
+│   ├── quick_style.rs          # Runtime `org.kde.desktop` QML module probe with automatic `Fusion` fallback & env override support
 │   ├── qt_bridge.rs            # cxx-qt DualSenseBridge QObject binding DefaultAppRuntime & licensesText to QML
 │   ├── snapshot_adapter.rs     # Pure Rust AdaptedSnapshot & file:// URL parser
 │   ├── licenses.rs             # Bundled license text loader & query helpers
 │   ├── license_report.rs       # Cargo.lock & crate metadata parser/formatter for third-party notices
-│   └── tests/                  # Extracted unit tests (snapshot_adapter_test.rs, snapshot_state_test.rs, licenses_test.rs)
+│   └── tests/                  # Extracted unit tests (snapshot_adapter_test.rs, snapshot_state_test.rs, licenses_test.rs, quick_style_test.rs)
 ├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs, desktop_icon_test.rs)
 └── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
     ├── Main.qml                # Kirigami.ApplicationWindow + MenuBar + 6-view StackLayout wizard
@@ -196,7 +197,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 - **Qt6 / `qmake6` discovery:** `build.rs` defaults `QMAKE` to `/usr/bin/qmake6` when unset and present; export `QMAKE=/path/to/qmake6` on systems where `qmake` defaults to Qt 5 or `qmake6` is elsewhere.
 - **Headless CI compatibility:** All 3 workspace crates decouple business logic and snapshot adaptation from Qt event loops, display servers, and physical DualSense hardware so `cargo test --workspace` runs completely headlessly.
-- **Kirigami style & QML linting:** `src/main.rs` sets `org.kde.desktop` (when `QT_QUICK_CONTROLS_STYLE` is unset) with `Fusion` fallback. Keep QML strictly typed (`pragma ComponentBehavior: Bound`, `required property` on delegates) so `qmllint` passes with zero warnings.
+- **Kirigami style & QML linting:** `src/main.rs` + `src/quick_style.rs` select `org.kde.desktop` when present in QML import paths and fall back to `Fusion` otherwise (unless `QT_QUICK_CONTROLS_STYLE` is set). Keep QML strictly typed (`pragma ComponentBehavior: Bound`, `required property` on delegates) so `qmllint` passes with zero warnings.
 - **Linux system dev libraries:** `libhidapi-dev`, `libudev-dev`, `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, `pkg-config`, and Qt 6 dev packages.
 - **Offscreen smoke check:** Running with `QT_QPA_PLATFORM=offscreen` verifies `QQmlApplicationEngine` loads `qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml` cleanly without X11/Wayland (using `timeout` because the Qt event loop stays open until closed).
 

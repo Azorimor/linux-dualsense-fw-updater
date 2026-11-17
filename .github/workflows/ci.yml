@@ -165,19 +165,28 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             clang \
+            cmake \
+            ninja-build \
             mold \
             pkg-config \
             curl \
             file \
+            xz-utils \
             squashfs-tools \
             libhidapi-dev \
             libudev-dev \
             libusb-1.0-0-dev \
             libgl-dev \
             libxkbcommon-dev \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libwayland-client0 \
+            libwayland-egl1 \
+            libwayland-cursor0 \
             qt6-base-dev \
             qt6-declarative-dev \
             qt6-declarative-dev-tools \
+            qt6-wayland \
             qmake6 \
             qml6-module-qtquick-controls \
             qml6-module-qtquick-dialogs \
@@ -194,13 +203,139 @@ jobs:
           fi
           echo "RELEASE_TAG=${TAG}" >> "$GITHUB_ENV"
 
-      - name: Build release binary and verify mold linker
+      - name: Build release binary (Qt 6.4.2) and package portable tarball
         run: |
           cargo build --release --locked
           readelf -p .comment target/release/dualsense-updater | grep -i mold
+          ./scripts/package-appimage.sh --tarball-only target/release/dualsense-updater "$RELEASE_TAG" dist
 
-      - name: Package Linux tarball and AppImage
-        run: ./scripts/package-appimage.sh target/release/dualsense-updater "$RELEASE_TAG" dist
+      - name: Install Qt 6.8.3 for self-contained AppImage
+        id: install-qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          target: "desktop"
+          arch: "linux_gcc_64"
+          modules: "qtshadertools qtsvg qtwayland"
+          cache: "true"
+
+      - name: Configure Qt 6.8.3 environment
+        run: |
+          QT_DIR="${{ steps.install-qt.outputs.qt-root-dir }}"
+          if [[ -z "$QT_DIR" ]]; then
+            QT_DIR="${QT_ROOT_DIR:-}"
+          fi
+          if [[ -x "${QT_DIR}/bin/qmake6" ]]; then
+            QT_QMAKE="${QT_DIR}/bin/qmake6"
+          elif [[ -x "${QT_DIR}/bin/qmake" ]]; then
+            QT_QMAKE="${QT_DIR}/bin/qmake"
+          else
+            echo "error: qmake not found under ${QT_DIR}/bin" >&2
+            exit 1
+          fi
+          echo "Using Qt $("$QT_QMAKE" -query QT_VERSION) via ${QT_QMAKE}"
+          echo "QT_APPIMAGE_DIR=${QT_DIR}" >> "$GITHUB_ENV"
+          echo "QMAKE=${QT_QMAKE}" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${QT_DIR}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> "$GITHUB_ENV"
+
+      - name: Cache KF6 ECM and Kirigami 6.10.0 overlay
+        id: cache-kf6
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/kf6-overlay
+          key: kf6-kirigami-${{ runner.os }}-qt6.8.3-kf6.10.0-v1
+
+      - name: Build KF6 ECM and Kirigami 6.10.0 for Qt 6.8.3
+        if: steps.cache-kf6.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          KF6_WORK="${{ runner.temp }}/kf6-build"
+          KF6_OVERLAY="${{ runner.temp }}/kf6-overlay"
+          rm -rf "$KF6_WORK" "$KF6_OVERLAY"
+          mkdir -p "$KF6_WORK" "$KF6_OVERLAY"
+
+          curl -fsSL "https://download.kde.org/stable/frameworks/6.10/extra-cmake-modules-6.10.0.tar.xz" -o "${KF6_WORK}/ecm.tar.xz"
+          curl -fsSL "https://download.kde.org/stable/frameworks/6.10/kirigami-6.10.0.tar.xz" -o "${KF6_WORK}/kirigami.tar.xz"
+          tar -xf "${KF6_WORK}/ecm.tar.xz" -C "$KF6_WORK"
+          tar -xf "${KF6_WORK}/kirigami.tar.xz" -C "$KF6_WORK"
+
+          cmake -S "${KF6_WORK}/extra-cmake-modules-6.10.0" -B "${KF6_WORK}/ecm-build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$KF6_OVERLAY" \
+            -DBUILD_TESTING=OFF
+          cmake --build "${KF6_WORK}/ecm-build"
+          cmake --install "${KF6_WORK}/ecm-build"
+
+          cmake -S "${KF6_WORK}/kirigami-6.10.0" -B "${KF6_WORK}/kirigami-build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${QT_APPIMAGE_DIR};${KF6_OVERLAY}" \
+            -DCMAKE_INSTALL_PREFIX="$KF6_OVERLAY" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DKDE_INSTALL_QMLDIR=qml \
+            -DKDE_INSTALL_USE_QT_SYS_PATHS=OFF \
+            -DBUILD_TESTING=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_QCH=OFF
+          cmake --build "${KF6_WORK}/kirigami-build"
+          cmake --install "${KF6_WORK}/kirigami-build"
+
+      - name: Overlay KF6 Kirigami into Qt 6.8.3 prefix and build AppImage
+        run: |
+          set -euo pipefail
+          cp -a "${{ runner.temp }}/kf6-overlay/." "${QT_APPIMAGE_DIR}/"
+          test -f "${QT_APPIMAGE_DIR}/qml/org/kde/kirigami/qmldir"
+          ls -la "${QT_APPIMAGE_DIR}/lib/libKirigami"*.so.6
+
+          cargo clean -p dualsense-updater --release
+          cargo build --release --locked
+          readelf -p .comment target/release/dualsense-updater | grep -i mold
+          ldd target/release/dualsense-updater | grep -F "${QT_APPIMAGE_DIR}/lib"
+
+          ./scripts/package-appimage.sh --appimage-only target/release/dualsense-updater "$RELEASE_TAG" dist
+
+      - name: Verify AppImage bundles Qt/QML/Wayland plugins and starts cleanly offscreen
+        run: |
+          set -euo pipefail
+          APPIMAGE="$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$APPIMAGE"
+
+          VERIFY_DIR="$(mktemp -d)"
+          trap 'rm -rf "$VERIFY_DIR"' EXIT
+          pushd "$VERIFY_DIR" >/dev/null
+          APPIMAGE_EXTRACT_AND_RUN=1 "${GITHUB_WORKSPACE}/${APPIMAGE}" --appimage-extract >/dev/null
+
+          test -f squashfs-root/usr/qml/QtQuick/Controls/qmldir
+          test -f squashfs-root/usr/qml/QtQuick/Dialogs/qmldir
+          test -f squashfs-root/usr/qml/QtQuick/Layouts/qmldir
+          test -f squashfs-root/usr/qml/org/kde/kirigami/qmldir
+          compgen -G "squashfs-root/usr/plugins/platforms/libqwayland*.so" >/dev/null
+          test -f squashfs-root/usr/plugins/platforms/libqoffscreen.so
+          compgen -G "squashfs-root/usr/plugins/wayland-graphics-integration-client/*.so" >/dev/null
+          test -f squashfs-root/usr/plugins/iconengines/libqsvgicon.so
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/GPL-3.0-or-later.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/MIT.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/LGPL-3.0-only.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/LGPL-2.1-or-later.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/LGPL-2.0-or-later.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/BSD-3-Clause.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/THIRD_PARTY_NOTICES.txt
+          test -f squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/BUNDLED_LIBRARIES.txt
+          compgen -G "squashfs-root/usr/share/licenses/linux-dualsense-fw-updater/system-packages/*.copyright" >/dev/null
+          popd >/dev/null
+
+          set +e
+          OUT="$(env -u QT_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH -u LD_LIBRARY_PATH APPIMAGE_EXTRACT_AND_RUN=1 QT_QPA_PLATFORM=offscreen timeout 5s "./${APPIMAGE}" 2>&1)"
+          RC=$?
+          set -e
+          printf '%s\n' "$OUT"
+          if [[ "$RC" -ne 124 ]]; then
+            echo "error: expected timeout exit 124 from offscreen AppImage launch, got $RC" >&2
+            exit 1
+          fi
+          if grep -E "Could not find the Qt platform plugin|QQmlApplicationEngine failed|is not installed" <<<"$OUT"; then
+            echo "error: AppImage offscreen launch reported Qt/QML loading errors" >&2
+            exit 1
+          fi
 
       - name: Upload Linux release artifacts (.tar.gz and .AppImage)
         uses: actions/upload-artifact@v6

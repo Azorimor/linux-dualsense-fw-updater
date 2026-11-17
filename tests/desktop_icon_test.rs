@@ -252,6 +252,13 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
     assert!(tar_entries.contains(&format!("{prefix}/dev.dualsense.updater.desktop\n")));
     assert!(tar_entries.contains(&format!("{prefix}/install-desktop.sh\n")));
     assert!(tar_entries.contains(&format!("{prefix}/icons/scalable/icon.svg\n")));
+    assert!(tar_entries.contains(&format!("{prefix}/THIRD_PARTY_NOTICES.txt\n")));
+    assert!(tar_entries.contains(&format!("{prefix}/LICENSES/GPL-3.0-or-later.txt\n")));
+    assert!(tar_entries.contains(&format!("{prefix}/LICENSES/MIT.txt\n")));
+    assert!(tar_entries.contains(&format!("{prefix}/LICENSES/LGPL-3.0-only.txt\n")));
+    assert!(tar_entries.contains(&format!("{prefix}/LICENSES/LGPL-2.1-or-later.txt\n")));
+    assert!(tar_entries.contains(&format!("{prefix}/LICENSES/LGPL-2.0-or-later.txt\n")));
+    assert!(tar_entries.contains(&format!("{prefix}/LICENSES/BSD-3-Clause.txt\n")));
     for (size_dir, _) in ICON_SIZES {
         assert!(tar_entries.contains(&format!("{prefix}/icons/{size_dir}/icon.png\n")));
     }
@@ -264,6 +271,21 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
             .is_file()
     );
     assert!(appdir.join(".DirIcon").is_file());
+    let licenses_dir = appdir.join("usr/share/licenses/linux-dualsense-fw-updater");
+    for expected_license in [
+        "GPL-3.0-or-later.txt",
+        "MIT.txt",
+        "LGPL-3.0-only.txt",
+        "LGPL-2.1-or-later.txt",
+        "LGPL-2.0-or-later.txt",
+        "BSD-3-Clause.txt",
+        "THIRD_PARTY_NOTICES.txt",
+    ] {
+        assert!(
+            licenses_dir.join(expected_license).is_file(),
+            "missing staged license/notice file: {expected_license}"
+        );
+    }
     assert!(
         appdir
             .join("usr/share/icons/hicolor/scalable/apps/dev.dualsense.updater.svg")

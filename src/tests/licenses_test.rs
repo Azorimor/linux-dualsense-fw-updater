@@ -111,7 +111,15 @@ fn format_license_bundle_renders_full_and_summary_modes() {
     assert!(summary.contains("DualSense Firmware Updater (v0.0.0)"));
     assert!(summary.contains("Root text"));
     assert!(summary.contains("Qt 6"));
+    assert!(summary.contains("LGPL-3.0-only"));
+    assert!(summary.contains("download.qt.io/official_releases/qt/6.8/6.8.3"));
     assert!(summary.contains("KDE Kirigami"));
+    assert!(summary.contains("KDE Frameworks 6 Kirigami"));
+    assert!(summary.contains("LGPL-2.1-or-later"));
+    assert!(summary.contains("BSD-3-Clause"));
+    assert!(summary.contains("download.kde.org/stable/frameworks/6.10/kirigami-6.10.0.tar.xz"));
+    assert!(summary.contains("--appimage-extract"));
+    assert!(summary.contains("azorimor@gmail.com"));
     assert!(summary.contains("hidapi"));
     assert_eq!(
         third_party_crate_entries(&summary),
@@ -150,7 +158,13 @@ fn generated_bundled_licenses_includes_root_system_and_core_crates() {
     assert!(contains_notice_for(text, "nchie"));
     assert!(contains_notice_for(text, "Azorimor"));
     assert!(contains_notice_for(text, "Qt 6"));
+    assert!(contains_notice_for(text, "LGPL-3.0-only"));
     assert!(contains_notice_for(text, "KDE Kirigami"));
+    assert!(contains_notice_for(text, "LGPL-2.1-or-later"));
+    assert!(contains_notice_for(text, "BSD-3-Clause"));
+    assert!(contains_notice_for(text, "qt-everywhere-src-6.8.3"));
+    assert!(contains_notice_for(text, "kirigami-6.10.0"));
+    assert!(contains_notice_for(text, "--appimage-extract"));
     assert!(contains_notice_for(text, "hidapi"));
     assert!(contains_notice_for(text, "tokio"));
     assert!(contains_notice_for(text, "cxx-qt"));

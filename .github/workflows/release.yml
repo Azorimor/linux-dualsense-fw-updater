@@ -59,7 +59,7 @@ jobs:
         id: tag
         if: steps.release.outputs.releases_created == 'true'
         run: |
-          TAG=$(echo '${{ steps.release.outputs.releases }}' | jq -r '.[0].tag // empty')
+          TAG=$(echo '${{ steps.release.outputs.releases }}' | jq -r 'map(select(.package_name == "dualsense-updater"))[0].tag // .[0].tag // empty')
           echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
 
   build-all:

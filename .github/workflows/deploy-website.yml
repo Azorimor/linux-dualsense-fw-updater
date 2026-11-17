@@ -35,7 +35,7 @@ jobs:
         working-directory: website
         run: npm ci
 
-      - name: Build static site
+      - name: Build and optimize static site
         working-directory: website
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

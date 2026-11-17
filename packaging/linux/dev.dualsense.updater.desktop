@@ -2,10 +2,11 @@
 Type=Application
 Name=DualSense Firmware Updater
 GenericName=Controller Firmware Updater
-Comment=Inspect and update Sony PlayStation DualSense controller firmware over USB HID
+Comment=Unofficial utility to inspect and update PlayStation DualSense controller firmware over USB HID
 Exec=dualsense-updater
 Icon=dev.dualsense.updater
-Categories=Utility;HardwareSettings;Qt;KDE;
+Categories=Settings;HardwareSettings;Qt;KDE;
 Terminal=false
+StartupNotify=true
 StartupWMClass=dualsense-updater
 Keywords=DualSense;PlayStation;Controller;Firmware;Updater;USB;

@@ -24,13 +24,6 @@ The desktop GUI walks you through four stages while monitoring USB connection st
 3. **Review** &mdash; Compares current and target versions, warns if the controller is already up to date or if the target is untested (`DualSense Edge`), and requires explicit confirmation that firmware updates cannot be reversed.
 4. **Update** &mdash; Streams downloads with safe pre-flash cancellation, writes firmware in 32 KiB blocks via Feature Report `0xF4`, polls status via `0xF5`, verifies, and finalizes.
 
-<OptimizedImage
-  src="/images/dualsense-update-flow.png"
-  alt="4-step guided DualSense firmware update workflow and Sony target mapping"
-  width={1280}
-  height={640}
-/>
-
 ## Key Features
 
 - **Automatic Board & Target Resolution**: Decodes hardware revision (`BDM-020` through `BDM-060R/M/X`) and firmware series to match the right Sony update target automatically.

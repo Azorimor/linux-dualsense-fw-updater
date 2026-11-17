@@ -4,7 +4,6 @@
 
 import Link from 'next/link';
 import { ShieldAlert, Cpu, Usb, BookOpen, Download } from 'lucide-react';
-import { OptimizedImage } from '@/components/OptimizedImage';
 import { REPO_URL } from '@/lib/layout.shared';
 
 const features = [
@@ -70,17 +69,6 @@ export default function HomePage() {
             GitHub Repository
           </a>
         </div>
-      </section>
-
-      <section className="overflow-hidden rounded-2xl border border-fd-border bg-fd-card p-3 shadow-sm">
-        <OptimizedImage
-          src="/images/dualsense-update-flow.png"
-          alt="Linux DualSense Firmware Updater 4-step workflow and board-to-target mapping overview"
-          width={1280}
-          height={640}
-          priority
-          className="h-auto w-full rounded-xl"
-        />
       </section>
 
       <section className="grid gap-6 md:grid-cols-3">

@@ -16,7 +16,6 @@ path = [
     "website/package-lock.json",
     "website/tsconfig.json",
     "website/content/docs/meta.json",
-    "website/public/images/**",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Azorimor <azorimor@gmail.com>"

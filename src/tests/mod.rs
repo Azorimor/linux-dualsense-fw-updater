@@ -1,3 +1,4 @@
+mod licenses_test;
 mod snapshot_adapter_test;
 mod snapshot_state_test;
 

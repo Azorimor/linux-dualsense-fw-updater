@@ -1,6 +1,32 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.0.2] - 2026-11-17
+
+### CI / Workflows
+
+- **website:** Trigger website deployment when root CHANGELOG.md changes ([d4292b2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/d4292b2d97d002a7686e402db9110f8070e85e8f))
+
+- **release:** Fix Qt 6.8.3 modules and harden AppImage build checks ([025aff5](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/025aff53d7341cd077f946d0914b437220aa2742))
+
+
+### Documentation
+
+- **website:** Add changelog documentation page from root CHANGELOG.md ([f2e18f7](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/f2e18f7f659b2e56b924f19b6acc14245a170734))
+
+
+### Features
+
+- **website:** Strip redundant H1 from included MDX docs ([a6d57da](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/a6d57da6dc8c42cd79949a9d056bb5b1eacdf234))
+
+
+### Testing
+
+- **website:** Add unit and build tests for changelog doc inclusion ([b640637](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/b640637b57429e321b677602e792c1726e8af0c5))
+
+
+
+
 ## [0.0.1] - 2026-11-17
 
 ### Bug Fixes

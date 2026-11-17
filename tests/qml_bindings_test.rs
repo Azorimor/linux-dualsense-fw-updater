@@ -100,23 +100,37 @@ fn extract_updater_usages(qml_src: &str) -> (BTreeSet<String>, BTreeSet<String>)
 fn qml_files_exist_and_declare_bound_component_behavior() {
     let main_path = repo_path("qml/Main.qml");
     let step_path = repo_path("qml/StepIndicator.qml");
+    let licenses_path = repo_path("qml/LicensesWindow.qml");
 
     let main_qml = std::fs::read_to_string(&main_path).expect("read qml/Main.qml");
     let step_qml = std::fs::read_to_string(&step_path).expect("read qml/StepIndicator.qml");
+    let licenses_qml =
+        std::fs::read_to_string(&licenses_path).expect("read qml/LicensesWindow.qml");
 
     assert!(main_qml.contains("pragma ComponentBehavior: Bound"));
     assert!(step_qml.contains("pragma ComponentBehavior: Bound"));
+    assert!(licenses_qml.contains("pragma ComponentBehavior: Bound"));
 
     assert!(main_qml.contains("import dev.dualsense.updater"));
     assert!(main_qml.contains("import org.kde.kirigami as Kirigami"));
     assert!(main_qml.contains("DualSenseBridge {"));
     assert!(main_qml.contains("id: updater"));
+    assert!(main_qml.contains("LicensesWindow {"));
+    assert!(main_qml.contains("licensesText: updater.licensesText"));
+    assert!(main_qml.contains("menuBar: QQC2.MenuBar"));
+    assert!(main_qml.contains("text: \"Licenses\""));
     assert!(main_qml.contains("currentStepIndex: updater.stepIndex"));
     assert!(main_qml.contains("currentIndex: updater.stepIndex"));
     assert!(main_qml.contains("firmwareFileDialog.close()"));
 
     assert!(step_qml.contains("required property int currentStepIndex"));
     assert!(step_qml.contains("required property int index"));
+
+    assert!(licenses_qml.contains("required property string licensesText"));
+    assert!(licenses_qml.contains("title: \"Licenses & Third-Party Notices\""));
+    assert!(licenses_qml.contains("QQC2.TextArea"));
+    assert!(licenses_qml.contains("readOnly: true"));
+    assert!(licenses_qml.contains("text: \"Close\""));
 }
 
 #[test]

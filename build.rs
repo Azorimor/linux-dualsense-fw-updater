@@ -16,13 +16,15 @@ fn main() {
     configure_qmake6();
     generate_bundled_licenses();
 
-    let builder = CxxQtBuilder::new_qml_module(
-        QmlModule::new("dev.dualsense.updater")
-            .qml_files(["qml/Main.qml", "qml/StepIndicator.qml"]),
-    )
-    .qt_module("Quick")
-    .qt_module("QuickControls2")
-    .file("src/qt_bridge.rs");
+    let builder =
+        CxxQtBuilder::new_qml_module(QmlModule::new("dev.dualsense.updater").qml_files([
+            "qml/Main.qml",
+            "qml/StepIndicator.qml",
+            "qml/LicensesWindow.qml",
+        ]))
+        .qt_module("Quick")
+        .qt_module("QuickControls2")
+        .file("src/qt_bridge.rs");
 
     // SAFETY: `cc_builder` is marked unsafe because it exposes cxx-qt-build's internal
     // `cc::Build` without minor-version stability guarantees; we only append a supported

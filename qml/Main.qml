@@ -22,6 +22,43 @@ Kirigami.ApplicationWindow {
         id: updater
     }
 
+    LicensesWindow {
+        id: licensesWindow
+        licensesText: updater.licensesText
+    }
+
+    menuBar: QQC2.MenuBar {
+        QQC2.Menu {
+            title: "File"
+
+            QQC2.MenuItem {
+                text: "Scan Controllers"
+                enabled: updater.canScan
+                onTriggered: updater.scanControllers()
+            }
+
+            QQC2.MenuSeparator {}
+
+            QQC2.MenuItem {
+                text: "Quit"
+                onTriggered: Qt.quit()
+            }
+        }
+
+        QQC2.Menu {
+            title: "Help"
+
+            QQC2.MenuItem {
+                text: "Licenses"
+                onTriggered: {
+                    licensesWindow.show()
+                    licensesWindow.raise()
+                    licensesWindow.requestActivate()
+                }
+            }
+        }
+    }
+
     FileDialog {
         id: firmwareFileDialog
         title: "Choose DualSense Firmware Image"

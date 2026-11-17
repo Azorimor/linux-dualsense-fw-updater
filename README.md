@@ -204,6 +204,18 @@ https://fwupdater.dl.playstation.net/fwupdater/fwupdate000B/0x0630/FWUPDATE000B.
 
 ## License & Acknowledgments
 
-**Linux DualSense Firmware Updater** is licensed under the **GNU General Public License v3.0 or later (`GPL-3.0-or-later`)** and complies with the [FSFE REUSE](https://reuse.software/) specification (see `LICENSES/GPL-3.0-or-later.txt`, `LICENSES/MIT.txt`, and `REUSE.toml`).
+**Linux DualSense Firmware Updater** is licensed under the **GNU General Public License v3.0 or later (`GPL-3.0-or-later`)** and complies with the [FSFE REUSE](https://reuse.software/) specification (see `LICENSES/`, `REUSE.toml`, and `packaging/linux/THIRD_PARTY_NOTICES.txt`).
 
 The core DualSense USB HID protocol and firmware update backend logic in `crates/dualsense-core` is adapted from the original CLI project by [nchie](https://github.com/nchie/dualsense-updater-rs) under the MIT License and remains licensed under **`MIT AND GPL-3.0-or-later`**.
+
+### AppImage Third-Party Notices & Source Availability
+
+Prebuilt AppImage releases dynamically link against **Qt 6** (`LGPL-3.0-only` / `GPL-3.0`), **KDE Frameworks Kirigami** (`LGPL-2.0-or-later` / `LGPL-2.1-or-later` / `BSD-3-Clause`), **`hidapi`** (`BSD-3-Clause` / `GPL-3.0` / HIDAPI), and system libraries. Full license texts, `THIRD_PARTY_NOTICES.txt`, `BUNDLED_LIBRARIES.txt`, and Debian/Ubuntu `system-packages/*.copyright` notices are bundled inside the AppImage under `usr/share/licenses/linux-dualsense-fw-updater/`.
+
+Per LGPLv3 §4 / LGPLv2.1 §6, you can extract the AppImage (`./linux-dualsense-fw-updater-<tag>-x86_64.AppImage --appimage-extract`) to inspect or replace/relink bundled `.so` libraries. Upstream sources used by the official AppImage CI workflow:
+
+- **Application & build scripts (`GPL-3.0-or-later`)**: https://github.com/Azorimor/linux-dualsense-fw-updater
+- **Qt 6.8.3 (`LGPL-3.0-only` / `GPL-3.0`)**: https://download.qt.io/official_releases/qt/6.8/6.8.3/single/qt-everywhere-src-6.8.3.tar.xz (`https://code.qt.io/cgit/qt/`)
+- **KDE Frameworks Kirigami 6.10.0 (`LGPL-2.0-or-later` / `LGPL-2.1-or-later` / `BSD-3-Clause`)**: https://download.kde.org/stable/frameworks/6.10/kirigami-6.10.0.tar.xz (`https://invent.kde.org/frameworks/kirigami`)
+- **hidapi (`BSD-3-Clause` / `GPL-3.0` / HIDAPI)**: https://github.com/libusb/hidapi
+- **Written source offer**: Complete Corresponding Source code is available via the links above or upon written request (valid for at least 3 years) to `azorimor@gmail.com`.

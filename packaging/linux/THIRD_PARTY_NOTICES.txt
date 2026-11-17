@@ -1,0 +1,119 @@
+Linux DualSense Firmware Updater — Third-Party Notices & Source Availability
+===========================================================================
+
+1. Application License
+----------------------
+Linux DualSense Firmware Updater (`dualsense-updater`) is licensed under the
+GNU General Public License v3.0 or later (`GPL-3.0-or-later`).
+Copyright (C) 2026 Azorimor <azorimor@gmail.com>
+
+The core DualSense USB HID protocol and firmware update logic in
+`crates/dualsense-core` is adapted from nchie's original CLI project
+(`https://github.com/nchie/dualsense-updater-rs`) and remains dual-licensed
+under `MIT AND GPL-3.0-or-later`:
+Copyright (c) 2026 nchie
+Copyright (c) 2026 Azorimor
+
+Full license texts are provided alongside this notice:
+- GPL-3.0-or-later.txt
+- MIT.txt
+- LGPL-3.0-only.txt
+- LGPL-2.1-or-later.txt
+- LGPL-2.0-or-later.txt
+- BSD-3-Clause.txt
+
+---------------------------------------------------------------------------
+
+2. Third-Party C/C++ & QML Libraries (Dynamically Linked / Bundled)
+---------------------------------------------------------------------------
+
+### Qt 6 (Qt Core, Qt Gui, Qt Qml, Qt Quick, Qt Quick Controls 2, Qt Dialogs,
+### Qt Layouts, Qt ShaderTools, Qt Svg, Qt Wayland, and Qt Platform Plugins)
+- Copyright: The Qt Company Ltd. and contributors
+- License: LGPL-3.0-only or GPL-3.0-only (used under LGPL-3.0-only / GPL-3.0)
+- Full license text: `LGPL-3.0-only.txt` / `GPL-3.0-or-later.txt`
+- Upstream source (Qt 6.8.3 used in official AppImage builds):
+  https://download.qt.io/official_releases/qt/6.8/6.8.3/single/qt-everywhere-src-6.8.3.tar.xz
+- Upstream git & licensing info:
+  https://code.qt.io/cgit/qt/
+  https://www.qt.io/licensing/
+
+### KDE Frameworks Kirigami (KF6 Kirigami QML module & libKirigami*)
+- Copyright: KDE e.V. and contributors
+- License: LGPL-2.0-or-later / LGPL-2.1-or-later / BSD-3-Clause
+- Full license texts: `LGPL-2.0-or-later.txt`, `LGPL-2.1-or-later.txt`, `BSD-3-Clause.txt`
+- Upstream source (KF6 Kirigami 6.10.0 & ECM 6.10.0 used in official AppImage builds):
+  https://download.kde.org/stable/frameworks/6.10/kirigami-6.10.0.tar.xz
+  https://download.kde.org/stable/frameworks/6.10/extra-cmake-modules-6.10.0.tar.xz
+- Upstream git:
+  https://invent.kde.org/frameworks/kirigami
+
+### hidapi (libhidapi-hidraw / hidapi)
+- Copyright: Alan Ott / signal11 and libusb maintainers
+- License: BSD-3-Clause or GPL-3.0 or original HIDAPI license
+- Upstream source: https://github.com/libusb/hidapi
+
+### Bundled System Libraries (AppImage Only)
+In AppImage distributions, additional system shared libraries (`.so`) are
+bundled under `usr/lib/`, `usr/plugins/`, and `usr/qml/` to provide a portable
+runtime.
+- Complete inventory of bundled shared libraries: `BUNDLED_LIBRARIES.txt`
+- Debian/Ubuntu package copyright notices (when built on Ubuntu/Debian CI):
+  `system-packages/<package>.copyright`
+- Upstream Ubuntu package sources: https://packages.ubuntu.com/ (or `apt-get source <package>`)
+
+### AppImage Packaging Tooling (AppImage Runtime & linuxdeploy)
+- `linuxdeploy` & `linuxdeploy-plugin-qt` (MIT):
+  https://github.com/linuxdeploy/linuxdeploy
+  https://github.com/linuxdeploy/linuxdeploy-plugin-qt
+- AppImage Type-2 Runtime (MIT):
+  https://github.com/AppImage/type2-runtime
+
+### Third-Party Rust Dependencies
+All statically linked Rust crates are listed in `Cargo.lock`, audited via
+`deny.toml`, and rendered with their license notices inside the application
+under Help -> Licenses & Third-Party Notices.
+
+---------------------------------------------------------------------------
+
+3. AppImage Dynamic Linking & User Relinking Rights (LGPL Compliance)
+---------------------------------------------------------------------------
+Qt 6, KDE Kirigami, `hidapi`, and bundled system libraries are dynamically
+linked or dynamically loaded as shared objects (`.so`) inside the AppImage.
+
+In accordance with LGPL-3.0 Section 4 and LGPL-2.1 Section 6, you may inspect,
+modify, replace, or relink any bundled shared library or QML module inside the
+AppImage:
+
+1. Extract the AppImage contents:
+     ./linux-dualsense-fw-updater-<tag>-x86_64.AppImage --appimage-extract
+2. Replace or update shared libraries / plugins / QML modules inside:
+     squashfs-root/usr/lib/
+     squashfs-root/usr/plugins/
+     squashfs-root/usr/qml/
+3. Run the extracted application directly via:
+     ./squashfs-root/AppRun
+   or repackage with `appimagetool`.
+
+---------------------------------------------------------------------------
+
+4. Source Availability & Written Offer (GPLv3 §6 / LGPLv3 §4 / LGPLv2.1 §6)
+---------------------------------------------------------------------------
+The complete source code and reproducible build/packaging scripts (including
+the exact Qt 6.8.3 and KF6 Kirigami 6.10.0 AppImage build workflow in
+`.github/workflows/ci.yml` and `scripts/package-appimage.sh`) are published at:
+
+  https://github.com/Azorimor/linux-dualsense-fw-updater
+
+Written Offer for Corresponding Source Code:
+If you received a binary distribution (AppImage or tarball) of Linux DualSense
+Firmware Updater without the corresponding source code, you may obtain a
+complete machine-readable copy of the Corresponding Source code (including the
+application source, build scripts, and corresponding sources for covered
+bundled libraries) for at least three (3) years from the date of our last
+distribution of this binary, either via free network download from the
+repositories above or on a durable physical medium for a fee no more than the
+reasonable cost of physically performing source distribution, by contacting:
+
+  Email:  azorimor@gmail.com
+  Issues: https://github.com/Azorimor/linux-dualsense-fw-updater/issues

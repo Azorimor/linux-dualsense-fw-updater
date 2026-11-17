@@ -421,3 +421,75 @@ fn end_to_end_unsupported_bdm010_and_missing_serial_behave_safely() {
     assert!(snap_unknown.unsupported_board_warning.is_some());
     runtime_unknown.shutdown();
 }
+
+#[test]
+fn end_to_end_corrupt_or_mismatched_download_fails_with_friendly_error_before_start_update() {
+    let cases = [
+        (
+            "corrupt HTML error payload",
+            b"<html><body>502 Bad Gateway</body></html>".to_vec(),
+            "invalid",
+        ),
+        (
+            "mismatched target ID",
+            make_official_firmware_image_bytes(
+                FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+                DEFAULT_PID,
+                0x000B,
+                0x0630,
+            ),
+            "does not match controller",
+        ),
+    ];
+
+    for (label, bad_bytes, expected_title_substr) in cases {
+        let enum_mock = Arc::new(MockEnumerator::with_devices(vec![make_device(
+            "/dev/hidraw0",
+            DEFAULT_PID,
+            "STD-01",
+        )]));
+        enum_mock.push_firmware_info("/dev/hidraw0", 0x0520);
+
+        let runtime = AppRuntime::with_backends(
+            ArcEnumerator(Arc::clone(&enum_mock)),
+            MockHttp::with_catalog_and_image(SAMPLE_CATALOG_JSON, bad_bytes),
+            NoopSleeper,
+            fast_update_config(),
+            |_| {},
+        )
+        .expect("start runtime");
+
+        let mut rx = runtime.subscribe();
+        runtime.dispatch(AppEvent::ScanDevices);
+        wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
+
+        runtime.dispatch(AppEvent::ContinueToFirmwareStep);
+        runtime.dispatch(AppEvent::CheckForUpdates);
+        wait_until(&mut rx, |s| !s.is_busy && s.catalog_checked);
+
+        runtime.dispatch(AppEvent::ContinueToConfirmStep);
+        runtime.dispatch(AppEvent::SetWarningAcknowledged(true));
+        wait_until(&mut rx, |s| s.can_start_update);
+
+        runtime.dispatch(AppEvent::StartUpdate);
+        let err_snap = wait_until(&mut rx, |s| s.step == AppStep::Error);
+        assert!(
+            err_snap.error_title.contains(expected_title_substr),
+            "unexpected error_title for {label}: {}",
+            err_snap.error_title
+        );
+        assert!(!err_snap.error_message.is_empty(), "{label}");
+        assert!(!err_snap.recovery_hint.is_empty(), "{label}");
+
+        let sent = enum_mock.sent_reports("/dev/hidraw0");
+        assert!(
+            !sent.iter().any(|r| {
+                r.len() >= 2
+                    && r[0] == REPORT_ID_UPDATE_COMMAND
+                    && r[1] == UpdateCommand::StartUpdate as u8
+            }),
+            "StartUpdate must never be sent for {label}"
+        );
+        runtime.shutdown();
+    }
+}

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::licenses::{
     CrateMetadata, CrateNotice, LockPackage, bundled_licenses_text, contains_notice_for,
     format_application_license, format_license_bundle, is_full_release_bundle,

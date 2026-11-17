@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Root desktop crate library exposing the Qt bridge, licenses, and snapshot adapter.
 
 pub mod license_report;

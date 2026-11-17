@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use dualsense_core::{
     DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, DownloadProgress, FirmwareCatalog, FirmwareInfo,
     FirmwareRelease, HidDeviceInfo, REPORT_ID_FIRMWARE_INFO, UpdatePhase, UpdateProgress,

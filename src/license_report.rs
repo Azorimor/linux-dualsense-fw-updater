@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Pure parsing and formatting helpers for Cargo.lock and crate license reports.
 
 #[derive(Debug, Clone, PartialEq, Eq)]

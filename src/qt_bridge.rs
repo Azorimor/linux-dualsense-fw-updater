@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! CXX-Qt QObject bridge connecting [`dualsense_ui::DefaultAppRuntime`] to QML.
 
 use std::pin::Pin;

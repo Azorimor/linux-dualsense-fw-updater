@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Generated third-party license bundle and pure helper functions.
 
 include!(concat!(env!("OUT_DIR"), "/generated_licenses.rs"));

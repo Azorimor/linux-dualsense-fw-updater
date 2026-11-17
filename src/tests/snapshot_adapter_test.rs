@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::path::PathBuf;
 
 use dualsense_core::{DEFAULT_PID, DUALSENSE_EDGE_PID};

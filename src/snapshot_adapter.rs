@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Pure Rust adapter converting [`dualsense_ui::UiSnapshot`] and QML inputs
 //! into flat, headless-testable state for the `cxx-qt` bridge.
 

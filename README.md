@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Linux DualSense Firmware Updater
 
 An unofficial Linux KDE Kirigami desktop application ([`Azorimor/linux-dualsense-fw-updater`](https://github.com/Azorimor/linux-dualsense-fw-updater)) for inspecting and updating Sony PlayStation DualSense (`054c:0ce6`) and DualSense Edge (`054c:0df2`) controller firmware over USB HID.
@@ -29,7 +35,7 @@ Launch `dualsense-updater` and follow the four guided KDE Kirigami wizard steps:
 3. **Review** — Compares current and target firmware versions, warns if the controller is already on the same or newer version or if the target is untested (DualSense Edge), and requires explicit confirmation that firmware updates cannot be reversed.
 4. **Update** — Streams download progress (with safe cancellation before flashing begins), initializes the update, writes firmware blocks, verifies, and finalizes. If an error occurs, plain-English recovery hints and `Scan Controllers` / `Try Again` / `Start Over` actions are shown.
 
-- **Built-in Licenses Window**: Open **Help → Licenses** in the application menu bar at any time to inspect the bundled third-party crate notices and MIT license text.
+- **Built-in Licenses Window**: Open **Help → Licenses** in the application menu bar at any time to inspect the bundled third-party crate notices, `GPL-3.0-or-later` license text, and `nchie` MIT attribution.
 
 ## Installation (AppImage & Prebuilt Archives)
 
@@ -57,7 +63,7 @@ Download the latest release artifacts from [GitHub Releases](https://github.com/
 - **`mold` linker** (configured for Linux targets via `.cargo/config.toml` with `-C link-arg=-fuse-ld=mold`)
 - **Qt 6** development packages: `Qt6Core`, `Qt6Gui`, `Qt6Qml`, `Qt6Quick`, `Qt6QuickControls2`, and `qmake6`
 - **KDE Frameworks 6 (KF6) runtime QML modules**: `Kirigami` (`org.kde.kirigami`) and `qqc2-desktop-style` (`org.kde.desktop`; falls back to Qt `Fusion` style if unavailable, or override with `QT_QUICK_CONTROLS_STYLE`)
-- **`hidapi`** development library (`hidapi-hidraw` / `hidapi-libusb`) and `pkg-config`
+- **`hidapi` & Linux USB/GL system libraries**: `libhidapi-dev` (`hidapi-hidraw` / `hidapi-libusb`), `libudev-dev`, `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, and `pkg-config` (Ubuntu 24.04)
 
 ### `qmake6` Note
 
@@ -103,9 +109,10 @@ python3 scripts/verify_structural_rules.py
 cargo test --workspace
 ```
 
-Optional license audit (requires `cargo-deny` using `deny.toml`):
+License and FSFE REUSE compliance checks (`reuse` and `cargo-deny` using `deny.toml` and `REUSE.toml`):
 
 ```sh
+reuse lint
 cargo deny --locked --all-features check licenses
 ```
 
@@ -161,10 +168,8 @@ https://fwupdater.dl.playstation.net/fwupdater/fwupdate000B/0x0630/FWUPDATE000B.
 - A controller already running the latest firmware may not return success codes past the start-update phase; this is expected because Sony's firmware blocks downgrades/re-flashing the same version.
 - On Linux, you may need udev permissions to access DualSense HID devices (`/dev/hidraw*` / USB VID `054c`) without root privileges.
 
-## Acknowledgments
+## License & Acknowledgments
 
-The core DualSense USB HID protocol and firmware update backend logic is adapted from the original CLI project by [nchie](https://github.com/nchie/dualsense-updater-rs) under the MIT License.
+**Linux DualSense Firmware Updater** is licensed under the **GNU General Public License v3.0 or later (`GPL-3.0-or-later`)** and complies with the [FSFE REUSE](https://reuse.software/) specification (see `LICENSES/GPL-3.0-or-later.txt`, `LICENSES/MIT.txt`, and `REUSE.toml`).
 
-## License
-
-MIT. See `LICENSE`.
+The core DualSense USB HID protocol and firmware update backend logic in `crates/dualsense-core` is adapted from the original CLI project by [nchie](https://github.com/nchie/dualsense-updater-rs) under the MIT License and remains licensed under **`MIT AND GPL-3.0-or-later`**.

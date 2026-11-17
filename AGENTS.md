@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Coding Agent Instructions
 
 This file governs all AI coding agents working in `dualsense-updater-rs`.
@@ -76,7 +82,12 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 ## 3. Current Project Overview
 
-`dualsense-updater` (`v0.0.0`, Rust `edition = "2024"`, MIT license) is a Linux KDE Kirigami desktop application (organized as a 3-crate Cargo workspace) for inspecting and updating Sony PlayStation DualSense (`0x054c:0x0ce6`) and DualSense Edge (`0x054c:0x0df2`) firmware over USB HID.
+`dualsense-updater` (`v0.0.0`, Rust `edition = "2024"`, `GPL-3.0-or-later`) is a Linux KDE Kirigami desktop application (organized as a 3-crate Cargo workspace) for inspecting and updating Sony PlayStation DualSense (`0x054c:0x0ce6`) and DualSense Edge (`0x054c:0x0df2`) firmware over USB HID.
+
+### Licensing & FSFE REUSE Compliance (Mandatory)
+- **Project license:** `GPL-3.0-or-later` (`Cargo.toml`, `LICENSES/GPL-3.0-or-later.txt`).
+- **Inherited core files:** The 10 files adapted from `nchie`'s original CLI project (`crates/dualsense-core/src/{error,image,protocol,transport,updater}.rs` and `crates/dualsense-core/src/tests/*_test.rs` for those 5 modules) retain `SPDX-FileCopyrightText: 2026 nchie`, `SPDX-FileCopyrightText: 2026 Azorimor`, and `SPDX-License-Identifier: MIT AND GPL-3.0-or-later` (`LICENSES/MIT.txt`).
+- **New files rule:** Every newly added commentable file must include `SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>` and `SPDX-License-Identifier: GPL-3.0-or-later` headers (or be explicitly covered in `REUSE.toml` if non-commentable). Always verify with `reuse lint` and `cargo deny --locked --all-features check licenses`.
 
 ### Hardware & Firmware Context
 - **Upgrade irreversibility:** Firmware upgrades are auto-committed by the controller even if verify and finalize steps are not executed.
@@ -104,7 +115,8 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ├── cliff.toml                  # git-cliff Conventional Commits changelog template
 ├── release-plz.toml            # release-plz automated changelog & GitHub release config
 ├── README.md                   # Linux prerequisites, build/run/test guide, Sony firmware notes, disclaimer
-├── LICENSE                     # MIT license
+├── REUSE.toml                  # FSFE REUSE metadata for non-commentable and config assets
+├── LICENSES/                   # Full SPDX license texts (GPL-3.0-or-later.txt, MIT.txt)
 ├── .githooks/                  # Enforced git hooks (pre-commit, commit-msg, pre-push)
 ├── .github/workflows/          # GitHub Actions workflows (Ubuntu 24.04)
 │   ├── ci.yml                  # Build, fmt, clippy, structural rules, test, qmllint, & Linux packaging
@@ -172,6 +184,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 - **Qt6 / `qmake6` discovery:** `build.rs` defaults `QMAKE` to `/usr/bin/qmake6` when unset and present; export `QMAKE=/path/to/qmake6` on systems where `qmake` defaults to Qt 5 or `qmake6` is elsewhere.
 - **Headless CI compatibility:** All 3 workspace crates decouple business logic and snapshot adaptation from Qt event loops, display servers, and physical DualSense hardware so `cargo test --workspace` runs completely headlessly.
 - **Kirigami style & QML linting:** `src/main.rs` sets `org.kde.desktop` (when `QT_QUICK_CONTROLS_STYLE` is unset) with `Fusion` fallback. Keep QML strictly typed (`pragma ComponentBehavior: Bound`, `required property` on delegates) so `qmllint` passes with zero warnings.
+- **Linux system dev libraries:** `libhidapi-dev`, `libudev-dev`, `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, `pkg-config`, and Qt 6 dev packages.
 - **Offscreen smoke check:** Running with `QT_QPA_PLATFORM=offscreen` verifies `QQmlApplicationEngine` loads `qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml` cleanly without X11/Wayland (using `timeout` because the Qt event loop stays open until closed).
 
 ---
@@ -183,7 +196,10 @@ Linux builds use the `mold` linker via `.cargo/config.toml` (`-C link-arg=-fuse-
 ```sh
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
+python3 scripts/verify_structural_rules.py
 cargo test --workspace
+reuse lint
+cargo deny --locked --all-features check licenses
 ./scripts/coverage.sh  # requires cargo-llvm-cov + llvm-tools; writes target/coverage/{lcov.info,html/index.html}
 cargo check
 /usr/lib/qt6/bin/qmllint -I target/cxxqt/qml_modules -I /usr/lib/qt6/qml qml/StepIndicator.qml qml/Main.qml

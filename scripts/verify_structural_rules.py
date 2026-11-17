@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """Verify structural, test-layout, licensing, and AGENTS.md path rules."""
 
 from __future__ import annotations
@@ -27,6 +32,11 @@ ADAPTED_CORE_FILES = [
     "crates/dualsense-core/src/protocol.rs",
     "crates/dualsense-core/src/transport.rs",
     "crates/dualsense-core/src/updater.rs",
+    "crates/dualsense-core/src/tests/error_test.rs",
+    "crates/dualsense-core/src/tests/image_test.rs",
+    "crates/dualsense-core/src/tests/protocol_test.rs",
+    "crates/dualsense-core/src/tests/transport_test.rs",
+    "crates/dualsense-core/src/tests/updater_test.rs",
 ]
 
 CRATE_TEST_DIRS = [
@@ -39,8 +49,10 @@ AGENTS_KEY_PATHS = [
     "Cargo.toml",
     "Cargo.lock",
     "build.rs",
+    "REUSE.toml",
     "README.md",
-    "LICENSE",
+    "LICENSES/GPL-3.0-or-later.txt",
+    "LICENSES/MIT.txt",
     ".githooks",
     ".github/workflows/ci.yml",
     ".agents",
@@ -150,18 +162,28 @@ def check_test_directories() -> list[str]:
 
 
 def check_spdx_headers() -> list[str]:
-    """Ensure adapted dualsense-core files retain SPDX copyright and MIT headers."""
+    """Ensure adapted dualsense-core files and REUSE license files retain required headers."""
     errors: list[str] = []
+    for rel_str in ("LICENSES/GPL-3.0-or-later.txt", "LICENSES/MIT.txt", "REUSE.toml"):
+        if not (ROOT / rel_str).is_file():
+            errors.append(f"missing required REUSE file: {rel_str}")
+
+    # REUSE-IgnoreStart
+    required_license_line = "SPDX-License-Identifier: MIT AND GPL-3.0-or-later"
+    # REUSE-IgnoreEnd
+
     for rel_str in ADAPTED_CORE_FILES:
         path = ROOT / rel_str
         if not path.is_file():
             errors.append(f"missing adapted dualsense-core file: {rel_str}")
             continue
         head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:10])
-        if "SPDX-FileCopyrightText:" not in head:
-            errors.append(f"missing SPDX-FileCopyrightText header in {rel_str}")
-        if "SPDX-License-Identifier: MIT" not in head:
-            errors.append(f"missing SPDX-License-Identifier: MIT header in {rel_str}")
+        if "SPDX-FileCopyrightText: 2026 nchie" not in head:
+            errors.append(f"missing nchie SPDX-FileCopyrightText header in {rel_str}")
+        if "SPDX-FileCopyrightText: 2026 Azorimor" not in head:
+            errors.append(f"missing Azorimor SPDX-FileCopyrightText header in {rel_str}")
+        if required_license_line not in head:
+            errors.append(f"missing '{required_license_line}' header in {rel_str}")
     return errors
 
 

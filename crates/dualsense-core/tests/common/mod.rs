@@ -150,8 +150,7 @@ impl dualsense_core::HidTransport for SimDualSenseController {
                     return Ok(());
                 }
 
-                if self.write_retry_every_n_chunks > 0
-                    && idx.is_multiple_of(self.write_retry_every_n_chunks)
+                if self.write_retry_every_n_chunks > 0 && idx % self.write_retry_every_n_chunks == 0
                 {
                     q.push_back((
                         UpdateCommand::WriteUpdateImage,

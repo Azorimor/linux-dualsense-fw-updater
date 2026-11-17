@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">
+  <title>Icon-Dark</title>
+  <g id="Icon-Dark">
+    <path id="Background_Tile" data-name="Background Tile" d="M128 32 L384 32 C437.019 32 480 74.981 480 128 L480 384 C480 437.019 437.019 480 384 480 L128 480 C74.981 480 32 437.019 32 384 L32 128 C32 74.981 74.981 32 128 32 Z" fill="#17191f"/>
+    <path id="Update_Arrow" data-name="Update Arrow" d="M251.55 214.92 C254.517 211.64 257.483 211.64 260.45 214.92 L295.45 253.65 C300.483 259.217 299.247 262 291.74 262 L276.5 262 C274.833 262 274 262.833 274 264.5 L274 313 C274 316.333 272.333 318 269 318 L243 318 C239.667 318 238 316.333 238 313 L238 264.5 C238 262.833 237.167 262 235.5 262 L220.26 262 C212.753 262 211.517 259.217 216.55 253.65 Z" fill="#ff8a24"/>
+    <path id="Controller_Outline" data-name="Controller Outline" d="M194 310 L188 310 C166 310 154 352 132 352 C106 352 89 325 96 304 L126 215 C136.2 184.7 156 158 182 158 C202 158 212 170 232 170 L280 170 C300 170 310 158 330 158 C356 158 375.8 184.7 386 215 L416 304 C423 325 406 352 380 352 C358 352 346 310 324 310 L318 310" fill="none" stroke="#f2f2f2" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g id="Icon-Transparent">
+  </g>
+</svg>

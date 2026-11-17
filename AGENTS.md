@@ -112,20 +112,25 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │   │   │   ├── image.rs        # Single-read FirmwareImage loader and 0x78 version / 32 KiB block validation
 │   │   │   ├── protocol.rs     # Report IDs (0x20, 0xF4, 0xF5), commands, status codes, chunk encoder
 │   │   │   ├── transport.rs    # HidTransport, HidDeviceEnumerator, Sleeper traits + HidApiBackend
-│   │   │   └── updater.rs      # DualSenseUpdater bounded polling state machine & UpdateProgress
-│   │   └── tests/update_flow.rs
+│   │   │   ├── updater.rs      # DualSenseUpdater bounded polling state machine & UpdateProgress
+│   │   │   └── tests/          # Extracted unit tests (*_test.rs)
+│   │   └── tests/              # Integration tests (board_detection_test.rs, update_flow_test.rs)
 │   └── dualsense-ui/           # Headless-testable ViewModel, HTTP client, friendly errors, async runtime
 │       ├── src/
 │       │   ├── lib.rs          # Public crate re-exports
-│       │   ├── viewmodel.rs    # AppStep, AppState, AppEvent, AppCommand, UiSnapshot, gating flags
-│       │   ├── controller.rs   # AppController & AppRuntime running Tokio workers off the UI thread
+│       │   ├── viewmodel/      # Modular Elm/TEA ViewModel (mod, types, state, transitions, snapshot, progress)
+│       │   ├── controller.rs   # AppController & AppRuntime (Tokio workers + 800 ms live USB device polling)
 │       │   ├── http.rs         # UreqHttpClient (ureq + rustls) with streaming progress & cancellation
-│       │   └── error_map.rs    # FriendlyError plain-English mapping for CoreError / UpdateFailure
-│       └── tests/controller_flows.rs
-├── src/                        # Root `dualsense-updater` Qt6/Kirigami desktop binary crate
+│       │   ├── error_map.rs    # FriendlyError plain-English mapping for CoreError / UpdateFailure
+│       │   └── tests/          # Extracted unit tests (*_test.rs)
+│       └── tests/              # Integration tests (controller_flows_test.rs, disconnect_monitor_test.rs, http_live_test.rs)
+├── src/                        # Root `dualsense-updater` Qt6/Kirigami desktop crate
+│   ├── lib.rs                  # Exposes qt_bridge & snapshot_adapter for headless integration tests
 │   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, org.kde.desktop + Fusion fallback
 │   ├── qt_bridge.rs            # cxx-qt DualSenseBridge QObject binding DefaultAppRuntime to QML
-│   └── snapshot_adapter.rs     # Pure Rust AdaptedSnapshot & file:// URL parser (unit-tested headlessly)
+│   ├── snapshot_adapter.rs     # Pure Rust AdaptedSnapshot & file:// URL parser
+│   └── tests/                  # Extracted unit tests (snapshot_adapter_test.rs, snapshot_state_test.rs)
+├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs)
 └── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
     ├── Main.qml                # Kirigami.ApplicationWindow + 6-view StackLayout wizard
     └── StepIndicator.qml       # 4-step progress breadcrumb header
@@ -137,8 +142,8 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 
 ### Layer Responsibilities
 - **`dualsense-core`:** Zero UI/Qt dependencies. Encapsulates USB HID feature reports (`0x20`, `0xF4`, `0xF5`), `FirmwareImage` (read once into memory), `DualSenseUpdater` (bounded polling via `UpdateConfig` + `Sleeper` + `CancellationToken`), and Sony catalog/download logic behind `HidTransport`, `HidDeviceEnumerator`, and `HttpClient`.
-- **`dualsense-ui`:** Pure Rust Elm/TEA state machine (`AppState::apply` -> `Vec<AppCommand>`) and `AppController` / `AppRuntime` executing HID, disk, and HTTPS tasks on a Tokio runtime, emitting `UiSnapshot` updates and plain-English `FriendlyError` guidance.
-- **Root `dualsense-updater` (`src/` + `qml/`):** `DualSenseBridge` (`#[cxx_qt::bridge]`) marshals `UiSnapshot` via `AdaptedSnapshot` onto the Qt thread (`cxx_qt::Threading`). QML stays thin and declarative (`pragma ComponentBehavior: Bound`) over `updater` properties and `#[qinvokable]` slots.
+- **`dualsense-ui`:** Pure Rust Elm/TEA state machine (`AppState::update` -> `Vec<AppCommand>`) and `AppController` / `AppRuntime` executing HID, disk, HTTPS, and live 800 ms USB disconnect/replug polling tasks (`DevicesPollUpdated`, skipped during active flashing) on a Tokio runtime, emitting `UiSnapshot` updates and plain-English `FriendlyError` guidance.
+- **Root `dualsense-updater` (`src/` + `qml/`):** `DualSenseBridge` (`#[cxx_qt::bridge]`) marshals `UiSnapshot` via `AdaptedSnapshot` onto the Qt thread (`cxx_qt::Threading`). QML stays thin and declarative (`pragma ComponentBehavior: Bound`) over `updater` properties and `#[qinvokable]` slots. All unit and integration tests live in `src/tests/` and `tests/` across all three crates.
 
 ---
 

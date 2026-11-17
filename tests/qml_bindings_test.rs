@@ -156,6 +156,7 @@ fn qml_files_exist_and_declare_bound_component_behavior() {
     assert!(about_qml.contains("required property string githubUrl"));
     assert!(about_qml.contains("required property string githubPagesUrl"));
     assert!(about_qml.contains("title: \"About Unofficial DualSense Firmware Updater\""));
+    assert!(about_qml.contains(dualsense_updater::app_icon::EMBEDDED_APP_ICON_URL));
 
     assert!(flash_report_qml.contains("required property string reportTitle"));
     assert!(flash_report_qml.contains("required property string reportMarkdown"));

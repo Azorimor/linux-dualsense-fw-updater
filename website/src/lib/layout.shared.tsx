@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 
 export const REPO_URL = 'https://github.com/Azorimor/linux-dualsense-fw-updater';

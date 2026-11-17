@@ -3,6 +3,12 @@ title: Overview
 description: Unofficial Linux KDE Kirigami desktop application for inspecting and updating Sony PlayStation DualSense firmware over USB HID.
 ---
 
+{/*
+SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+*/}
+
 **Linux DualSense Firmware Updater** (`Azorimor/linux-dualsense-fw-updater`) is an unofficial Linux desktop utility built with Rust and KDE Kirigami (Qt 6) for inspecting DualSense controller hardware and flashing official Sony firmware updates over a wired USB connection.
 
 <Callout type="warn" title="Unofficial Application Disclaimer">
@@ -30,4 +36,4 @@ The desktop GUI walks you through four stages while monitoring USB connection st
 - **Automatic Board & Target Resolution**: Decodes hardware revision (`BDM-020` through `BDM-060R/M/X`) and firmware series to match the right Sony update target automatically.
 - **Live USB Disconnect Monitoring**: Polls USB device presence every 800 ms outside active flashing so unplugging a controller immediately resets to scan safely.
 - **Plain-English Error Recovery**: Translates low-level USB HID, catalog, and image validation failures into actionable recovery steps.
-- **Built-in Licenses Dialog**: Includes an in-app Licenses & Acknowledgments viewer covering MIT and third-party Rust/Qt/KDE credits.
+- **Built-in Licenses Dialog**: Includes an in-app Licenses & Acknowledgments viewer covering GPL-3.0-or-later, MIT (nchie), and third-party Rust/Qt/KDE credits.

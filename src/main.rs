@@ -9,9 +9,9 @@ const MAIN_QML_URL: &str = "qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml";
 
 fn main() {
     init_logging();
-    configure_quick_style();
 
     let mut app = QGuiApplication::new();
+    configure_quick_style();
     if let Some(mut app_pin) = app.as_mut() {
         app_pin
             .as_mut()
@@ -51,8 +51,19 @@ fn init_logging() {
 }
 
 fn configure_quick_style() {
-    if std::env::var_os("QT_QUICK_CONTROLS_STYLE").is_none() {
-        QQuickStyle::set_style(&QString::from("org.kde.desktop"));
+    let qt_qml_path = dualsense_updater::app_icon::qml_imports_path();
+    let import_paths = dualsense_updater::quick_style::collect_qml_import_paths(
+        std::env::var_os("QML_IMPORT_PATH").as_deref(),
+        std::env::var_os("QML2_IMPORT_PATH").as_deref(),
+        Some(qt_qml_path.as_str()),
+    );
+    if let Some(style) = dualsense_updater::quick_style::resolve_quick_style(
+        std::env::var_os("QT_QUICK_CONTROLS_STYLE").as_deref(),
+        &import_paths,
+    ) {
+        QQuickStyle::set_style(&QString::from(style));
     }
-    QQuickStyle::set_fallback_style(&QString::from("Fusion"));
+    QQuickStyle::set_fallback_style(&QString::from(
+        dualsense_updater::quick_style::FALLBACK_QUICK_STYLE,
+    ));
 }

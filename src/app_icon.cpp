@@ -4,11 +4,15 @@
 
 #include "dualsense-updater/src/app_icon.h"
 
+#include <QByteArray>
 #include <QFile>
 #include <QGuiApplication>
 #include <QIcon>
+#include <QLibraryInfo>
 #include <QSize>
 #include <QString>
+
+#include <cstddef>
 
 namespace dualsense_updater {
 
@@ -55,6 +59,11 @@ void configure_application_window_icon() {
     const QIcon resolved =
         QIcon::fromTheme(QStringLiteral("dev.dualsense.updater"), embedded);
     QGuiApplication::setWindowIcon(resolved);
+}
+
+rust::String qt_qml_imports_path() {
+    const QByteArray utf8 = QLibraryInfo::path(QLibraryInfo::QmlImportsPath).toUtf8();
+    return rust::String(utf8.constData(), static_cast<std::size_t>(utf8.size()));
 }
 
 } // namespace dualsense_updater

@@ -10,6 +10,7 @@ mod ffi {
         include!("dualsense-updater/src/app_icon.h");
 
         fn configure_application_window_icon();
+        fn qt_qml_imports_path() -> String;
     }
 }
 
@@ -24,4 +25,9 @@ pub const EMBEDDED_APP_ICON_URL: &str =
 /// multi-resolution Qt resources) to `QGuiApplication`.
 pub fn configure_window_icon() {
     ffi::configure_application_window_icon();
+}
+
+/// Return Qt's configured `QmlImportsPath` (honoring `qt.conf` once `QGuiApplication` exists).
+pub fn qml_imports_path() -> String {
+    ffi::qt_qml_imports_path()
 }

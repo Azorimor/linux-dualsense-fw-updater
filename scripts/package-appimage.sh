@@ -6,8 +6,14 @@
 
 set -euo pipefail
 
+STAGE_ONLY=0
+if [[ "${1:-}" == "--stage-only" ]]; then
+    STAGE_ONLY=1
+    shift
+fi
+
 if [[ $# -ne 3 ]]; then
-    echo "Usage: $0 <binary-path> <tag> <out-dir>" >&2
+    echo "Usage: $0 [--stage-only] <binary-path> <tag> <out-dir>" >&2
     exit 2
 fi
 
@@ -15,9 +21,15 @@ BINARY_PATH="$1"
 TAG="$2"
 OUT_DIR="$3"
 
+APP_ID="dev.dualsense.updater"
+ICON_SIZES=(16x16 22x22 32x32 48x48 64x64 128x128 256x256 512x512)
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DESKTOP_FILE="${REPO_ROOT}/packaging/linux/dev.dualsense.updater.desktop"
-ICON_FILE="${REPO_ROOT}/packaging/linux/dev.dualsense.updater.svg"
+DESKTOP_FILE="${REPO_ROOT}/packaging/linux/${APP_ID}.desktop"
+INSTALL_SCRIPT="${REPO_ROOT}/packaging/linux/install-desktop.sh"
+ICONS_DIR="${REPO_ROOT}/packaging/linux/icons"
+SVG_ICON_FILE="${ICONS_DIR}/scalable/icon.svg"
+DIRICON_SOURCE="${ICONS_DIR}/256x256/icon.png"
 GPL_LICENSE_FILE="${REPO_ROOT}/LICENSES/GPL-3.0-or-later.txt"
 MIT_LICENSE_FILE="${REPO_ROOT}/LICENSES/MIT.txt"
 README_FILE="${REPO_ROOT}/README.md"
@@ -26,9 +38,21 @@ if [[ ! -x "${BINARY_PATH}" ]]; then
     echo "error: binary not found or not executable: ${BINARY_PATH}" >&2
     exit 1
 fi
-for required in "${DESKTOP_FILE}" "${ICON_FILE}" "${GPL_LICENSE_FILE}" "${MIT_LICENSE_FILE}"; do
+for required in \
+    "${DESKTOP_FILE}" \
+    "${INSTALL_SCRIPT}" \
+    "${SVG_ICON_FILE}" \
+    "${GPL_LICENSE_FILE}" \
+    "${MIT_LICENSE_FILE}"
+do
     if [[ ! -f "${required}" ]]; then
         echo "error: required packaging asset missing: ${required}" >&2
+        exit 1
+    fi
+done
+for size in "${ICON_SIZES[@]}"; do
+    if [[ ! -f "${ICONS_DIR}/${size}/icon.png" ]]; then
+        echo "error: required icon size missing: ${ICONS_DIR}/${size}/icon.png" >&2
         exit 1
     fi
 done
@@ -50,8 +74,12 @@ install -Dm644 "${MIT_LICENSE_FILE}" "${TAR_STAGE}/LICENSES/MIT.txt"
 if [[ -f "${README_FILE}" ]]; then
     install -Dm644 "${README_FILE}" "${TAR_STAGE}/README.md"
 fi
-install -Dm644 "${DESKTOP_FILE}" "${TAR_STAGE}/dev.dualsense.updater.desktop"
-install -Dm644 "${ICON_FILE}" "${TAR_STAGE}/dev.dualsense.updater.svg"
+install -Dm644 "${DESKTOP_FILE}" "${TAR_STAGE}/${APP_ID}.desktop"
+install -Dm755 "${INSTALL_SCRIPT}" "${TAR_STAGE}/install-desktop.sh"
+for size in "${ICON_SIZES[@]}"; do
+    install -Dm644 "${ICONS_DIR}/${size}/icon.png" "${TAR_STAGE}/icons/${size}/icon.png"
+done
+install -Dm644 "${SVG_ICON_FILE}" "${TAR_STAGE}/icons/scalable/icon.svg"
 
 TAR_ARCHIVE="${OUT_DIR_ABS}/${APP_NAME}-${TAG}-x86_64.tar.gz"
 tar -C "${STAGE_ROOT}" -czf "${TAR_ARCHIVE}" "${APP_NAME}-${TAG}-x86_64"
@@ -60,10 +88,26 @@ tar -C "${STAGE_ROOT}" -czf "${TAR_ARCHIVE}" "${APP_NAME}-${TAG}-x86_64"
 APPDIR="${STAGE_ROOT}/AppDir"
 mkdir -p "${APPDIR}/usr/bin"
 install -Dm755 "${BINARY_ABS}" "${APPDIR}/usr/bin/dualsense-updater"
-install -Dm644 "${DESKTOP_FILE}" "${APPDIR}/usr/share/applications/dev.dualsense.updater.desktop"
-install -Dm644 "${ICON_FILE}" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/dev.dualsense.updater.svg"
+install -Dm644 "${DESKTOP_FILE}" "${APPDIR}/usr/share/applications/${APP_ID}.desktop"
+for size in "${ICON_SIZES[@]}"; do
+    install -Dm644 "${ICONS_DIR}/${size}/icon.png" \
+        "${APPDIR}/usr/share/icons/hicolor/${size}/apps/${APP_ID}.png"
+done
+install -Dm644 "${SVG_ICON_FILE}" \
+    "${APPDIR}/usr/share/icons/hicolor/scalable/apps/${APP_ID}.svg"
+install -Dm644 "${DIRICON_SOURCE}" "${APPDIR}/.DirIcon"
 install -Dm644 "${GPL_LICENSE_FILE}" "${APPDIR}/usr/share/licenses/${APP_NAME}/GPL-3.0-or-later.txt"
 install -Dm644 "${MIT_LICENSE_FILE}" "${APPDIR}/usr/share/licenses/${APP_NAME}/MIT.txt"
+
+if [[ "${STAGE_ONLY}" -eq 1 ]]; then
+    APPDIR_STAGE_OUT="${OUT_DIR_ABS}/AppDir"
+    rm -rf "${APPDIR_STAGE_OUT}"
+    cp -a "${APPDIR}" "${APPDIR_STAGE_OUT}"
+    echo "Staged release artifacts (dry run):"
+    echo "  Tarball: ${TAR_ARCHIVE}"
+    echo "  AppDir:  ${APPDIR_STAGE_OUT}"
+    exit 0
+fi
 
 TOOLS_DIR="${LINUXDEPLOY_CACHE_DIR:-${REPO_ROOT}/target/linuxdeploy}"
 mkdir -p "${TOOLS_DIR}"
@@ -127,8 +171,8 @@ export LDAI_OUTPUT="${OUT_DIR_ABS}/${APP_NAME}-${TAG}-x86_64.AppImage"
 pushd "${STAGE_ROOT}" >/dev/null
 "${LINUXDEPLOY_BIN}" \
     --appdir "${APPDIR}" \
-    --desktop-file "${APPDIR}/usr/share/applications/dev.dualsense.updater.desktop" \
-    --icon-file "${APPDIR}/usr/share/icons/hicolor/scalable/apps/dev.dualsense.updater.svg" \
+    --desktop-file "${APPDIR}/usr/share/applications/${APP_ID}.desktop" \
+    --icon-file "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png" \
     --plugin qt \
     --output appimage
 popd >/dev/null

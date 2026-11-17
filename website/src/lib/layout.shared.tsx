@@ -10,7 +10,7 @@ export const BASE_PATH = '/linux-dualsense-fw-updater';
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: 'DualSense Updater',
+      title: 'Unofficial DualSense Updater',
     },
     githubUrl: REPO_URL,
     links: [
@@ -24,9 +24,8 @@ export function baseOptions(): BaseLayoutProps {
         url: '/docs/supported-hardware',
       },
       {
-        text: 'Releases',
-        url: `${REPO_URL}/releases`,
-        external: true,
+        text: 'Download',
+        url: '/download',
       },
     ],
   };

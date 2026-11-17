@@ -11,11 +11,11 @@ import './global.css';
 export const metadata: Metadata = {
   metadataBase: new URL('https://azorimor.github.io'),
   title: {
-    template: '%s | Linux DualSense Firmware Updater',
-    default: 'Linux DualSense Firmware Updater',
+    template: '%s | Unofficial Linux DualSense Firmware Updater',
+    default: 'Unofficial Linux DualSense Firmware Updater',
   },
   description:
-    'Unofficial Linux KDE Kirigami desktop utility for inspecting and updating Sony PlayStation DualSense controller firmware over USB HID.',
+    'Unofficial, community-maintained Linux KDE Kirigami desktop utility for inspecting and updating PlayStation DualSense controller firmware over USB HID. Not affiliated with Sony Interactive Entertainment or PlayStation.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

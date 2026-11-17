@@ -10,7 +10,18 @@ export const BASE_PATH = '/linux-dualsense-fw-updater';
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: 'Unofficial DualSense Updater',
+      title: (
+        <span className="inline-flex items-center gap-2.5">
+          <img
+            src={`${BASE_PATH}/favicon.svg`}
+            alt="Unofficial DualSense Updater logo"
+            width={24}
+            height={24}
+            className="size-6 shrink-0 rounded-md"
+          />
+          <span>Unofficial DualSense Updater</span>
+        </span>
+      ),
     },
     githubUrl: REPO_URL,
     links: [

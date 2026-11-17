@@ -1,0 +1,24 @@
+{
+  "name": "Unofficial Linux DualSense Firmware Updater",
+  "short_name": "DualSense Updater",
+  "description": "Unofficial, community-maintained Linux utility for inspecting and updating PlayStation DualSense controller firmware over USB HID.",
+  "start_url": "/linux-dualsense-fw-updater/",
+  "scope": "/linux-dualsense-fw-updater/",
+  "display": "standalone",
+  "background_color": "#17191f",
+  "theme_color": "#17191f",
+  "icons": [
+    {
+      "src": "/linux-dualsense-fw-updater/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/linux-dualsense-fw-updater/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

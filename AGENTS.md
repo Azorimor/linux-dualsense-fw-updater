@@ -121,8 +121,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ├── .github/
 │   ├── ISSUE_TEMPLATE/         # GitHub issue templates (`flash_report.md` prefill target; others live on main)
 │   └── workflows/              # GitHub Actions workflows (Ubuntu 24.04)
-│       ├── ci.yml              # Build, fmt, clippy, structural rules, test, qmllint, & Linux packaging
-│       ├── coverage.yml        # Code coverage workflow
+│       ├── ci.yml              # Fast prechecks -> Clippy, single-pass test+coverage, & Linux packaging
 │       ├── cleanup-pr-cache.yml # PR cache cleanup workflow
 │       ├── release.yml         # Release & SHA256SUMS artifact publishing workflow
 │       └── deploy-website.yml  # Fumadocs static site build & deploy workflow

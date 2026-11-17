@@ -98,6 +98,7 @@ pub mod qobject {
         #[qproperty(bool, can_start_update, READ, NOTIFY)]
         #[qproperty(bool, can_cancel, READ, NOTIFY)]
         #[qproperty(bool, can_go_back, READ, NOTIFY)]
+        #[qproperty(QString, licenses_text, READ, NOTIFY)]
         type DualSenseBridge = super::DualSenseBridgeRust;
     }
 
@@ -245,6 +246,7 @@ pub struct DualSenseBridgeRust {
     can_start_update: bool,
     can_cancel: bool,
     can_go_back: bool,
+    licenses_text: QString,
 }
 
 impl Default for DualSenseBridgeRust {
@@ -325,6 +327,7 @@ impl Default for DualSenseBridgeRust {
             can_start_update: false,
             can_cancel: false,
             can_go_back: false,
+            licenses_text: QString::from(crate::licenses::bundled_licenses_text()),
         }
     }
 }

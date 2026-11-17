@@ -163,6 +163,24 @@ fn bdm050_auto_selection_and_full_catalog_update_flow() {
     assert_eq!(completed.completed_version, "0x0630");
     assert_eq!(completed.banner_severity, BANNER_POSITIVE);
     assert_eq!(completed.progress_percentage, 100);
+    assert!(completed.has_flash_report);
+    assert!(completed.flash_report_succeeded);
+    assert!(
+        completed
+            .flash_report_title
+            .starts_with("[Flash Report] Success")
+    );
+    assert!(completed.flash_report_markdown.contains("BDM-050"));
+    assert!(
+        !completed
+            .flash_report_markdown
+            .contains("F55301K0H14359961")
+    );
+    assert!(
+        completed
+            .flash_report_issue_url
+            .contains("template=flash_report.md")
+    );
 }
 
 #[test]

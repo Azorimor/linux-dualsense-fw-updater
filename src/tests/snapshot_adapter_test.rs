@@ -42,6 +42,11 @@ fn initial_snapshot_adapts_cleanly() {
     assert!(adapted.can_scan);
     assert!(!adapted.can_continue_to_firmware);
     assert!(!adapted.can_start_update);
+    assert!(!adapted.has_flash_report);
+    assert!(!adapted.flash_report_succeeded);
+    assert_eq!(adapted.flash_report_title, "");
+    assert_eq!(adapted.flash_report_markdown, "");
+    assert_eq!(adapted.flash_report_issue_url, "");
     assert!(!adapted.target_ids.is_empty());
     assert_eq!(adapted.selected_target_id, "0004");
     assert!(adapted.selected_target_index >= 0);

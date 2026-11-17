@@ -8,7 +8,10 @@ use std::pin::Pin;
 
 use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::{QString, QStringList};
-use dualsense_ui::{AppEvent, DefaultAppRuntime, FirmwareSourceKind, UiSnapshot};
+use dualsense_ui::{
+    APP_VERSION, AppEvent, DefaultAppRuntime, FirmwareSourceKind, GITHUB_ISSUES_URL,
+    GITHUB_PAGES_URL, GITHUB_REPO_URL, UiSnapshot,
+};
 
 use crate::snapshot_adapter::{
     AdaptedSnapshot, BANNER_ERROR, BANNER_INFO, parse_file_dialog_selection,
@@ -102,6 +105,15 @@ pub mod qobject {
         #[qproperty(bool, can_start_update, READ, NOTIFY)]
         #[qproperty(bool, can_cancel, READ, NOTIFY)]
         #[qproperty(bool, can_go_back, READ, NOTIFY)]
+        #[qproperty(bool, has_flash_report, READ, NOTIFY)]
+        #[qproperty(bool, flash_report_succeeded, READ, NOTIFY)]
+        #[qproperty(QString, flash_report_title, READ, NOTIFY)]
+        #[qproperty(QString, flash_report_markdown, READ, NOTIFY)]
+        #[qproperty(QString, flash_report_issue_url, READ, NOTIFY)]
+        #[qproperty(QString, app_version, READ, CONSTANT)]
+        #[qproperty(QString, github_url, READ, CONSTANT)]
+        #[qproperty(QString, github_pages_url, READ, CONSTANT)]
+        #[qproperty(QString, github_issues_url, READ, CONSTANT)]
         #[qproperty(QString, licenses_text, READ, NOTIFY)]
         type DualSenseBridge = super::DualSenseBridgeRust;
     }
@@ -250,6 +262,15 @@ pub struct DualSenseBridgeRust {
     can_start_update: bool,
     can_cancel: bool,
     can_go_back: bool,
+    has_flash_report: bool,
+    flash_report_succeeded: bool,
+    flash_report_title: QString,
+    flash_report_markdown: QString,
+    flash_report_issue_url: QString,
+    app_version: QString,
+    github_url: QString,
+    github_pages_url: QString,
+    github_issues_url: QString,
     licenses_text: QString,
 }
 
@@ -331,6 +352,15 @@ impl Default for DualSenseBridgeRust {
             can_start_update: false,
             can_cancel: false,
             can_go_back: false,
+            has_flash_report: false,
+            flash_report_succeeded: false,
+            flash_report_title: QString::default(),
+            flash_report_markdown: QString::default(),
+            flash_report_issue_url: QString::default(),
+            app_version: QString::from(APP_VERSION),
+            github_url: QString::from(GITHUB_REPO_URL),
+            github_pages_url: QString::from(GITHUB_PAGES_URL),
+            github_issues_url: QString::from(GITHUB_ISSUES_URL),
             licenses_text: QString::from(crate::licenses::bundled_licenses_text()),
         }
     }
@@ -816,6 +846,36 @@ impl qobject::DualSenseBridge {
         );
         sync_prop!(self, can_cancel, can_cancel_changed, adapted.can_cancel);
         sync_prop!(self, can_go_back, can_go_back_changed, adapted.can_go_back);
+        sync_prop!(
+            self,
+            has_flash_report,
+            has_flash_report_changed,
+            adapted.has_flash_report
+        );
+        sync_prop!(
+            self,
+            flash_report_succeeded,
+            flash_report_succeeded_changed,
+            adapted.flash_report_succeeded
+        );
+        sync_prop!(
+            self,
+            flash_report_title,
+            flash_report_title_changed,
+            QString::from(&adapted.flash_report_title)
+        );
+        sync_prop!(
+            self,
+            flash_report_markdown,
+            flash_report_markdown_changed,
+            QString::from(&adapted.flash_report_markdown)
+        );
+        sync_prop!(
+            self,
+            flash_report_issue_url,
+            flash_report_issue_url_changed,
+            QString::from(&adapted.flash_report_issue_url)
+        );
     }
 
     pub fn scan_controllers(&self) {

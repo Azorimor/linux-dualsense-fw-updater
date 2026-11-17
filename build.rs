@@ -25,6 +25,8 @@ fn main() {
             "qml/Main.qml",
             "qml/StepIndicator.qml",
             "qml/LicensesWindow.qml",
+            "qml/AboutWindow.qml",
+            "qml/FlashReportWindow.qml",
         ]))
         .qt_module("Quick")
         .qt_module("QuickControls2")

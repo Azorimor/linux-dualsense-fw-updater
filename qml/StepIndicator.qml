@@ -34,6 +34,15 @@ RowLayout {
                 || (root.currentStepIndex === 4 && stepDelegate.index === 3)
             readonly property bool isDone: root.currentStepIndex > stepDelegate.index
                 && root.currentStepIndex !== 5
+            // Kirigami's BasicTheme fallback (used under Fusion) sets positiveBackgroundColor == positiveTextColor.
+            readonly property color doneBackgroundColor: Qt.colorEqual(
+                    Kirigami.Theme.positiveBackgroundColor,
+                    Kirigami.Theme.positiveTextColor)
+                ? Kirigami.ColorUtils.tintWithAlpha(
+                    Kirigami.Theme.backgroundColor,
+                    Kirigami.Theme.positiveTextColor,
+                    0.20)
+                : Kirigami.Theme.positiveBackgroundColor
 
             Layout.fillWidth: true
             spacing: Kirigami.Units.smallSpacing
@@ -46,7 +55,7 @@ RowLayout {
                 color: stepDelegate.isCurrent
                     ? Kirigami.Theme.highlightColor
                     : (stepDelegate.isDone
-                        ? Kirigami.Theme.positiveBackgroundColor
+                        ? stepDelegate.doneBackgroundColor
                         : Kirigami.Theme.alternateBackgroundColor)
                 border.width: 1
                 border.color: stepDelegate.isCurrent
@@ -61,13 +70,11 @@ RowLayout {
                     width: parent.width - Kirigami.Units.smallSpacing * 2
                     horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
-                    text: root.steps[stepDelegate.index]
+                    text: (stepDelegate.isDone ? "✓ " : "") + root.steps[stepDelegate.index]
                     font.bold: stepDelegate.isCurrent
                     color: stepDelegate.isCurrent
                         ? Kirigami.Theme.highlightedTextColor
-                        : (stepDelegate.isDone
-                            ? Kirigami.Theme.positiveTextColor
-                            : Kirigami.Theme.textColor)
+                        : Kirigami.Theme.textColor
                 }
             }
         }

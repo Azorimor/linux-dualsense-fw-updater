@@ -1,34 +1,74 @@
 name: CI
 
-# Manual trigger only via the GitHub Actions UI ("Run workflow").
 on:
   workflow_dispatch:
+    inputs:
+      is_release:
+        description: "Also build and package Linux .tar.gz and .AppImage release artifacts"
+        type: boolean
+        required: false
+        default: false
+      release_tag:
+        description: "Version tag used when packaging release artifacts (defaults to Cargo.toml version)"
+        type: string
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      is_release:
+        description: "Build and package Linux release artifacts"
+        type: boolean
+        required: false
+        default: false
+      release_tag:
+        description: "Release tag (e.g. v0.1.0)"
+        type: string
+        required: false
+        default: ""
+  # Uncomment once repository is public / ready for automatic PR CI:
+  # pull_request:
+  #   branches: [main, master]
+  #   paths-ignore:
+  #     - "website/**"
+  #     - "*.md"
+  #     - "LICENSE"
 
 env:
   QMAKE: /usr/bin/qmake6
   CARGO_TERM_COLOR: always
 
 jobs:
-  ci:
-    name: Build, Test & Coverage (Ubuntu 24.04)
+  check:
+    name: Check, Test & Coverage (Ubuntu 24.04)
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Install cargo-deny and cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-llvm-cov
+
       # Note: Ubuntu 24.04 (noble) does not package KF6 Kirigami
       # (`qml6-module-org-kde-kirigami`), so QML runtime/lint steps requiring
       # KF6 Kirigami are not invoked directly on `ubuntu-24.04`. All Qt6 C++
       # compilation, `cxx-qt` linking, QML binding/asset checks
-      # (`qml_bindings_test`), release build, and 100% headless tests run natively.
+      # (`qml_bindings_test`), structural checks, and 100% headless tests run natively.
       - name: Install Ubuntu 24.04 system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
-            pkg-config \
+            clang \
             mold \
+            pkg-config \
             libhidapi-dev \
             qt6-base-dev \
             qt6-declarative-dev \
@@ -38,32 +78,23 @@ jobs:
             qml6-module-qtquick-dialogs \
             qml6-module-qtquick-layouts
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy, llvm-tools-preview
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov
-
       - name: Cache Rust dependencies and build artifacts
         uses: Swatinem/rust-cache@v2
+
+      - name: Audit dependency licenses
+        run: cargo deny --locked --all-features check licenses
 
       - name: Check formatting
         run: cargo fmt --check
 
       - name: Lint workspace with clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Verify structural and licensing rules
+        run: python3 scripts/verify_structural_rules.py
 
       - name: Run all headless tests
-        run: cargo test --workspace
-
-      - name: Build release binary and verify mold linker
-        run: |
-          cargo build --release
-          readelf -p .comment target/release/dualsense-updater | grep -i mold
+        run: cargo test --workspace --locked
 
       - name: Generate coverage report and print summary
         run: |
@@ -81,4 +112,63 @@ jobs:
         with:
           name: coverage-report
           path: target/coverage/
+          if-no-files-found: error
+
+  build-linux:
+    name: Build & Package Linux Release (Ubuntu 24.04)
+    needs: [check]
+    if: ${{ inputs.is_release == true }}
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Ubuntu 24.04 build and AppImage packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            clang \
+            mold \
+            pkg-config \
+            curl \
+            file \
+            squashfs-tools \
+            libhidapi-dev \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            qt6-declarative-dev-tools \
+            qmake6 \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qtquick-layouts
+
+      - name: Cache Rust dependencies and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Resolve release tag
+        run: |
+          TAG="${{ inputs.release_tag }}"
+          if [[ -z "$TAG" ]]; then
+            TAG="v$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(p["version"] for p in d["packages"] if p["name"]=="dualsense-updater"))')"
+          fi
+          echo "RELEASE_TAG=${TAG}" >> "$GITHUB_ENV"
+
+      - name: Build release binary and verify mold linker
+        run: |
+          cargo build --release --locked
+          readelf -p .comment target/release/dualsense-updater | grep -i mold
+
+      - name: Package Linux tarball and AppImage
+        run: ./scripts/package-appimage.sh target/release/dualsense-updater "$RELEASE_TAG" dist
+
+      - name: Upload Linux release artifacts (.tar.gz and .AppImage)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-artifacts
+          path: dist/
           if-no-files-found: error

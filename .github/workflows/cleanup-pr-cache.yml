@@ -1,0 +1,49 @@
+name: Cleanup PR Cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number whose Actions cache ref should be deleted"
+        type: string
+        required: false
+        default: ""
+  # Uncomment once repository is public / PR CI is enabled:
+  # pull_request:
+  #   types: [closed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    name: Delete PR Actions Caches
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Delete caches for closed pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          if [[ -z "${PR_NUMBER}" ]]; then
+            echo "No PR number provided; skipping cache cleanup."
+            exit 0
+          fi
+
+          CACHE_REF="refs/pull/${PR_NUMBER}/merge"
+          echo "Cleaning up Actions caches for ${CACHE_REF}..."
+          CACHE_IDS=$(gh api \
+            "/repos/${{ github.repository }}/actions/caches?ref=${CACHE_REF}" \
+            --jq '.actions_caches[].id' || true)
+
+          if [[ -z "${CACHE_IDS}" ]]; then
+            echo "No caches found for ${CACHE_REF}."
+            exit 0
+          fi
+
+          for id in ${CACHE_IDS}; do
+            echo "Deleting cache id ${id}"
+            gh api --method DELETE "/repos/${{ github.repository }}/actions/caches/${id}" || true
+          done

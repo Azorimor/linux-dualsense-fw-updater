@@ -8,6 +8,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 An unofficial Linux KDE Kirigami desktop application ([`Azorimor/linux-dualsense-fw-updater`](https://github.com/Azorimor/linux-dualsense-fw-updater)) for inspecting and updating Sony PlayStation DualSense (`054c:0ce6`) and DualSense Edge (`054c:0df2`) controller firmware over USB HID.
 
+![Unofficial Linux DualSense Firmware Updater GUI showing a detected DualSense controller over USB HID](assets/screenshot-1-initial-with-controller.png)
+
 ## Disclaimer
 
 This is not an official Sony application. If you can, use Sony’s official updater

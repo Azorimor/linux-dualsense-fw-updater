@@ -6,6 +6,9 @@ pub mod error_map;
 pub mod http;
 pub mod viewmodel;
 
+#[cfg(test)]
+mod tests;
+
 pub use controller::{AppController, AppRuntime, DefaultAppController, DefaultAppRuntime};
 pub use error_map::{FriendlyError, map_core_error};
 pub use http::{HttpClientConfig, UreqHttpClient, describe_ureq_error};

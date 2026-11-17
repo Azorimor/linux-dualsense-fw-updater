@@ -204,3 +204,55 @@ fn main_qml_only_references_declared_bridge_properties_and_invokables() {
         "Main.qml calls undeclared DualSenseBridge invokables: {missing_methods:?}"
     );
 }
+
+#[test]
+fn step_indicator_avoids_basictheme_positive_green_on_green_contrast_bug() {
+    let step_qml = std::fs::read_to_string(repo_path("qml/StepIndicator.qml"))
+        .expect("read qml/StepIndicator.qml");
+
+    assert!(
+        step_qml.contains("Kirigami.ColorUtils.tintWithAlpha"),
+        "StepIndicator.qml must compute a tinted fallback when Kirigami BasicTheme sets positiveBackgroundColor == positiveTextColor"
+    );
+    assert!(
+        step_qml.contains("Kirigami.Theme.positiveBackgroundColor")
+            && step_qml.contains("Qt.colorEqual"),
+        "StepIndicator.qml should check whether positiveBackgroundColor equals positiveTextColor"
+    );
+
+    let label_section = step_qml
+        .split("QQC2.Label {")
+        .nth(1)
+        .expect("StepIndicator.qml should contain a QQC2.Label");
+    assert!(
+        !label_section.contains("Kirigami.Theme.positiveTextColor"),
+        "StepIndicator.qml label must not pair positiveTextColor foreground against positiveBackgroundColor / green tint"
+    );
+    assert!(
+        label_section.contains("Kirigami.Theme.highlightedTextColor")
+            && label_section.contains("Kirigami.Theme.textColor"),
+        "StepIndicator.qml label must use highlightedTextColor for current step and textColor for done/pending steps"
+    );
+    assert!(
+        step_qml.contains("border.color: stepDelegate.isCurrent")
+            && step_qml.contains("Kirigami.Theme.positiveTextColor"),
+        "StepIndicator.qml should keep positiveTextColor on the done step border"
+    );
+}
+
+#[test]
+fn main_qml_status_banner_guards_against_basictheme_white_active_text() {
+    let main_qml = std::fs::read_to_string(repo_path("qml/Main.qml")).expect("read qml/Main.qml");
+    let banner_section = main_qml
+        .split("id: statusBanner")
+        .nth(1)
+        .and_then(|rest| rest.split("Kirigami.AbstractCard").next())
+        .expect("Main.qml should define statusBanner InlineMessage");
+
+    assert!(
+        banner_section.contains("Kirigami.Theme.activeTextColor")
+            && banner_section.contains("highlightedTextColor")
+            && banner_section.contains("highlightColor"),
+        "statusBanner must guard activeTextColor against Fusion BasicTheme's white highlightedTextColor"
+    );
+}

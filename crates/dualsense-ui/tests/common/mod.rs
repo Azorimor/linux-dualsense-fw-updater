@@ -1,5 +1,9 @@
 #![allow(dead_code)]
 
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

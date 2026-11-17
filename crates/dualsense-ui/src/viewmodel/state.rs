@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use dualsense_core::{FirmwareRelease, KNOWN_TARGETS};
 
 use crate::error_map::{FriendlyError, map_core_error};

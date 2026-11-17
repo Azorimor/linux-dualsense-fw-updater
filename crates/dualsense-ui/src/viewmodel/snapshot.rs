@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::error_map::FriendlyError;
 
 use super::progress::ProgressSnapshot;

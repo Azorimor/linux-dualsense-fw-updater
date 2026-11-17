@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::sync::Arc;
 use std::time::Duration;
 

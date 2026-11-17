@@ -13,6 +13,7 @@ git_tag_enable = true
 pr_branch_prefix = "release-plz-"
 pr_labels = ["release"]
 publish = false
+release_always = false
 repo_url = "https://github.com/Azorimor/linux-dualsense-fw-updater"
 semver_check = false
 

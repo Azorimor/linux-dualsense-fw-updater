@@ -39,6 +39,7 @@ commit_parsers = [
     { message = "^build", group = "Build & Packaging" },
     { message = "^ci", group = "CI / Workflows" },
     { message = "^chore\\(release\\)", skip = true },
+    { message = "^chore(\\(dualsense-updater\\))?: release", skip = true },
     { message = "^chore\\(deps.*\\)", skip = true },
     { message = "^chore|^style", group = "Miscellaneous" },
     { message = "^revert", group = "Reverts" },

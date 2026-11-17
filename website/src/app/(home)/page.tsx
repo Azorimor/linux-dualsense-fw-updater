@@ -5,6 +5,11 @@
 import Link from 'next/link';
 import { ShieldAlert, Cpu, Usb, BookOpen, Download, AlertTriangle } from 'lucide-react';
 import { REPO_URL } from '@/lib/layout.shared';
+import { OptimizedImage } from '@/components/OptimizedImage';
+import screenshotInitial from '@/assets/screenshots/screenshot-0-initial.png';
+import screenshotController from '@/assets/screenshots/screenshot-1-initial-with-controller.png';
+import screenshotFirmware from '@/assets/screenshots/screenshot-2-prepare-new-firmware.png';
+import screenshotReview from '@/assets/screenshots/screenshot-3-upgrade-overview-and-consent.png';
 
 const features = [
   {
@@ -24,6 +29,41 @@ const features = [
     title: 'Guided Safety & Recovery',
     description:
       'Monitors USB unplugs before flashing, enforces explicit irreversibility confirmation, and translates HID failures into plain-English recovery steps.',
+  },
+];
+
+const screenshots = [
+  {
+    step: 'Step 1 — Initial Scan',
+    title: 'Waiting for Wired USB Connection',
+    caption:
+      'Prompts you to connect your DualSense controller directly over a USB data cable and warns that updates cannot run over Bluetooth.',
+    image: screenshotInitial,
+    alt: 'Unofficial Linux DualSense Firmware Updater initial screen waiting for a wired USB controller connection',
+  },
+  {
+    step: 'Step 1 — Controller Detected',
+    title: 'Board Model & Firmware Inspection',
+    caption:
+      'Displays the detected controller name, board revision (BDM-050), shell colorway, current firmware version, and build timestamp.',
+    image: screenshotController,
+    alt: 'Unofficial Linux DualSense Firmware Updater displaying a detected DualSense BDM-050 controller over USB HID',
+  },
+  {
+    step: 'Step 2 — Firmware Source',
+    title: 'Official Sony Catalog or Local .bin',
+    caption:
+      'Downloads official firmware metadata for your mapped controller hardware target or lets you load a local .bin firmware image.',
+    image: screenshotFirmware,
+    alt: 'Unofficial Linux DualSense Firmware Updater firmware selection step with official Sony download and local .bin options',
+  },
+  {
+    step: 'Step 3 — Review & Consent',
+    title: 'Version Comparison & Safety Confirmation',
+    caption:
+      'Compares current and target versions, flags same-version or untested DualSense Edge targets, and requires explicit irreversibility consent.',
+    image: screenshotReview,
+    alt: 'Unofficial Linux DualSense Firmware Updater review and consent screen showing version comparison and safety notices',
   },
 ];
 
@@ -92,6 +132,48 @@ export default function HomePage() {
             </div>
           );
         })}
+      </section>
+
+      <section className="space-y-6">
+        <div className="space-y-2 text-center">
+          <h2 className="text-2xl font-bold tracking-tight text-fd-foreground sm:text-3xl">
+            Guided KDE Kirigami Workflow
+          </h2>
+          <p className="mx-auto max-w-2xl text-sm text-fd-muted-foreground sm:text-base">
+            Step-by-step screenshots of the Unofficial Linux DualSense Firmware
+            Updater from USB detection through firmware selection and safety
+            confirmation.
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          {screenshots.map((shot) => (
+            <figure
+              key={shot.title}
+              className="flex flex-col overflow-hidden rounded-xl border border-fd-border bg-fd-card"
+            >
+              <div className="border-b border-fd-border bg-fd-secondary/40 p-3">
+                <OptimizedImage
+                  src={shot.image}
+                  alt={shot.alt}
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="h-auto w-full rounded-lg"
+                />
+              </div>
+              <figcaption className="flex flex-1 flex-col gap-1.5 p-5">
+                <span className="text-xs font-medium uppercase tracking-wider text-fd-muted-foreground">
+                  {shot.step}
+                </span>
+                <h3 className="text-base font-semibold text-fd-card-foreground">
+                  {shot.title}
+                </h3>
+                <p className="text-sm leading-relaxed text-fd-muted-foreground">
+                  {shot.caption}
+                </p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-6 text-sm text-fd-foreground">

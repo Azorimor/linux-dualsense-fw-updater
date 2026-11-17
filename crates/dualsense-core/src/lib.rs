@@ -8,6 +8,9 @@ pub mod protocol;
 pub mod transport;
 pub mod updater;
 
+#[cfg(test)]
+mod tests;
+
 pub use cancel::CancellationToken;
 pub use catalog::{
     ControllerHardwareInfo, DownloadProgress, FirmwareCatalog, FirmwareCatalogClient,

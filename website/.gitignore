@@ -3,3 +3,7 @@ node_modules/
 out/
 .source/
 next-env.d.ts
+tsconfig.tsbuildinfo
+public/images/nextImageExportOptimizer/
+public/images/next-image-export-optimizer-hashes.json
+

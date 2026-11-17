@@ -7,11 +7,11 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use dualsense_core::{
-    CancellationToken, CoreError, DownloadProgress, HttpClient, MAX_HID_CHUNK_SIZE,
-    REPORT_ID_FIRMWARE_INFO, REPORT_ID_SERIAL_COMMAND, REPORT_ID_SERIAL_RESPONSE,
-    REPORT_ID_UPDATE_COMMAND, REPORT_ID_UPDATE_STATUS, SONY_INFO_JSON_URL, Sleeper,
-    StartUpdateStatusCode, UPDATE_HEADER_LEN, UpdateCommand, VerifyUpdateStatusCode,
-    WriteUpdateStatusCode,
+    CancellationToken, CoreError, DownloadProgress, FIRMWARE_PID_OFFSET, FIRMWARE_TARGET_OFFSET,
+    FIRMWARE_VERSION_OFFSET, HttpClient, MAX_HID_CHUNK_SIZE, REPORT_ID_FIRMWARE_INFO,
+    REPORT_ID_SERIAL_COMMAND, REPORT_ID_SERIAL_RESPONSE, REPORT_ID_UPDATE_COMMAND,
+    REPORT_ID_UPDATE_STATUS, SONY_INFO_JSON_URL, Sleeper, StartUpdateStatusCode, UPDATE_HEADER_LEN,
+    UpdateCommand, VerifyUpdateStatusCode, WriteUpdateStatusCode,
 };
 
 #[derive(Default)]
@@ -227,7 +227,17 @@ impl HttpClient for MockSonyHttp {
 pub fn synthetic_firmware(len: usize, version: u16) -> Vec<u8> {
     let mut bytes: Vec<u8> = (0..len).map(|i| ((i * 31 + 7) & 0xFF) as u8).collect();
     let le = version.to_le_bytes();
-    bytes[0x78] = le[0];
-    bytes[0x79] = le[1];
+    bytes[FIRMWARE_VERSION_OFFSET] = le[0];
+    bytes[FIRMWARE_VERSION_OFFSET + 1] = le[1];
+    bytes
+}
+
+pub fn synthetic_official_firmware(len: usize, pid: u16, target_id: u16, version: u16) -> Vec<u8> {
+    let mut bytes = synthetic_firmware(len, version);
+    let sig = b"Sony Interactive Entertainment Inc.";
+    bytes[..sig.len()].copy_from_slice(sig);
+    bytes[FIRMWARE_PID_OFFSET..FIRMWARE_PID_OFFSET + 2].copy_from_slice(&pid.to_le_bytes());
+    bytes[FIRMWARE_TARGET_OFFSET..FIRMWARE_TARGET_OFFSET + 2]
+        .copy_from_slice(&target_id.to_le_bytes());
     bytes
 }

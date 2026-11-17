@@ -8,17 +8,22 @@ use std::sync::{Arc, Mutex};
 
 use common::{
     ArcEnumerator, MockEnumerator, MockHttp, NoopSleeper, SAMPLE_CATALOG_JSON, fast_update_config,
-    make_device, make_firmware_image_bytes, wait_until,
+    make_device, make_firmware_image_bytes, make_official_firmware_image_bytes, wait_until,
 };
 use dualsense_core::{
-    CoreError, DEFAULT_PID, DUALSENSE_EDGE_PID, REPORT_ID_UPDATE_COMMAND, StartUpdateStatusCode,
-    UpdateCommand, WRITE_BLOCK_SIZE,
+    CoreError, DEFAULT_PID, DUALSENSE_EDGE_PID, FirmwareImage, REPORT_ID_UPDATE_COMMAND,
+    StartUpdateStatusCode, UpdateCommand,
 };
 use dualsense_ui::{AppEvent, AppRuntime, AppStep, BannerSeverity, ProgressStage, UiSnapshot};
 
 #[test]
 fn end_to_end_scan_catalog_download_and_update_succeeds() {
-    let image_bytes = make_firmware_image_bytes(WRITE_BLOCK_SIZE + 128, 0x0630);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES + 128,
+        DEFAULT_PID,
+        0x0004,
+        0x0630,
+    );
     let enum_mock = Arc::new(MockEnumerator::with_devices(vec![make_device(
         "/dev/hidraw0",
         DEFAULT_PID,
@@ -248,7 +253,12 @@ fn end_to_end_failure_paths_surface_plain_english_and_recovery() {
         StartUpdateStatusCode::HeaderVersionCheckError as u8,
     );
 
-    let image_bytes = make_firmware_image_bytes(512, 0x0630);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+        DEFAULT_PID,
+        0x0004,
+        0x0630,
+    );
     let runtime2 = AppRuntime::with_backends(
         enum_mock2,
         MockHttp::with_catalog_and_image(SAMPLE_CATALOG_JSON, image_bytes),
@@ -278,7 +288,12 @@ fn end_to_end_failure_paths_surface_plain_english_and_recovery() {
 
 #[test]
 fn end_to_end_bdm050_board_and_midnight_black_color_auto_selects_target() {
-    let image_bytes = make_firmware_image_bytes(WRITE_BLOCK_SIZE + 64, 0x0630);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES + 64,
+        DEFAULT_PID,
+        0x000B,
+        0x0630,
+    );
     let enum_mock =
         MockEnumerator::with_devices(vec![make_device("/dev/hidraw0", DEFAULT_PID, "")]);
     enum_mock.push_firmware_info_with_hw("/dev/hidraw0", 0x0520, 0x000B, 0x0000_0811);

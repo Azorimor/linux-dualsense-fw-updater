@@ -11,9 +11,9 @@ use std::time::Duration;
 
 use common::{
     ArcEnumerator, MockEnumerator, MockHttp, NoopSleeper, SAMPLE_CATALOG_JSON, fast_update_config,
-    make_device, make_firmware_image_bytes, wait_until,
+    make_device, make_firmware_image_bytes, make_official_firmware_image_bytes, wait_until,
 };
-use dualsense_core::{DEFAULT_PID, REPORT_ID_UPDATE_COMMAND, UpdateCommand, WRITE_BLOCK_SIZE};
+use dualsense_core::{DEFAULT_PID, FirmwareImage, REPORT_ID_UPDATE_COMMAND, UpdateCommand};
 use dualsense_ui::{AppEvent, AppRuntime, AppStep, BannerSeverity, ProgressStage};
 
 #[test]
@@ -186,7 +186,12 @@ fn live_replug_from_empty_initial_state_auto_detects_and_reads_board() {
 
 #[test]
 fn live_unplug_on_completed_leaves_completion_page_undisturbed() {
-    let image_bytes = make_firmware_image_bytes(WRITE_BLOCK_SIZE + 64, 0x0630);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES + 64,
+        DEFAULT_PID,
+        0x0004,
+        0x0630,
+    );
     let enum_mock = Arc::new(MockEnumerator::with_devices(vec![make_device(
         "/dev/hidraw0",
         DEFAULT_PID,

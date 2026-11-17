@@ -5,9 +5,10 @@
 use crate::cancel::CancellationToken;
 use crate::catalog::*;
 use crate::error::{CoreError, Result};
+use crate::image::FirmwareImage;
 use crate::protocol::{
-    BoardModel, DEFAULT_PID, DUALSENSE_EDGE_PID, FIRMWARE_VERSION_OFFSET, FirmwareInfo,
-    REPORT_ID_FIRMWARE_INFO,
+    BoardModel, DEFAULT_PID, DUALSENSE_EDGE_PID, FIRMWARE_PID_OFFSET, FIRMWARE_TARGET_OFFSET,
+    FIRMWARE_VERSION_OFFSET, FirmwareInfo, REPORT_ID_FIRMWARE_INFO,
 };
 
 const SAMPLE_INFO_JSON: &str = r#"{"ApplicationLatestVersion":"2.2.1.2","FwUpdate0004LatestVersion":"0x0630","FwUpdate000BLatestVersion":"0x0630","FwUpdate000ELatestVersion":"0x0641","FwUpdate0044LatestVersion":"0x0217"}"#;
@@ -108,11 +109,22 @@ impl HttpClient for MockHttpClient {
     }
 }
 
+fn make_official_fw_bytes(len: usize, pid: u16, target_id: u16, version: u16) -> Vec<u8> {
+    let mut fw_bytes = vec![0xAAu8; len];
+    let sig = b"Sony Interactive Entertainment Inc.";
+    fw_bytes[..sig.len()].copy_from_slice(sig);
+    fw_bytes[FIRMWARE_PID_OFFSET..FIRMWARE_PID_OFFSET + 2].copy_from_slice(&pid.to_le_bytes());
+    fw_bytes[FIRMWARE_TARGET_OFFSET..FIRMWARE_TARGET_OFFSET + 2]
+        .copy_from_slice(&target_id.to_le_bytes());
+    fw_bytes[FIRMWARE_VERSION_OFFSET..FIRMWARE_VERSION_OFFSET + 2]
+        .copy_from_slice(&version.to_le_bytes());
+    fw_bytes
+}
+
 #[test]
 fn catalog_client_fetches_downloads_and_validates_firmware_image() {
-    let mut fw_bytes = vec![0xAAu8; 512];
-    fw_bytes[FIRMWARE_VERSION_OFFSET..FIRMWARE_VERSION_OFFSET + 2]
-        .copy_from_slice(&0x0641u16.to_le_bytes());
+    let total_len = FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES + 512;
+    let fw_bytes = make_official_fw_bytes(total_len, DEFAULT_PID, 0x000E, 0x0641);
 
     let client = FirmwareCatalogClient::new(MockHttpClient {
         json_response: Ok(SAMPLE_INFO_JSON.to_string()),
@@ -128,19 +140,90 @@ fn catalog_client_fetches_downloads_and_validates_firmware_image() {
         .download_firmware(release, &cancel, &mut |p| progress.push(p))
         .expect("valid image");
     assert_eq!(image.version(), 0x0641);
-    assert_eq!(image.len(), 512);
+    assert_eq!(image.len(), total_len);
     assert_eq!(
         progress,
         vec![
             DownloadProgress {
                 downloaded_bytes: 200,
-                total_bytes: Some(512)
+                total_bytes: Some(total_len)
             },
             DownloadProgress {
-                downloaded_bytes: 512,
-                total_bytes: Some(512)
+                downloaded_bytes: total_len,
+                total_bytes: Some(total_len)
             },
         ]
+    );
+}
+
+#[test]
+fn catalog_client_rejects_html_truncated_and_mismatched_downloads() {
+    let cancel = CancellationToken::new();
+
+    // 1. Small HTML error page returned with HTTP 200
+    let html = b"<!DOCTYPE html><html><body>Bad Gateway</body></html>".to_vec();
+    let client_html = FirmwareCatalogClient::new(MockHttpClient {
+        json_response: Ok(SAMPLE_INFO_JSON.to_string()),
+        download_chunks: vec![html],
+        cancel_after_first_chunk: false,
+    });
+    let catalog = client_html.fetch_catalog(&cancel).expect("catalog");
+    let release_0004 = catalog.release_for_target("0004").expect("0004");
+    assert!(matches!(
+        client_html.download_firmware(release_0004, &cancel, &mut |_| {}),
+        Err(CoreError::InvalidDownloadedFirmware(_))
+    ));
+
+    // 2. Undersized/truncated binary (< 256 KiB) even with Sony signature
+    let truncated = make_official_fw_bytes(64 * 1024, DEFAULT_PID, 0x0004, 0x0630);
+    let client_truncated = FirmwareCatalogClient::new(MockHttpClient {
+        json_response: Ok(SAMPLE_INFO_JSON.to_string()),
+        download_chunks: vec![truncated],
+        cancel_after_first_chunk: false,
+    });
+    assert!(matches!(
+        client_truncated.download_firmware(release_0004, &cancel, &mut |_| {}),
+        Err(CoreError::InvalidDownloadedFirmware(_))
+    ));
+
+    // 3. Mismatched target ID (000B payload delivered for 0004 release)
+    let wrong_target = make_official_fw_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+        DEFAULT_PID,
+        0x000B,
+        0x0630,
+    );
+    let client_wrong_target = FirmwareCatalogClient::new(MockHttpClient {
+        json_response: Ok(SAMPLE_INFO_JSON.to_string()),
+        download_chunks: vec![wrong_target],
+        cancel_after_first_chunk: false,
+    });
+    assert_eq!(
+        client_wrong_target.download_firmware(release_0004, &cancel, &mut |_| {}),
+        Err(CoreError::FirmwareTargetMismatch {
+            expected: "0004".to_string(),
+            actual: "000B".to_string(),
+        })
+    );
+
+    // 4. Mismatched version (0x0520 payload delivered for 0x0630 release)
+    let wrong_version = make_official_fw_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+        DEFAULT_PID,
+        0x0004,
+        0x0520,
+    );
+    let client_wrong_version = FirmwareCatalogClient::new(MockHttpClient {
+        json_response: Ok(SAMPLE_INFO_JSON.to_string()),
+        download_chunks: vec![wrong_version],
+        cancel_after_first_chunk: false,
+    });
+    assert_eq!(
+        client_wrong_version.download_firmware(release_0004, &cancel, &mut |_| {}),
+        Err(CoreError::FirmwareVersionMismatch {
+            expected: 0x0630,
+            actual: 0x0520,
+        })
     );
 }
 

@@ -37,6 +37,12 @@ pub const SERIAL_REPORT_LEN: usize = 64;
 /// Expected byte size of the `0xF5` update status feature report.
 pub const UPDATE_STATUS_REPORT_LEN: usize = 4;
 
+/// Byte offset of the little-endian `u16` USB product ID in an official `.bin` image.
+pub const FIRMWARE_PID_OFFSET: usize = 0x62;
+
+/// Byte offset of the little-endian `u16` firmware target/series in an official `.bin` image.
+pub const FIRMWARE_TARGET_OFFSET: usize = 0x74;
+
 /// Byte offset of the little-endian `u16` firmware version in a `.bin` image.
 pub const FIRMWARE_VERSION_OFFSET: usize = 0x78;
 

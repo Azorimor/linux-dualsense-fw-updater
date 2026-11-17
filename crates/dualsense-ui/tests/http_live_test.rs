@@ -10,14 +10,19 @@ use std::thread;
 
 use common::{
     MockEnumerator, NoopSleeper, SAMPLE_CATALOG_JSON, fast_update_config, make_device,
-    make_firmware_image_bytes, wait_until,
+    make_official_firmware_image_bytes, wait_until,
 };
-use dualsense_core::DEFAULT_PID;
+use dualsense_core::{DEFAULT_PID, FirmwareImage};
 use dualsense_ui::{AppEvent, AppRuntime, AppStep, UreqHttpClient};
 
 #[test]
 fn end_to_end_live_ureq_http_client_against_local_server() {
-    let image_bytes = make_firmware_image_bytes(1024, 0x0630);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES + 128,
+        DEFAULT_PID,
+        0x0004,
+        0x0630,
+    );
     let image_len = image_bytes.len();
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind local server");
     let addr = listener.local_addr().expect("local addr");

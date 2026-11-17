@@ -12,10 +12,10 @@ use std::time::{Duration, Instant};
 
 use dualsense_core::{
     CancellationToken, CoreError, DUALSENSE_EDGE_PID, DownloadProgress, FIRMWARE_INFO_REPORT_LEN,
-    FIRMWARE_VERSION_OFFSET, HidDeviceEnumerator, HidDeviceInfo, HidTransport, HttpClient,
-    REPORT_ID_FIRMWARE_INFO, REPORT_ID_SERIAL_RESPONSE, REPORT_ID_UPDATE_STATUS, Result,
-    SERIAL_REPORT_LEN, Sleeper, StartUpdateStatusCode, UpdateCommand, UpdateConfig,
-    VerifyUpdateStatusCode, WRITE_BLOCK_SIZE, WriteUpdateStatusCode,
+    FIRMWARE_PID_OFFSET, FIRMWARE_TARGET_OFFSET, FIRMWARE_VERSION_OFFSET, HidDeviceEnumerator,
+    HidDeviceInfo, HidTransport, HttpClient, REPORT_ID_FIRMWARE_INFO, REPORT_ID_SERIAL_RESPONSE,
+    REPORT_ID_UPDATE_STATUS, Result, SERIAL_REPORT_LEN, Sleeper, StartUpdateStatusCode,
+    UpdateCommand, UpdateConfig, VerifyUpdateStatusCode, WRITE_BLOCK_SIZE, WriteUpdateStatusCode,
 };
 use dualsense_ui::UiSnapshot;
 use tokio::sync::watch;
@@ -401,6 +401,21 @@ pub fn make_firmware_image_bytes(len: usize, version: u16) -> Vec<u8> {
     let le = version.to_le_bytes();
     bytes[FIRMWARE_VERSION_OFFSET] = le[0];
     bytes[FIRMWARE_VERSION_OFFSET + 1] = le[1];
+    bytes
+}
+
+pub fn make_official_firmware_image_bytes(
+    len: usize,
+    pid: u16,
+    target_id: u16,
+    version: u16,
+) -> Vec<u8> {
+    let mut bytes = make_firmware_image_bytes(len, version);
+    let sig = b"Sony Interactive Entertainment Inc.";
+    bytes[..sig.len()].copy_from_slice(sig);
+    bytes[FIRMWARE_PID_OFFSET..FIRMWARE_PID_OFFSET + 2].copy_from_slice(&pid.to_le_bytes());
+    bytes[FIRMWARE_TARGET_OFFSET..FIRMWARE_TARGET_OFFSET + 2]
+        .copy_from_slice(&target_id.to_le_bytes());
     bytes
 }
 

@@ -355,7 +355,16 @@ impl<C: HttpClient> FirmwareCatalogClient<C> {
         on_progress: &mut dyn FnMut(DownloadProgress),
     ) -> Result<FirmwareImage> {
         let bytes = self.download_firmware_bytes(release, cancel, on_progress)?;
-        FirmwareImage::from_bytes(bytes)
+        if bytes.len() < FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES {
+            return Err(CoreError::InvalidDownloadedFirmware(format!(
+                "Downloaded firmware is {} bytes, below the {} byte minimum for official Sony images",
+                bytes.len(),
+                FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+            )));
+        }
+        let image = FirmwareImage::from_bytes(bytes)?;
+        image.validate_for_release(release)?;
+        Ok(image)
     }
 }
 

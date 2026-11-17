@@ -39,14 +39,6 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Run release-plz release-pr
-        id: release-pr
-        uses: release-plz/action@v0.5
-        with:
-          command: release-pr
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Run release-plz release
         id: release
         uses: release-plz/action@v0.5
@@ -55,11 +47,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Run release-plz release-pr
+        id: release-pr
+        if: steps.release.outputs.releases_created != 'true'
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Extract created release tag
         id: tag
         if: steps.release.outputs.releases_created == 'true'
         run: |
-          TAG=$(echo '${{ steps.release.outputs.releases }}' | jq -r '.[0].tag // empty')
+          TAG=$(echo '${{ steps.release.outputs.releases }}' | jq -r 'map(select(.package_name == "dualsense-updater"))[0].tag // .[0].tag // empty')
           echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
 
   build-all:

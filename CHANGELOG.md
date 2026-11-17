@@ -1,6 +1,56 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.0.1] - 2026-11-17
+
+### Bug Fixes
+
+- **ui:** Fall back to Fusion Quick Controls style when org.kde.desktop is missing ([97340c6](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/97340c63f9b220ca1f0c4d0fb4406788c7c8508a))
+
+- **packaging:** Bundle Qt Quick, Wayland, and SVG plugins in AppImage ([011ea08](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/011ea083a6a53d1f278f8469497513e5a7729e5b))
+
+- **release:** Enable git_only mode and subcrate tracking in release-plz ([3b02a1f](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/3b02a1f370d995d1b5cd7f0800b46c96a25578b3))
+
+- **ci:** Select dualsense-updater tag from release-plz output ([f2e9b18](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/f2e9b183c8ac11c379a243c79c0f6157f4feae55))
+
+- **release:** Release only on release PR merge and run release before release-pr ([617fb58](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/617fb587e1bdae92e409c2bd2670c1732fc84a07))
+
+
+### CI / Workflows
+
+- **release:** Deploy website automatically after release assets upload ([67c1da1](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/67c1da13efd144ee518d8a253f3a31388f2cd3af))
+
+- **release:** Bundle Qt 6.8, Kirigami, and Wayland in AppImage ([6d274f5](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/6d274f5d9c06564dae400c1cfbf36dd217e5b5cc))
+
+
+### Documentation
+
+- **ci:** Update CI workflow descriptions in README and AGENTS ([77326f8](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/77326f890e4db5d336bc339aac0d1faf7cdd668f))
+
+- **licenses:** Add LGPL/BSD SPDX texts, notices, and in-app attribution ([23ffe4e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/23ffe4e4becf4d2b17c0b8b6aff63029bd71d930))
+
+
+### Features
+
+- **website:** Rework download page for two builds and checksums ([1f0ceac](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/1f0ceac5648f6398a198a5edcb46453cb7375b5b))
+
+- **packaging:** Bundle third-party licenses and library notices in AppImage ([9e994c2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/9e994c2b1242f52aba867d1779c66ad274ca39a9))
+
+
+### Miscellaneous
+
+- **reuse:** Cover generated CHANGELOG.md in REUSE.toml ([a734014](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/a73401491bd8a3aefb20edf7ab41f3c3eff12121))
+
+- Revert changelog.md fix ([70d4ab2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/70d4ab26728155ea57aada082c3716f3b843c86b))
+
+
+### Performance
+
+- **ci:** Gate heavy check job on fast prechecks and run tests once ([89a11f8](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/89a11f8749b125b8a9f241687f890a6539ba241c))
+
+
+
+
 ## [0.0.0] - 2026-11-17
 
 ### Bug Fixes

@@ -1,3 +1,5 @@
+mod error_map_test;
+mod http_test;
 mod viewmodel_board_test;
 mod viewmodel_flow_test;
 

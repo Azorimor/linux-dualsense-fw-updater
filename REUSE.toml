@@ -18,6 +18,7 @@ path = [
     "website/package-lock.json",
     "website/tsconfig.json",
     "website/content/docs/meta.json",
+    "website/public/**",
     "website/src/assets/**",
 ]
 precedence = "aggregate"

@@ -1,7 +1,7 @@
 use crate::licenses::{
     CrateMetadata, CrateNotice, LockPackage, bundled_licenses_text, contains_notice_for,
-    format_license_bundle, is_full_release_bundle, parse_cargo_lock_packages,
-    parse_crate_package_metadata, third_party_crate_entries,
+    format_application_license, format_license_bundle, is_full_release_bundle,
+    parse_cargo_lock_packages, parse_crate_package_metadata, third_party_crate_entries,
 };
 
 #[test]
@@ -126,10 +126,25 @@ fn format_license_bundle_renders_full_and_summary_modes() {
 }
 
 #[test]
+fn format_application_license_preserves_gpl_and_mit_notices() {
+    let formatted = format_application_license("GPLv3+ body", "MIT body");
+    assert!(formatted.contains("GPL-3.0-or-later"));
+    assert!(formatted.contains("Copyright (C) 2026 Azorimor <azorimor@gmail.com>"));
+    assert!(formatted.contains("Copyright (c) 2026 nchie"));
+    assert!(formatted.contains("Copyright (c) 2026 Azorimor"));
+    assert!(formatted.contains("--- LICENSES/GPL-3.0-or-later.txt ---\nGPLv3+ body"));
+    assert!(formatted.contains("--- LICENSES/MIT.txt ---\nMIT body"));
+}
+
+#[test]
 fn generated_bundled_licenses_includes_root_system_and_core_crates() {
     let text = bundled_licenses_text();
     assert!(!text.is_empty());
+    assert!(contains_notice_for(text, "GPL-3.0-or-later"));
+    assert!(contains_notice_for(text, "GNU GENERAL PUBLIC LICENSE"));
     assert!(contains_notice_for(text, "MIT License"));
+    assert!(contains_notice_for(text, "nchie"));
+    assert!(contains_notice_for(text, "Azorimor"));
     assert!(contains_notice_for(text, "Qt 6"));
     assert!(contains_notice_for(text, "KDE Kirigami"));
     assert!(contains_notice_for(text, "hidapi"));

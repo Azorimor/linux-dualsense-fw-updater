@@ -8,8 +8,8 @@ use cxx_qt_build::{CxxQtBuilder, QmlModule};
 mod license_report;
 
 use license_report::{
-    CrateMetadata, CrateNotice, format_license_bundle, parse_cargo_lock_packages,
-    parse_crate_package_metadata,
+    CrateMetadata, CrateNotice, format_application_license, format_license_bundle,
+    parse_cargo_lock_packages, parse_crate_package_metadata,
 };
 
 fn main() {
@@ -54,7 +54,8 @@ fn configure_qmake6() {
 
 fn generate_bundled_licenses() {
     println!("cargo::rerun-if-changed=Cargo.lock");
-    println!("cargo::rerun-if-changed=LICENSE");
+    println!("cargo::rerun-if-changed=LICENSES/GPL-3.0-or-later.txt");
+    println!("cargo::rerun-if-changed=LICENSES/MIT.txt");
     println!("cargo::rerun-if-env-changed=PROFILE");
     println!("cargo::rerun-if-env-changed=CARGO_HOME");
 
@@ -64,8 +65,14 @@ fn generate_bundled_licenses() {
     let out_dir =
         PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR is always set by Cargo"));
 
-    let root_license = fs::read_to_string(manifest_dir.join("LICENSE"))
-        .unwrap_or_else(|_| "MIT License (see repository LICENSE file)".to_string());
+    let gpl_license = fs::read_to_string(manifest_dir.join("LICENSES/GPL-3.0-or-later.txt"))
+        .unwrap_or_else(|_| {
+            "GNU General Public License v3.0 or later (see LICENSES/GPL-3.0-or-later.txt)"
+                .to_string()
+        });
+    let mit_license = fs::read_to_string(manifest_dir.join("LICENSES/MIT.txt"))
+        .unwrap_or_else(|_| "MIT License (see LICENSES/MIT.txt)".to_string());
+    let root_license = format_application_license(&gpl_license, &mit_license);
     let lock_contents = fs::read_to_string(manifest_dir.join("Cargo.lock")).unwrap_or_default();
 
     let include_full_texts = std::env::var("PROFILE").as_deref() == Ok("release");

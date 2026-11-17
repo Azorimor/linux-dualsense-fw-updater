@@ -108,6 +108,23 @@ pub fn parse_crate_package_metadata(cargo_toml: &str) -> CrateMetadata {
     meta
 }
 
+/// Formats the application's primary GPL-3.0-or-later and inherited MIT license notices.
+pub fn format_application_license(gpl_text: &str, mit_text: &str) -> String {
+    format!(
+        "Linux DualSense Firmware Updater is licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later).\n\
+         Copyright (C) 2026 Azorimor <azorimor@gmail.com>\n\n\
+         Core DualSense USB HID protocol and firmware update logic in dualsense-core is adapted from\n\
+         nchie's original CLI project (https://github.com/nchie/dualsense-updater-rs) and remains\n\
+         licensed under MIT AND GPL-3.0-or-later:\n\
+         Copyright (c) 2026 nchie\n\
+         Copyright (c) 2026 Azorimor\n\n\
+         --- LICENSES/GPL-3.0-or-later.txt ---\n{}\n\n\
+         --- LICENSES/MIT.txt ---\n{}",
+        gpl_text.trim(),
+        mit_text.trim(),
+    )
+}
+
 /// Formats the complete bundled licenses and third-party notices report.
 pub fn format_license_bundle(
     app_version: &str,

@@ -13,14 +13,15 @@ OUT_DIR="$3"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DESKTOP_FILE="${REPO_ROOT}/packaging/linux/dev.dualsense.updater.desktop"
 ICON_FILE="${REPO_ROOT}/packaging/linux/dev.dualsense.updater.svg"
-LICENSE_FILE="${REPO_ROOT}/LICENSE"
+GPL_LICENSE_FILE="${REPO_ROOT}/LICENSES/GPL-3.0-or-later.txt"
+MIT_LICENSE_FILE="${REPO_ROOT}/LICENSES/MIT.txt"
 README_FILE="${REPO_ROOT}/README.md"
 
 if [[ ! -x "${BINARY_PATH}" ]]; then
     echo "error: binary not found or not executable: ${BINARY_PATH}" >&2
     exit 1
 fi
-for required in "${DESKTOP_FILE}" "${ICON_FILE}" "${LICENSE_FILE}"; do
+for required in "${DESKTOP_FILE}" "${ICON_FILE}" "${GPL_LICENSE_FILE}" "${MIT_LICENSE_FILE}"; do
     if [[ ! -f "${required}" ]]; then
         echo "error: required packaging asset missing: ${required}" >&2
         exit 1
@@ -39,7 +40,8 @@ trap 'rm -rf "${STAGE_ROOT}"' EXIT
 TAR_STAGE="${STAGE_ROOT}/${APP_NAME}-${TAG}-x86_64"
 mkdir -p "${TAR_STAGE}"
 install -Dm755 "${BINARY_ABS}" "${TAR_STAGE}/dualsense-updater"
-install -Dm644 "${LICENSE_FILE}" "${TAR_STAGE}/LICENSE"
+install -Dm644 "${GPL_LICENSE_FILE}" "${TAR_STAGE}/LICENSES/GPL-3.0-or-later.txt"
+install -Dm644 "${MIT_LICENSE_FILE}" "${TAR_STAGE}/LICENSES/MIT.txt"
 if [[ -f "${README_FILE}" ]]; then
     install -Dm644 "${README_FILE}" "${TAR_STAGE}/README.md"
 fi
@@ -55,7 +57,8 @@ mkdir -p "${APPDIR}/usr/bin"
 install -Dm755 "${BINARY_ABS}" "${APPDIR}/usr/bin/dualsense-updater"
 install -Dm644 "${DESKTOP_FILE}" "${APPDIR}/usr/share/applications/dev.dualsense.updater.desktop"
 install -Dm644 "${ICON_FILE}" "${APPDIR}/usr/share/icons/hicolor/scalable/apps/dev.dualsense.updater.svg"
-install -Dm644 "${LICENSE_FILE}" "${APPDIR}/usr/share/licenses/${APP_NAME}/LICENSE"
+install -Dm644 "${GPL_LICENSE_FILE}" "${APPDIR}/usr/share/licenses/${APP_NAME}/GPL-3.0-or-later.txt"
+install -Dm644 "${MIT_LICENSE_FILE}" "${APPDIR}/usr/share/licenses/${APP_NAME}/MIT.txt"
 
 TOOLS_DIR="${LINUXDEPLOY_CACHE_DIR:-${REPO_ROOT}/target/linuxdeploy}"
 mkdir -p "${TOOLS_DIR}"

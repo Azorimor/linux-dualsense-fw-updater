@@ -24,7 +24,7 @@ QQC2.ApplicationWindow {
 
         QQC2.Label {
             Layout.fillWidth: true
-            text: "Open-source licenses and third-party notices for software bundled with DualSense Firmware Updater."
+            text: "DualSense Firmware Updater is licensed under GPL-3.0-or-later (with core HID protocol logic adapted from nchie under MIT). Open-source licenses and third-party notices:"
             wrapMode: Text.WordWrap
             opacity: 0.82
         }

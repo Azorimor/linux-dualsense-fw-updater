@@ -13,8 +13,9 @@ use crate::error::{
 };
 use crate::image::FirmwareImage;
 use crate::protocol::{
-    FIRMWARE_VERSION_OFFSET, REPORT_ID_UPDATE_STATUS, StartUpdateStatusCode, UpdateCommand,
-    VerifyUpdateStatusCode, WriteUpdateStatusCode,
+    BatteryChargingState, BatteryStatus, FIRMWARE_VERSION_OFFSET, INPUT_REPORT_BATTERY_OFFSET,
+    INPUT_REPORT_USB_LEN, REPORT_ID_INPUT, REPORT_ID_UPDATE_STATUS, StartUpdateStatusCode,
+    UpdateCommand, VerifyUpdateStatusCode, WriteUpdateStatusCode,
 };
 use crate::transport::{HidTransport, Sleeper};
 use crate::updater::*;
@@ -458,5 +459,38 @@ fn read_firmware_info_and_run_full_update_emit_all_phases() {
             UpdatePhase::Finalizing,
             UpdatePhase::Completed,
         ]
+    );
+}
+
+#[test]
+fn updater_try_read_battery_status_supports_default_none_and_valid_reports() {
+    // MockHid does not override read_input_report, so default Ok(None) yields None.
+    let updater_none = DualSenseUpdater::new(MockHid::default());
+    assert_eq!(updater_none.try_read_battery_status(), None);
+
+    struct BatteryMock(Vec<u8>);
+    impl HidTransport for BatteryMock {
+        fn get_feature_report(&self, _report_id: u8, _length: usize) -> Result<Vec<u8>> {
+            unreachable!()
+        }
+        fn send_feature_report(&self, _data: &[u8]) -> Result<()> {
+            unreachable!()
+        }
+        fn read_input_report(&self, _timeout_ms: i32) -> Result<Option<Vec<u8>>> {
+            Ok(Some(self.0.clone()))
+        }
+    }
+
+    let mut report = vec![0u8; INPUT_REPORT_USB_LEN];
+    report[0] = REPORT_ID_INPUT;
+    report[INPUT_REPORT_BATTERY_OFFSET] = 0x2A;
+    let updater_full = DualSenseUpdater::new(BatteryMock(report));
+    assert_eq!(
+        updater_full.try_read_battery_status(),
+        Some(BatteryStatus {
+            level: 10,
+            percentage: 100,
+            charging_state: BatteryChargingState::Full,
+        })
     );
 }

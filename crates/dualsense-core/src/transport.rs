@@ -9,11 +9,14 @@ use hidapi::{HidApi, HidDevice};
 
 use crate::error::{CoreError, Result};
 use crate::protocol::{
-    DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FIRMWARE_INFO_REPORT_LEN, FirmwareInfo,
-    REPORT_ID_FIRMWARE_INFO, REPORT_ID_SERIAL_COMMAND, REPORT_ID_SERIAL_RESPONSE,
-    REPORT_ID_UPDATE_STATUS, SERIAL_REPORT_LEN, UpdateCommand, UpdateStatus, decode_ascii,
-    encode_update_command_chunks,
+    BatteryStatus, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FIRMWARE_INFO_REPORT_LEN,
+    FirmwareInfo, INPUT_REPORT_USB_LEN, REPORT_ID_FIRMWARE_INFO, REPORT_ID_SERIAL_COMMAND,
+    REPORT_ID_SERIAL_RESPONSE, REPORT_ID_UPDATE_STATUS, SERIAL_REPORT_LEN, UpdateCommand,
+    UpdateStatus, decode_ascii, encode_update_command_chunks,
 };
+
+/// Default timeout (in milliseconds) for best-effort input report reads during device inspection.
+pub const BATTERY_READ_TIMEOUT_MS: i32 = 50;
 
 /// Underlying HID transport bus type for an enumerated DualSense device.
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash)]
@@ -124,6 +127,14 @@ pub trait HidTransport {
 
     /// Sends a raw HID feature report payload (including leading report ID).
     fn send_feature_report(&self, data: &[u8]) -> Result<()>;
+
+    /// Reads an HID input report with up to `timeout_ms` milliseconds wait.
+    ///
+    /// Returns `Ok(None)` when no input report arrives before the timeout expires or when the
+    /// transport implementation does not provide input reports.
+    fn read_input_report(&self, _timeout_ms: i32) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
 }
 
 impl<T: HidTransport + ?Sized> HidTransport for Box<T> {
@@ -134,6 +145,10 @@ impl<T: HidTransport + ?Sized> HidTransport for Box<T> {
     fn send_feature_report(&self, data: &[u8]) -> Result<()> {
         (**self).send_feature_report(data)
     }
+
+    fn read_input_report(&self, timeout_ms: i32) -> Result<Option<Vec<u8>>> {
+        (**self).read_input_report(timeout_ms)
+    }
 }
 
 impl<T: HidTransport + ?Sized> HidTransport for &T {
@@ -143,6 +158,10 @@ impl<T: HidTransport + ?Sized> HidTransport for &T {
 
     fn send_feature_report(&self, data: &[u8]) -> Result<()> {
         (**self).send_feature_report(data)
+    }
+
+    fn read_input_report(&self, timeout_ms: i32) -> Result<Option<Vec<u8>>> {
+        (**self).read_input_report(timeout_ms)
     }
 }
 
@@ -244,6 +263,22 @@ impl<T: HidTransport> DualSenseDevice<T> {
         }
     }
 
+    /// Best-effort read of the controller battery status via USB HID input report `0x01`.
+    ///
+    /// Never fails device inspection; returns `None` if no valid `0x01` report arrives within a
+    /// short timeout or if the transport reports an error.
+    pub fn try_read_battery_status(&self) -> Option<BatteryStatus> {
+        for _ in 0..3 {
+            let Ok(Some(raw)) = self.transport.read_input_report(BATTERY_READ_TIMEOUT_MS) else {
+                return None;
+            };
+            if let Some(status) = BatteryStatus::from_input_report(&raw) {
+                return Some(status);
+            }
+        }
+        None
+    }
+
     /// Sends an [`UpdateCommand`] and its payload chunked into `<= 0x39`-byte `0xF4` reports.
     pub fn send_update_command(&self, command: UpdateCommand, payload: &[u8]) -> Result<()> {
         let packets = encode_update_command_chunks(command, payload);
@@ -303,6 +338,16 @@ impl HidTransport for HidApiTransport {
     fn send_feature_report(&self, data: &[u8]) -> Result<()> {
         self.dev.send_feature_report(data)?;
         Ok(())
+    }
+
+    fn read_input_report(&self, timeout_ms: i32) -> Result<Option<Vec<u8>>> {
+        let mut buf = vec![0u8; INPUT_REPORT_USB_LEN];
+        let size = self.dev.read_timeout(&mut buf, timeout_ms)?;
+        if size == 0 {
+            return Ok(None);
+        }
+        buf.truncate(size);
+        Ok(Some(buf))
     }
 }
 

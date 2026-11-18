@@ -11,7 +11,7 @@ use crate::error::{
 };
 use crate::image::FirmwareImage;
 use crate::protocol::{
-    FirmwareInfo, MAX_HID_CHUNK_SIZE, StartUpdateStatusCode, UPDATE_HEADER_LEN,
+    BatteryStatus, FirmwareInfo, MAX_HID_CHUNK_SIZE, StartUpdateStatusCode, UPDATE_HEADER_LEN,
     UPDATE_STATUS_REPORT_LEN, UpdateCommand, VerifyUpdateStatusCode, WRITE_BLOCK_SIZE,
     WriteUpdateStatusCode,
 };
@@ -110,6 +110,11 @@ impl<T: HidTransport, S: Sleeper> DualSenseUpdater<T, S> {
     /// Best-effort read of the controller serial number via Feature Reports `0x80`/`0x81`.
     pub fn try_read_serial_number(&self) -> Option<String> {
         self.dev.try_read_serial_number()
+    }
+
+    /// Best-effort read of the controller battery level and charging state via USB input report `0x01`.
+    pub fn try_read_battery_status(&self) -> Option<BatteryStatus> {
+        self.dev.try_read_battery_status()
     }
 
     /// Executes the `StartUpdate` phase using the 256-byte header of `image`.

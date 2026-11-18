@@ -37,6 +37,9 @@ fn main() {
         CxxQtBuilder::new_qml_module(QmlModule::new("dev.dualsense.updater").qml_files([
             "qml/Main.qml",
             "qml/StepIndicator.qml",
+            "qml/DetectControllerStep.qml",
+            "qml/SelectFirmwareStep.qml",
+            "qml/ConfirmUpdateStep.qml",
             "qml/LicensesWindow.qml",
             "qml/AboutWindow.qml",
             "qml/FlashReportWindow.qml",

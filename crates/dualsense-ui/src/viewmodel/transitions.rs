@@ -607,6 +607,11 @@ impl AppState {
         if was_foreground {
             self.busy = None;
             self.progress = ProgressSnapshot::idle();
+        } else if self.catalog_checked {
+            log::debug!(
+                "Ignoring stale background catalog result because catalog is already loaded"
+            );
+            return Vec::new();
         }
 
         match result {

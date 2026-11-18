@@ -463,3 +463,113 @@ fn background_catalog_check_offline_graceful_and_version_comparison_text() {
         Some(BannerSeverity::Positive)
     );
 }
+
+#[test]
+fn stale_background_catalog_result_does_not_overwrite_loaded_catalog_while_foreground_check_refreshes()
+ {
+    let mut state = AppState::new();
+    let d = sample_hid_device("/dev/hidraw0", DEFAULT_PID, "STD-1");
+    state.update(AppEvent::DevicesScanned(Ok(vec![d])));
+    let cmds = state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(sample_bdm020_inspection(0x0510)),
+    });
+    assert_eq!(cmds, vec![AppCommand::FetchCatalog]);
+    assert!(state.snapshot().catalog_checking);
+
+    let mut initial_catalog = sample_catalog();
+    if let Some(release) = initial_catalog
+        .releases
+        .iter_mut()
+        .find(|r| r.target_id == "0004")
+    {
+        release.download_url = "http://127.0.0.1:41234/FWUPDATE0004.bin".to_string();
+    }
+    state.update(AppEvent::CatalogLoaded(Ok(initial_catalog)));
+
+    let loaded = state.snapshot();
+    assert!(loaded.catalog_checked);
+    assert!(!loaded.catalog_checking);
+    assert_eq!(
+        loaded
+            .selected_target
+            .as_ref()
+            .and_then(|t| t.latest_version),
+        Some(0x0630)
+    );
+    assert_eq!(
+        loaded
+            .selected_target
+            .as_ref()
+            .and_then(|t| t.download_url.as_deref()),
+        Some("http://127.0.0.1:41234/FWUPDATE0004.bin")
+    );
+
+    // Stale background Ok result must be ignored when catalog_checked is already true
+    let stale_catalog = dualsense_core::FirmwareCatalog::from_json(
+        r#"{"ApplicationLatestVersion":"2.2.1.2","FwUpdate0004LatestVersion":"0x0700"}"#,
+    )
+    .expect("stale catalog");
+    let stale_cmds = state.update(AppEvent::CatalogLoaded(Ok(stale_catalog)));
+    assert!(stale_cmds.is_empty());
+
+    let after_stale_ok = state.snapshot();
+    assert!(after_stale_ok.catalog_checked);
+    assert!(!after_stale_ok.catalog_checking);
+    assert_eq!(
+        after_stale_ok
+            .selected_target
+            .as_ref()
+            .and_then(|t| t.latest_version),
+        Some(0x0630)
+    );
+    assert_eq!(
+        after_stale_ok
+            .selected_target
+            .as_ref()
+            .and_then(|t| t.download_url.as_deref()),
+        Some("http://127.0.0.1:41234/FWUPDATE0004.bin")
+    );
+
+    // Stale background Err result must also be ignored
+    state.update(AppEvent::CatalogLoaded(Err(CoreError::CatalogHttp(
+        "stale timeout".to_string(),
+    ))));
+    let after_stale_err = state.snapshot();
+    assert!(after_stale_err.catalog_checked);
+    assert!(after_stale_err.error.is_none());
+    assert_eq!(
+        after_stale_err
+            .selected_target
+            .as_ref()
+            .and_then(|t| t.latest_version),
+        Some(0x0630)
+    );
+
+    // Foreground CheckForUpdates (BusyOperation::CheckingCatalog) MUST refresh the catalog
+    state.update(AppEvent::ContinueToFirmwareStep);
+    let refresh_cmds = state.update(AppEvent::CheckForUpdates);
+    assert_eq!(refresh_cmds, vec![AppCommand::FetchCatalog]);
+    assert!(state.snapshot().is_busy);
+
+    let refreshed_catalog = dualsense_core::FirmwareCatalog::from_json(
+        r#"{"ApplicationLatestVersion":"2.2.1.2","FwUpdate0004LatestVersion":"0x0700"}"#,
+    )
+    .expect("refreshed catalog");
+    state.update(AppEvent::CatalogLoaded(Ok(refreshed_catalog)));
+
+    let after_refresh = state.snapshot();
+    assert!(!after_refresh.is_busy);
+    assert!(after_refresh.catalog_checked);
+    assert_eq!(
+        after_refresh
+            .selected_target
+            .as_ref()
+            .and_then(|t| t.latest_version),
+        Some(0x0700)
+    );
+    assert_eq!(
+        after_refresh.version_comparison_text,
+        "Update available: 0x0510 → 0x0700"
+    );
+}

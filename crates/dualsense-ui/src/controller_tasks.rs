@@ -13,6 +13,7 @@ use dualsense_core::{
 };
 use tokio::sync::mpsc;
 
+use crate::no_flash::{NoFlashOutcome, SimulatedDeviceState, run_simulated_update};
 use crate::viewmodel::{
     AppEvent, DeviceInspection, DeviceTarget, LocalFirmwareInfo, UpdateOutcome,
 };
@@ -111,6 +112,8 @@ pub(crate) fn run_download_and_install<E, H, S>(
     release: &FirmwareRelease,
     cancel: &CancellationToken,
     tx: &mpsc::UnboundedSender<AppEvent>,
+    no_flash: Option<NoFlashOutcome>,
+    simulated_state: Option<&SimulatedDeviceState>,
 ) -> dualsense_core::Result<UpdateOutcome>
 where
     E: HidDeviceEnumerator + ?Sized,
@@ -151,9 +154,20 @@ where
         arc_image
     };
 
-    flash_firmware_image(enumerator, sleeper, config, device, &image, cancel, tx)
+    flash_firmware_image(
+        enumerator,
+        sleeper,
+        config,
+        device,
+        &image,
+        cancel,
+        tx,
+        no_flash,
+        simulated_state,
+    )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn flash_firmware_image<E, S>(
     enumerator: &E,
     sleeper: S,
@@ -162,11 +176,28 @@ pub(crate) fn flash_firmware_image<E, S>(
     image: &FirmwareImage,
     cancel: &CancellationToken,
     tx: &mpsc::UnboundedSender<AppEvent>,
+    no_flash: Option<NoFlashOutcome>,
+    simulated_state: Option<&SimulatedDeviceState>,
 ) -> dualsense_core::Result<UpdateOutcome>
 where
     E: HidDeviceEnumerator + ?Sized,
     S: Sleeper,
 {
+    if let Some(outcome) = no_flash {
+        run_simulated_update(
+            outcome,
+            &sleeper,
+            &device.path,
+            simulated_state,
+            image,
+            cancel,
+            |progress| {
+                let _ = tx.send(AppEvent::UpdateProgressUpdated(progress));
+            },
+        )?;
+        return Ok(UpdateOutcome::verified(image.version()));
+    }
+
     let transport = enumerator.open(device.vendor_id, device.product_id, Some(&device.path))?;
     let updater = DualSenseUpdater::with_sleeper_and_config(transport, sleeper, config);
     updater.run_full_update(image, cancel, |progress| {

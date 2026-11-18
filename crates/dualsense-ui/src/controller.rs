@@ -18,6 +18,7 @@ use crate::controller_tasks::{
     read_device_inspection, run_download_and_install, save_cached_firmware_to_path,
 };
 use crate::http::UreqHttpClient;
+use crate::no_flash::{NoFlashEnumerator, NoFlashOutcome, SimulatedDeviceState};
 use crate::viewmodel::{AppCommand, AppEvent, AppState, UiSnapshot};
 
 /// Default interval between background USB HID device polls in desktop usage.
@@ -58,13 +59,26 @@ impl DefaultAppController {
     where
         F: Fn(UiSnapshot) + Send + Sync + 'static,
     {
-        Self::with_poll_interval(
+        Self::with_no_flash(handle, None, on_snapshot)
+    }
+
+    /// Creates a production [`DefaultAppController`] with optional `--no-flash` simulation.
+    pub fn with_no_flash<F>(
+        handle: &Handle,
+        no_flash: Option<NoFlashOutcome>,
+        on_snapshot: F,
+    ) -> Self
+    where
+        F: Fn(UiSnapshot) + Send + Sync + 'static,
+    {
+        Self::with_poll_interval_and_no_flash(
             handle,
             HidApiBackend,
             UreqHttpClient::new(),
             StdSleeper,
             UpdateConfig::default(),
             Some(DEFAULT_DEVICE_POLL_INTERVAL),
+            no_flash,
             on_snapshot,
         )
     }
@@ -88,13 +102,39 @@ where
     where
         F: Fn(UiSnapshot) + Send + Sync + 'static,
     {
-        Self::with_poll_interval(
+        Self::with_poll_interval_and_no_flash(
             handle,
             enumerator,
             http,
             sleeper,
             update_config,
             Some(DEFAULT_DEVICE_POLL_INTERVAL),
+            None,
+            on_snapshot,
+        )
+    }
+
+    /// Spawns the controller actor on `handle` with `--no-flash` simulation support and 800 ms polling.
+    pub fn new_with_no_flash<F>(
+        handle: &Handle,
+        enumerator: E,
+        http: H,
+        sleeper: S,
+        update_config: UpdateConfig,
+        no_flash: Option<NoFlashOutcome>,
+        on_snapshot: F,
+    ) -> Self
+    where
+        F: Fn(UiSnapshot) + Send + Sync + 'static,
+    {
+        Self::with_poll_interval_and_no_flash(
+            handle,
+            enumerator,
+            http,
+            sleeper,
+            update_config,
+            Some(DEFAULT_DEVICE_POLL_INTERVAL),
+            no_flash,
             on_snapshot,
         )
     }
@@ -112,7 +152,34 @@ where
     where
         F: Fn(UiSnapshot) + Send + Sync + 'static,
     {
-        let initial_state = AppState::new();
+        Self::with_poll_interval_and_no_flash(
+            handle,
+            enumerator,
+            http,
+            sleeper,
+            update_config,
+            device_poll_interval,
+            None,
+            on_snapshot,
+        )
+    }
+
+    /// Spawns the controller actor on `handle` with explicit `device_poll_interval` and optional `--no-flash`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_poll_interval_and_no_flash<F>(
+        handle: &Handle,
+        enumerator: E,
+        http: H,
+        sleeper: S,
+        update_config: UpdateConfig,
+        device_poll_interval: Option<Duration>,
+        no_flash: Option<NoFlashOutcome>,
+        on_snapshot: F,
+    ) -> Self
+    where
+        F: Fn(UiSnapshot) + Send + Sync + 'static,
+    {
+        let initial_state = AppState::with_no_flash(no_flash.is_some());
         let initial_snapshot = initial_state.snapshot();
         let (snapshot_tx, snapshot_rx) = watch::channel(initial_snapshot.clone());
         let (event_tx, event_rx) = mpsc::unbounded_channel();
@@ -121,13 +188,21 @@ where
         let on_snapshot: Arc<dyn Fn(UiSnapshot) + Send + Sync> = Arc::new(on_snapshot);
         on_snapshot(initial_snapshot);
 
+        let enumerator = match no_flash {
+            Some(_) => Arc::new(RuntimeEnumerator::NoFlash(Arc::new(
+                NoFlashEnumerator::new(enumerator),
+            ))),
+            None => Arc::new(RuntimeEnumerator::Live(Arc::new(enumerator))),
+        };
+
         let ctx = ActorContext {
             handle: handle.clone(),
-            enumerator: Arc::new(enumerator),
+            enumerator,
             http: Arc::new(http),
             firmware_cache: Arc::new(Mutex::new(FirmwareCache::default())),
             sleeper,
             update_config,
+            no_flash,
             event_tx: actor_tx,
             snapshot_tx,
             on_snapshot,
@@ -177,12 +252,24 @@ impl DefaultAppRuntime {
     where
         F: Fn(UiSnapshot) + Send + Sync + 'static,
     {
-        Self::with_backends_and_poll_interval(
+        Self::start_with_no_flash(None, on_snapshot)
+    }
+
+    /// Starts a Tokio runtime and [`DefaultAppController`] with optional `--no-flash` simulation.
+    pub fn start_with_no_flash<F>(
+        no_flash: Option<NoFlashOutcome>,
+        on_snapshot: F,
+    ) -> std::io::Result<Self>
+    where
+        F: Fn(UiSnapshot) + Send + Sync + 'static,
+    {
+        Self::with_backends_poll_interval_and_no_flash(
             HidApiBackend,
             UreqHttpClient::new(),
             StdSleeper,
             UpdateConfig::default(),
             Some(DEFAULT_DEVICE_POLL_INTERVAL),
+            no_flash,
             on_snapshot,
         )
     }
@@ -205,12 +292,36 @@ where
     where
         F: Fn(UiSnapshot) + Send + Sync + 'static,
     {
-        Self::with_backends_and_poll_interval(
+        Self::with_backends_poll_interval_and_no_flash(
             enumerator,
             http,
             sleeper,
             update_config,
             Some(DEFAULT_DEVICE_POLL_INTERVAL),
+            None,
+            on_snapshot,
+        )
+    }
+
+    /// Starts a multi-threaded Tokio runtime with injected backends, optional `--no-flash`, and 800 ms polling.
+    pub fn with_backends_and_no_flash<F>(
+        enumerator: E,
+        http: H,
+        sleeper: S,
+        update_config: UpdateConfig,
+        no_flash: Option<NoFlashOutcome>,
+        on_snapshot: F,
+    ) -> std::io::Result<Self>
+    where
+        F: Fn(UiSnapshot) + Send + Sync + 'static,
+    {
+        Self::with_backends_poll_interval_and_no_flash(
+            enumerator,
+            http,
+            sleeper,
+            update_config,
+            Some(DEFAULT_DEVICE_POLL_INTERVAL),
+            no_flash,
             on_snapshot,
         )
     }
@@ -227,18 +338,43 @@ where
     where
         F: Fn(UiSnapshot) + Send + Sync + 'static,
     {
+        Self::with_backends_poll_interval_and_no_flash(
+            enumerator,
+            http,
+            sleeper,
+            update_config,
+            device_poll_interval,
+            None,
+            on_snapshot,
+        )
+    }
+
+    /// Starts a multi-threaded Tokio runtime with injected backends, custom `device_poll_interval`, and optional `--no-flash`.
+    pub fn with_backends_poll_interval_and_no_flash<F>(
+        enumerator: E,
+        http: H,
+        sleeper: S,
+        update_config: UpdateConfig,
+        device_poll_interval: Option<Duration>,
+        no_flash: Option<NoFlashOutcome>,
+        on_snapshot: F,
+    ) -> std::io::Result<Self>
+    where
+        F: Fn(UiSnapshot) + Send + Sync + 'static,
+    {
         let runtime = Builder::new_multi_thread()
             .worker_threads(2)
             .thread_name("dualsense-ui-worker")
             .enable_all()
             .build()?;
-        let controller = AppController::with_poll_interval(
+        let controller = AppController::with_poll_interval_and_no_flash(
             runtime.handle(),
             enumerator,
             http,
             sleeper,
             update_config,
             device_poll_interval,
+            no_flash,
             on_snapshot,
         );
         Ok(Self {
@@ -283,13 +419,56 @@ impl<E, H, S> Drop for AppRuntime<E, H, S> {
     }
 }
 
+enum RuntimeEnumerator<E> {
+    Live(Arc<E>),
+    NoFlash(Arc<NoFlashEnumerator<E>>),
+}
+
+impl<E: HidDeviceEnumerator> RuntimeEnumerator<E> {
+    fn simulated_state(&self) -> Option<Arc<SimulatedDeviceState>> {
+        match self {
+            Self::Live(_) => None,
+            Self::NoFlash(sim) => Some(sim.simulated_state()),
+        }
+    }
+}
+
+impl<E: HidDeviceEnumerator> HidDeviceEnumerator for RuntimeEnumerator<E> {
+    fn list_devices(&self, vid: u16, pid: u16) -> dualsense_core::Result<Vec<HidDeviceInfo>> {
+        match self {
+            Self::Live(inner) => inner.list_devices(vid, pid),
+            Self::NoFlash(sim) => sim.list_devices(vid, pid),
+        }
+    }
+
+    fn open(
+        &self,
+        vid: u16,
+        pid: u16,
+        path: Option<&str>,
+    ) -> dualsense_core::Result<Box<dyn dualsense_core::HidTransport>> {
+        match self {
+            Self::Live(inner) => inner.open(vid, pid, path),
+            Self::NoFlash(sim) => sim.open(vid, pid, path),
+        }
+    }
+
+    fn list_dualsense_devices(&self) -> dualsense_core::Result<Vec<HidDeviceInfo>> {
+        match self {
+            Self::Live(inner) => inner.list_dualsense_devices(),
+            Self::NoFlash(sim) => sim.list_dualsense_devices(),
+        }
+    }
+}
+
 struct ActorContext<E, H, S> {
     handle: Handle,
-    enumerator: Arc<E>,
+    enumerator: Arc<RuntimeEnumerator<E>>,
     http: Arc<H>,
     firmware_cache: Arc<Mutex<FirmwareCache>>,
     sleeper: S,
     update_config: UpdateConfig,
+    no_flash: Option<NoFlashOutcome>,
     event_tx: mpsc::UnboundedSender<AppEvent>,
     snapshot_tx: watch::Sender<UiSnapshot>,
     on_snapshot: Arc<dyn Fn(UiSnapshot) + Send + Sync>,
@@ -505,6 +684,8 @@ fn execute_command<E, H, S>(
             let firmware_cache = Arc::clone(&ctx.firmware_cache);
             let sleeper = ctx.sleeper.clone();
             let config = ctx.update_config.clone();
+            let no_flash = ctx.no_flash;
+            let simulated_state = enumerator.simulated_state();
             let tx = ctx.event_tx.clone();
             let progress_tx = tx.clone();
 
@@ -520,6 +701,8 @@ fn execute_command<E, H, S>(
                         &release,
                         &cancel,
                         &progress_tx,
+                        no_flash,
+                        simulated_state.as_deref(),
                     )
                 })
                 .await
@@ -536,6 +719,8 @@ fn execute_command<E, H, S>(
             let enumerator = Arc::clone(&ctx.enumerator);
             let sleeper = ctx.sleeper.clone();
             let config = ctx.update_config.clone();
+            let no_flash = ctx.no_flash;
+            let simulated_state = enumerator.simulated_state();
             let tx = ctx.event_tx.clone();
             let progress_tx = tx.clone();
 
@@ -550,6 +735,8 @@ fn execute_command<E, H, S>(
                         &image,
                         &cancel,
                         &progress_tx,
+                        no_flash,
+                        simulated_state.as_deref(),
                     )
                 })
                 .await

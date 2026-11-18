@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use crate::catalog::FirmwareRelease;
+use crate::catalog::{ControllerHardwareInfo, FirmwareRelease, find_known_target};
 use crate::error::{CoreError, Result};
 use crate::protocol::{
     DEFAULT_PID, DUALSENSE_EDGE_PID, FIRMWARE_PID_OFFSET, FIRMWARE_TARGET_OFFSET,
@@ -19,6 +19,58 @@ pub const SONY_VENDOR_HEADER_LEN: usize = 0x40;
 
 /// ASCII vendor signature present in official Sony DualSense firmware headers.
 pub const SONY_HEADER_SIGNATURE: &[u8] = b"Sony Interactive Entertainment";
+
+/// Overall compatibility outcome when validating a local firmware `.bin` against a controller.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum LocalImageCompatibility {
+    /// Sony header is valid and embedded USB PID and hardware target ID match the controller.
+    Compatible,
+    /// Sony header and USB PID are valid, but the controller's hardware target could not be verified.
+    Warning,
+    /// Image failed Sony header validation or has a USB PID / hardware target mismatch.
+    Incompatible,
+}
+
+/// Structured result of validating a local [`FirmwareImage`] against a connected controller.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalImageValidation {
+    pub compatibility: LocalImageCompatibility,
+    pub sony_header_valid: bool,
+    pub image_version: u16,
+    pub embedded_pid: Option<u16>,
+    pub embedded_target_id: Option<String>,
+    pub expected_pid: u16,
+    pub expected_target_id: Option<String>,
+    pub mismatches: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+impl LocalImageValidation {
+    /// Returns `true` when the image has no blocking mismatches (`Compatible` or `Warning`).
+    pub fn is_flashable(&self) -> bool {
+        !matches!(self.compatibility, LocalImageCompatibility::Incompatible)
+    }
+
+    /// Returns `true` when the image fully matches the controller with no mismatches or warnings.
+    pub fn is_exact_match(&self) -> bool {
+        matches!(self.compatibility, LocalImageCompatibility::Compatible)
+    }
+
+    /// Returns a concise summary of all mismatches and warnings, if any.
+    pub fn summary(&self) -> Option<String> {
+        let messages: Vec<&str> = self
+            .mismatches
+            .iter()
+            .chain(self.warnings.iter())
+            .map(String::as_str)
+            .collect();
+        if messages.is_empty() {
+            None
+        } else {
+            Some(messages.join(" "))
+        }
+    }
+}
 
 /// Validated DualSense firmware binary image loaded into memory once.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,14 +131,13 @@ impl FirmwareImage {
         ])
     }
 
-    /// Validates that the image meets official Sony DualSense binary size and header requirements.
-    pub fn validate_sony_header(&self) -> Result<()> {
+    fn sony_header_issue(&self) -> Option<String> {
         if self.bytes.len() < Self::MIN_OFFICIAL_FIRMWARE_BYTES {
-            return Err(CoreError::InvalidDownloadedFirmware(format!(
-                "Firmware image is {} bytes, below the {} byte minimum for official Sony images",
+            return Some(format!(
+                "Firmware image is {} bytes, below the {} byte minimum for official Sony images.",
                 self.bytes.len(),
                 Self::MIN_OFFICIAL_FIRMWARE_BYTES,
-            )));
+            ));
         }
 
         let vendor_header = &self.bytes[..SONY_VENDOR_HEADER_LEN];
@@ -94,10 +145,19 @@ impl FirmwareImage {
             .windows(SONY_HEADER_SIGNATURE.len())
             .any(|window| window == SONY_HEADER_SIGNATURE);
         if !has_signature {
-            return Err(CoreError::InvalidDownloadedFirmware(
-                "Missing 'Sony Interactive Entertainment' signature in firmware header 0x00..0x40"
+            return Some(
+                "Missing 'Sony Interactive Entertainment' signature in firmware header 0x00..0x40."
                     .to_string(),
-            ));
+            );
+        }
+
+        None
+    }
+
+    /// Validates that the image meets official Sony DualSense binary size and header requirements.
+    pub fn validate_sony_header(&self) -> Result<()> {
+        if let Some(issue) = self.sony_header_issue() {
+            return Err(CoreError::InvalidDownloadedFirmware(issue));
         }
 
         // Explicitly read embedded fields to verify header layout offsets are valid.
@@ -128,29 +188,104 @@ impl FirmwareImage {
         }
 
         let actual_pid = self.embedded_pid();
-        let pid_matches = if release.target_id.eq_ignore_ascii_case("0044") {
-            actual_pid == DUALSENSE_EDGE_PID
-        } else if release.target_id.eq_ignore_ascii_case("0004")
-            || release.target_id.eq_ignore_ascii_case("000B")
-            || release.target_id.eq_ignore_ascii_case("000E")
-        {
-            actual_pid == DEFAULT_PID
-        } else {
-            actual_pid == DEFAULT_PID || actual_pid == DUALSENSE_EDGE_PID
+        let expected_pid = expected_pid_for_target(&release.target_id);
+        let pid_matches = match expected_pid {
+            Some(pid) => actual_pid == pid,
+            None => actual_pid == DEFAULT_PID || actual_pid == DUALSENSE_EDGE_PID,
         };
         if !pid_matches {
-            let expected_pid = if release.target_id.eq_ignore_ascii_case("0044") {
-                DUALSENSE_EDGE_PID
-            } else {
-                DEFAULT_PID
-            };
             return Err(CoreError::InvalidDownloadedFirmware(format!(
-                "Embedded USB PID 0x{actual_pid:04x} does not match target {} (expected 0x{expected_pid:04x})",
+                "Embedded USB PID 0x{actual_pid:04x} does not match target {} (expected 0x{:04x})",
                 release.target_id,
+                expected_pid.unwrap_or(DEFAULT_PID),
             )));
         }
 
         Ok(())
+    }
+
+    /// Validates a local firmware image against a connected controller's hardware info and USB PID.
+    pub fn validate_for_controller(
+        &self,
+        hardware: &ControllerHardwareInfo,
+        product_id: u16,
+    ) -> LocalImageValidation {
+        let expected_target_id = hardware.supported_target_id.map(ToString::to_string);
+        if let Some(issue) = self.sony_header_issue() {
+            return LocalImageValidation {
+                compatibility: LocalImageCompatibility::Incompatible,
+                sony_header_valid: false,
+                image_version: self.version(),
+                embedded_pid: None,
+                embedded_target_id: None,
+                expected_pid: product_id,
+                expected_target_id,
+                mismatches: vec![issue],
+                warnings: Vec::new(),
+            };
+        }
+
+        let actual_pid = self.embedded_pid();
+        let actual_target = self.embedded_target_id();
+        let actual_target_hex = format!("{actual_target:04X}");
+        let mut mismatches = Vec::new();
+        let mut warnings = Vec::new();
+
+        if actual_pid != product_id {
+            mismatches.push(format!(
+                "Embedded USB PID 0x{actual_pid:04x} does not match connected controller PID 0x{product_id:04x}."
+            ));
+        }
+
+        if let Some(expected_for_image) = expected_pid_for_target(&actual_target_hex)
+            && actual_pid != expected_for_image
+        {
+            mismatches.push(format!(
+                "Image USB PID 0x{actual_pid:04x} is inconsistent with image target {actual_target_hex} (expected 0x{expected_for_image:04x})."
+            ));
+        }
+
+        match hardware.supported_target_id {
+            Some(expected_target_str) => {
+                if let Ok(expected_target) = parse_target_id_hex(expected_target_str)
+                    && actual_target != expected_target
+                {
+                    let target_desc = find_known_target(&actual_target_hex)
+                        .map(|info| format!("{actual_target_hex} ({})", info.board_revisions))
+                        .unwrap_or_else(|| actual_target_hex.clone());
+                    mismatches.push(format!(
+                        "Firmware target mismatch: image is for target {target_desc}, but connected controller is {} (target {expected_target_str}).",
+                        hardware.board_name,
+                    ));
+                }
+            }
+            None => {
+                warnings.push(format!(
+                    "Connected controller ({}) has no official Sony target ID; image target {actual_target_hex} cannot be verified automatically.",
+                    hardware.board_name,
+                ));
+            }
+        }
+
+        let compatibility = if !mismatches.is_empty() {
+            LocalImageCompatibility::Incompatible
+        } else if !warnings.is_empty() {
+            LocalImageCompatibility::Warning
+        } else {
+            LocalImageCompatibility::Compatible
+        };
+
+        LocalImageValidation {
+            compatibility,
+            sony_header_valid: true,
+            image_version: self.version(),
+            embedded_pid: Some(actual_pid),
+            embedded_target_id: Some(actual_target_hex),
+            expected_pid: product_id,
+            expected_target_id,
+            mismatches,
+            warnings,
+        }
     }
 
     /// Returns the firmware version formatted as `0xXXXX`.
@@ -186,6 +321,19 @@ impl FirmwareImage {
     /// Returns the number of `0x8000`-byte (`32 KiB`) blocks in the image.
     pub fn block_count(&self) -> usize {
         self.bytes.len().div_ceil(WRITE_BLOCK_SIZE)
+    }
+}
+
+fn expected_pid_for_target(target_id: &str) -> Option<u16> {
+    if target_id.eq_ignore_ascii_case("0044") {
+        Some(DUALSENSE_EDGE_PID)
+    } else if target_id.eq_ignore_ascii_case("0004")
+        || target_id.eq_ignore_ascii_case("000B")
+        || target_id.eq_ignore_ascii_case("000E")
+    {
+        Some(DEFAULT_PID)
+    } else {
+        None
     }
 }
 

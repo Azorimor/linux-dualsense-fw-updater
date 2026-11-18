@@ -27,7 +27,8 @@ pub use error::{
     VerifyUpdateImageError, WriteUpdateImageError,
 };
 pub use image::{
-    FirmwareImage, MIN_OFFICIAL_FIRMWARE_BYTES, SONY_HEADER_SIGNATURE, SONY_VENDOR_HEADER_LEN,
+    FirmwareImage, LocalImageCompatibility, LocalImageValidation, MIN_OFFICIAL_FIRMWARE_BYTES,
+    SONY_HEADER_SIGNATURE, SONY_VENDOR_HEADER_LEN,
 };
 pub use protocol::{
     BoardModel, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FIRMWARE_INFO_REPORT_LEN,

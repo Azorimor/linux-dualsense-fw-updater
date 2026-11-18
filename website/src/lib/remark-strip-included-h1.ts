@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { replaceSource } from 'fumadocs-core/mdx-plugins/stringifier';
+
 interface MdastTextNode {
   type: string;
   value?: string;
@@ -31,7 +33,11 @@ function extractNodeText(node: MdastNode): string {
   return '';
 }
 
-function stripLeadingMatchingH1(children: MdastNode[], title: string): void {
+function stripLeadingMatchingH1(
+  children: MdastNode[],
+  title: string,
+  file: unknown,
+): void {
   if (children.length === 0) {
     return;
   }
@@ -41,6 +47,8 @@ function stripLeadingMatchingH1(children: MdastNode[], title: string): void {
     const headingText = extractNodeText(first).trim().toLowerCase();
     if (headingText === title.trim().toLowerCase()) {
       children.shift();
+      // Keep processed Markdown output in sync with the modified MDAST.
+      replaceSource(file as Parameters<typeof replaceSource>[0], first as Parameters<typeof replaceSource>[1], '');
     }
   }
 }
@@ -64,7 +72,7 @@ export function remarkStripIncludedH1() {
 
     for (const child of mdastTree.children) {
       if (child.type === 'root' && Array.isArray(child.children)) {
-        stripLeadingMatchingH1(child.children, rawTitle);
+        stripLeadingMatchingH1(child.children, rawTitle, file);
       }
     }
   };

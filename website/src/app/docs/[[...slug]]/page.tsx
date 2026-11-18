@@ -8,9 +8,18 @@ import {
   DocsDescription,
   DocsPage,
   DocsTitle,
+  MarkdownCopyButton,
+  ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { REPO_URL } from '@/lib/layout.shared';
+import {
+  getDocGitHubUrl,
+  getDocsOgImageUrl,
+  getPageActionMarkdownUrl,
+  getStaticPageMarkdownUrl,
+} from '@/lib/llms-urls';
 import { getMDXComponents } from '@/mdx-components';
 
 export default async function Page(props: {
@@ -21,11 +30,17 @@ export default async function Page(props: {
   if (!page) notFound();
 
   const MDX = page.data.body;
+  const markdownUrl = getPageActionMarkdownUrl(page.url);
+  const githubUrl = getDocGitHubUrl(REPO_URL, page.path);
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
+      <div className="flex flex-row gap-2 items-center border-b pt-2 pb-6">
+        <MarkdownCopyButton markdownUrl={markdownUrl} />
+        <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubUrl} />
+      </div>
       <DocsBody>
         <MDX components={getMDXComponents()} />
       </DocsBody>
@@ -44,8 +59,39 @@ export async function generateMetadata(props: {
   const page = source.getPage(params.slug);
   if (!page) notFound();
 
+  const ogImageUrl = getDocsOgImageUrl(page.slugs);
+
   return {
     title: page.data.title,
     description: page.data.description,
+    alternates: {
+      types: {
+        'text/markdown': getStaticPageMarkdownUrl(page.url),
+      },
+    },
+    openGraph: {
+      title: page.data.title,
+      description: page.data.description,
+      type: 'article',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: page.data.title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: page.data.title,
+      description: page.data.description,
+      images: [
+        {
+          url: ogImageUrl,
+          alt: page.data.title,
+        },
+      ],
+    },
   };
 }

@@ -9,9 +9,14 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   SITE_BASE_PATH,
+  SITE_ORIGIN,
+  buildSitemapEntries,
   getDocGitHubUrl,
   getMarkdownPath,
+  getPageActionMarkdownUrl,
   getStaticPageMarkdownUrl,
+  toCanonicalPageUrl,
+  toSiteAssetUrl,
   toStaticLlmsUrl,
 } from './llms-urls.ts';
 
@@ -51,7 +56,12 @@ test('toStaticLlmsUrl prefixes static markdown/text artifacts with BASE_PATH and
   );
 });
 
-test('getStaticPageMarkdownUrl and getDocGitHubUrl construct expected static and source links', () => {
+test('getStaticPageMarkdownUrl, getPageActionMarkdownUrl, and getDocGitHubUrl construct expected links', () => {
+  assert.equal(getPageActionMarkdownUrl('/docs'), '/llms.mdx/docs.md');
+  assert.equal(
+    getPageActionMarkdownUrl('/docs/changelog'),
+    '/llms.mdx/docs/changelog.md',
+  );
   assert.equal(
     getStaticPageMarkdownUrl('/docs'),
     `${SITE_BASE_PATH}/llms.mdx/docs.md`,
@@ -63,6 +73,33 @@ test('getStaticPageMarkdownUrl and getDocGitHubUrl construct expected static and
   assert.equal(
     getDocGitHubUrl('https://github.com/Azorimor/linux-dualsense-fw-updater', 'changelog.mdx'),
     'https://github.com/Azorimor/linux-dualsense-fw-updater/blob/main/website/content/docs/changelog.mdx',
+  );
+});
+
+test('toCanonicalPageUrl, toSiteAssetUrl, and buildSitemapEntries produce trailing-slash GitHub Pages URLs', () => {
+  assert.equal(toCanonicalPageUrl('/'), `${SITE_ORIGIN}${SITE_BASE_PATH}/`);
+  assert.equal(
+    toCanonicalPageUrl('/download'),
+    `${SITE_ORIGIN}${SITE_BASE_PATH}/download/`,
+  );
+  assert.equal(
+    toCanonicalPageUrl('/docs/getting-started'),
+    `${SITE_ORIGIN}${SITE_BASE_PATH}/docs/getting-started/`,
+  );
+  assert.equal(
+    toSiteAssetUrl('/sitemap.xml'),
+    `${SITE_ORIGIN}${SITE_BASE_PATH}/sitemap.xml`,
+  );
+
+  const entries = buildSitemapEntries(['/docs', '/docs/getting-started', '/docs']);
+  assert.deepEqual(
+    entries.map((entry) => [entry.url, entry.priority]),
+    [
+      [`${SITE_ORIGIN}${SITE_BASE_PATH}/`, 1],
+      [`${SITE_ORIGIN}${SITE_BASE_PATH}/download/`, 0.9],
+      [`${SITE_ORIGIN}${SITE_BASE_PATH}/docs/`, 0.9],
+      [`${SITE_ORIGIN}${SITE_BASE_PATH}/docs/getting-started/`, 0.8],
+    ],
   );
 });
 
@@ -119,6 +156,17 @@ test('built static export generates llms.txt, llms-full.txt, and per-page markdo
       html.includes('Copy Markdown'),
       `out/${htmlRel} missing MarkdownCopyButton`,
     );
+    const unprefixedMd = `/${mdRel}`;
+    assert.ok(
+      html.includes(`"markdownUrl":"${unprefixedMd}"`) ||
+        html.includes(`\\"markdownUrl\\":\\"${unprefixedMd}\\"`),
+      `out/${htmlRel} should pass unprefixed markdownUrl ${unprefixedMd} to page actions`,
+    );
+    assert.equal(
+      html.includes(`${SITE_BASE_PATH}${SITE_BASE_PATH}`),
+      false,
+      `out/${htmlRel} must not contain doubled BASE_PATH`,
+    );
   }
 
   const llmsFullPath = path.join(OUT_DIR, 'llms-full.txt');
@@ -144,4 +192,31 @@ test('built static export generates llms.txt, llms-full.txt, and per-page markdo
     1,
     `Expected exactly 1 H1 in changelog.md, found ${changelogH1s.length}`,
   );
+
+  const robotsPath = path.join(OUT_DIR, 'robots.txt');
+  assert.equal(fs.existsSync(robotsPath), true, 'Missing out/robots.txt');
+  const robotsTxt = fs.readFileSync(robotsPath, 'utf8');
+  assert.match(robotsTxt, /User-Agent:\s*\*/i);
+  assert.match(robotsTxt, /Allow:\s*\//i);
+  assert.ok(
+    robotsTxt.includes(`Sitemap: ${ORIGIN}${SITE_BASE_PATH}/sitemap.xml`),
+    'robots.txt missing Sitemap URL',
+  );
+
+  const sitemapPath = path.join(OUT_DIR, 'sitemap.xml');
+  assert.equal(fs.existsSync(sitemapPath), true, 'Missing out/sitemap.xml');
+  const sitemapXml = fs.readFileSync(sitemapPath, 'utf8');
+  for (const routePath of [
+    '/',
+    '/download/',
+    '/docs/',
+    '/docs/getting-started/',
+    '/docs/supported-hardware/',
+    '/docs/safety-and-troubleshooting/',
+    '/docs/changelog/',
+    '/docs/licenses/',
+  ]) {
+    const loc = `<loc>${ORIGIN}${SITE_BASE_PATH}${routePath}</loc>`;
+    assert.ok(sitemapXml.includes(loc), `sitemap.xml missing ${loc}`);
+  }
 });

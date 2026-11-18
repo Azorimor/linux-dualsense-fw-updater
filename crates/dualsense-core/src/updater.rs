@@ -17,6 +17,40 @@ use crate::protocol::{
 };
 use crate::transport::{DualSenseDevice, HidTransport, Sleeper, StdSleeper};
 
+/// Default maximum Feature Report `0x20` re-read attempts after `FinalizeUpdate`.
+pub const DEFAULT_POST_FLASH_ATTEMPTS: usize = 8;
+
+/// Default delay between post-flash Feature Report `0x20` verification retries.
+pub const DEFAULT_POST_FLASH_RETRY_DELAY: Duration = Duration::from_millis(250);
+
+/// Outcome status of best-effort post-flash Feature Report `0x20` verification.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum PostFlashVerificationStatus {
+    /// Controller responded to `0x20` with the expected new firmware version.
+    Verified,
+    /// Controller responded to `0x20`, but reported a different firmware version.
+    VersionMismatch,
+    /// Controller could not be read via `0x20` within the bounded retry budget.
+    Unreachable,
+}
+
+/// Result of best-effort post-flash hardware verification via Feature Report `0x20`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostFlashVerification {
+    pub status: PostFlashVerificationStatus,
+    pub expected_version: u16,
+    pub firmware_info: Option<FirmwareInfo>,
+    pub attempts: usize,
+    pub last_error: Option<String>,
+}
+
+impl PostFlashVerification {
+    /// Returns `true` when the controller confirmed `expected_version` via `0x20`.
+    pub fn is_verified(&self) -> bool {
+        self.status == PostFlashVerificationStatus::Verified
+    }
+}
+
 /// Structured progress snapshot emitted during firmware updates.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UpdateProgress {
@@ -374,6 +408,62 @@ impl<T: HidTransport, S: Sleeper> DualSenseUpdater<T, S> {
             total_blocks,
         ));
         Ok(())
+    }
+
+    /// Best-effort post-flash check re-reading Feature Report `0x20` using default retry settings.
+    pub fn verify_post_flash_firmware(&self, expected_version: u16) -> PostFlashVerification {
+        self.verify_post_flash_firmware_with_retry(
+            expected_version,
+            DEFAULT_POST_FLASH_ATTEMPTS,
+            DEFAULT_POST_FLASH_RETRY_DELAY,
+        )
+    }
+
+    /// Bounded best-effort Feature Report `0x20` re-read after `run_full_update`.
+    ///
+    /// Tolerates transient USB re-enumeration errors by sleeping `retry_delay` via `self.sleeper`
+    /// between attempts, and never fails an already-committed firmware update.
+    pub fn verify_post_flash_firmware_with_retry(
+        &self,
+        expected_version: u16,
+        max_attempts: usize,
+        retry_delay: Duration,
+    ) -> PostFlashVerification {
+        let attempts_limit = max_attempts.max(1);
+        let mut last_error = None;
+
+        for attempt in 1..=attempts_limit {
+            match self.read_firmware_info() {
+                Ok(info) => {
+                    let status = if info.firmware_version == expected_version {
+                        PostFlashVerificationStatus::Verified
+                    } else {
+                        PostFlashVerificationStatus::VersionMismatch
+                    };
+                    return PostFlashVerification {
+                        status,
+                        expected_version,
+                        firmware_info: Some(info),
+                        attempts: attempt,
+                        last_error: None,
+                    };
+                }
+                Err(err) => {
+                    last_error = Some(err.technical_detail());
+                    if attempt < attempts_limit {
+                        self.sleeper.sleep(retry_delay);
+                    }
+                }
+            }
+        }
+
+        PostFlashVerification {
+            status: PostFlashVerificationStatus::Unreachable,
+            expected_version,
+            firmware_info: None,
+            attempts: attempts_limit,
+            last_error,
+        }
     }
 }
 

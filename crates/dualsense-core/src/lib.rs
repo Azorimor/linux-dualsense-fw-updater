@@ -45,4 +45,7 @@ pub use transport::{
     HidDeviceEnumerator, HidDeviceInfo, HidTransport, Sleeper, StdSleeper,
     filter_bluetooth_devices, filter_usb_devices, has_only_bluetooth_devices,
 };
-pub use updater::{DualSenseUpdater, UpdateConfig, UpdateProgress};
+pub use updater::{
+    DEFAULT_POST_FLASH_ATTEMPTS, DEFAULT_POST_FLASH_RETRY_DELAY, DualSenseUpdater,
+    PostFlashVerification, PostFlashVerificationStatus, UpdateConfig, UpdateProgress,
+};

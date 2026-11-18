@@ -494,3 +494,101 @@ fn updater_try_read_battery_status_supports_default_none_and_valid_reports() {
         })
     );
 }
+
+fn fw_info_report(version: u16, build_date: &[u8; 11], build_time: &[u8; 8]) -> Vec<u8> {
+    let mut report = vec![0u8; 64];
+    report[0] = crate::protocol::REPORT_ID_FIRMWARE_INFO;
+    report[1..12].copy_from_slice(build_date);
+    report[12..20].copy_from_slice(build_time);
+    let le = version.to_le_bytes();
+    report[44] = le[0];
+    report[45] = le[1];
+    report
+}
+
+#[test]
+fn verify_post_flash_firmware_retries_transient_errors_and_verifies_version_and_dates() {
+    let hid = MockHid::default();
+    hid.push_raw(Err(CoreError::Hid("device re-enumerating".into())));
+    hid.push_raw(Err(CoreError::FirmwareInfoTooShort(0)));
+    hid.push_raw(Ok(fw_info_report(0x0630, b"Aug 12 2025", b"16:04:00")));
+
+    let updater = DualSenseUpdater::with_sleeper_and_config(
+        hid,
+        RecordingSleeper::default(),
+        UpdateConfig::default(),
+    );
+    let result = updater.verify_post_flash_firmware(0x0630);
+    assert!(result.is_verified());
+    assert_eq!(result.status, PostFlashVerificationStatus::Verified);
+    assert_eq!(result.expected_version, 0x0630);
+    assert_eq!(result.attempts, 3);
+    assert_eq!(result.last_error, None);
+    let info = result.firmware_info.expect("firmware info present");
+    assert_eq!(info.firmware_version, 0x0630);
+    assert_eq!(info.build_date, "Aug 12 2025");
+    assert_eq!(info.build_time, "16:04:00");
+    assert_eq!(
+        updater.sleeper.sleeps.borrow().as_slice(),
+        &[
+            DEFAULT_POST_FLASH_RETRY_DELAY,
+            DEFAULT_POST_FLASH_RETRY_DELAY
+        ]
+    );
+}
+
+#[test]
+fn verify_post_flash_firmware_reports_version_mismatch_and_unreachable() {
+    let hid_mismatch = MockHid::default();
+    hid_mismatch.push_raw(Ok(fw_info_report(0x0520, b"May 01 2025", b"14:30:00")));
+    let updater_mismatch = DualSenseUpdater::with_sleeper_and_config(
+        hid_mismatch,
+        RecordingSleeper::default(),
+        UpdateConfig::default(),
+    );
+    let mismatch = updater_mismatch.verify_post_flash_firmware_with_retry(
+        0x0630,
+        4,
+        Duration::from_millis(50),
+    );
+    assert!(!mismatch.is_verified());
+    assert_eq!(
+        mismatch.status,
+        PostFlashVerificationStatus::VersionMismatch
+    );
+    assert_eq!(mismatch.attempts, 1);
+    assert_eq!(
+        mismatch.firmware_info.as_ref().map(|i| i.firmware_version),
+        Some(0x0520)
+    );
+    assert!(updater_mismatch.sleeper.sleeps.borrow().is_empty());
+
+    let hid_unreachable = MockHid::default();
+    hid_unreachable.push_raw(Err(CoreError::Hid("usb disconnected".into())));
+    hid_unreachable.push_raw(Err(CoreError::Hid("usb still gone".into())));
+    let updater_unreachable = DualSenseUpdater::with_sleeper_and_config(
+        hid_unreachable,
+        RecordingSleeper::default(),
+        UpdateConfig::default(),
+    );
+    let unreachable = updater_unreachable.verify_post_flash_firmware_with_retry(
+        0x0630,
+        2,
+        Duration::from_millis(25),
+    );
+    assert!(!unreachable.is_verified());
+    assert_eq!(unreachable.status, PostFlashVerificationStatus::Unreachable);
+    assert_eq!(unreachable.attempts, 2);
+    assert_eq!(unreachable.firmware_info, None);
+    assert!(
+        unreachable
+            .last_error
+            .as_deref()
+            .unwrap()
+            .contains("usb still gone")
+    );
+    assert_eq!(
+        updater_unreachable.sleeper.sleeps.borrow().as_slice(),
+        &[Duration::from_millis(25)]
+    );
+}

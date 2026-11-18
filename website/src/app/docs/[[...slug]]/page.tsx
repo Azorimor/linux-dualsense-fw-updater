@@ -16,6 +16,7 @@ import { notFound } from 'next/navigation';
 import { REPO_URL } from '@/lib/layout.shared';
 import {
   getDocGitHubUrl,
+  getDocsOgImageUrl,
   getPageActionMarkdownUrl,
   getStaticPageMarkdownUrl,
 } from '@/lib/llms-urls';
@@ -58,6 +59,8 @@ export async function generateMetadata(props: {
   const page = source.getPage(params.slug);
   if (!page) notFound();
 
+  const ogImageUrl = getDocsOgImageUrl(page.slugs);
+
   return {
     title: page.data.title,
     description: page.data.description,
@@ -65,6 +68,30 @@ export async function generateMetadata(props: {
       types: {
         'text/markdown': getStaticPageMarkdownUrl(page.url),
       },
+    },
+    openGraph: {
+      title: page.data.title,
+      description: page.data.description,
+      type: 'article',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: page.data.title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: page.data.title,
+      description: page.data.description,
+      images: [
+        {
+          url: ogImageUrl,
+          alt: page.data.title,
+        },
+      ],
     },
   };
 }

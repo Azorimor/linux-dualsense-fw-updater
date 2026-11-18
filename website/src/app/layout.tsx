@@ -16,6 +16,34 @@ export const metadata: Metadata = {
   },
   description:
     'Unofficial, community-maintained Linux KDE Kirigami desktop utility for inspecting and updating PlayStation DualSense controller firmware over USB HID. Not affiliated with Sony Interactive Entertainment or PlayStation.',
+  openGraph: {
+    type: 'website',
+    siteName: 'Unofficial Linux DualSense Firmware Updater',
+    locale: 'en_US',
+    title: 'Unofficial Linux DualSense Firmware Updater',
+    description:
+      'Unofficial, community-maintained Linux KDE Kirigami desktop utility for inspecting and updating PlayStation DualSense controller firmware over USB HID. Not affiliated with Sony Interactive Entertainment or PlayStation.',
+    images: [
+      {
+        url: `${BASE_PATH}/og/image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'Unofficial Linux DualSense Firmware Updater',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Unofficial Linux DualSense Firmware Updater',
+    description:
+      'Unofficial, community-maintained Linux KDE Kirigami desktop utility for inspecting and updating PlayStation DualSense controller firmware over USB HID. Not affiliated with Sony Interactive Entertainment or PlayStation.',
+    images: [
+      {
+        url: `${BASE_PATH}/og/image.png`,
+        alt: 'Unofficial Linux DualSense Firmware Updater',
+      },
+    ],
+  },
   manifest: `${BASE_PATH}/site.webmanifest`,
   icons: {
     icon: [

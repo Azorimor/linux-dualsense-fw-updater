@@ -1,0 +1,56 @@
+# Getting Started & Installation (/docs/getting-started)
+
+## Option 1: AppImage (Recommended for Linux Users) [#option-1-appimage-recommended-for-linux-users]
+
+Pre-built x86_64 AppImage releases and `.tar.gz` archives are available via the [Download](/download) page (requiring safety acknowledgment) and on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases).
+
+```sh
+chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
+./linux-dualsense-fw-updater-*-x86_64.AppImage
+```
+
+> [!INFO] Wired USB Connection Required
+>
+> Firmware inspection and updates operate over USB HID only. Connect your DualSense controller using a reliable USB-C data cable (not Bluetooth, and avoid unpowered USB hubs).
+
+### Desktop Runtime Requirements [#desktop-runtime-requirements]
+
+If your desktop environment does not already include KDE Frameworks 6 QML modules, install your distribution&apos;s Qt 6 Kirigami runtime package (for example `kirigami` / `qml6-module-org-kde-kirigami` and `qqc2-desktop-style`). When `org.kde.desktop` is unavailable, the application automatically falls back to Qt&apos;s `Fusion` style (or respects `QT_QUICK_CONTROLS_STYLE`).
+
+---
+
+## Option 2: Build from Source [#option-2-build-from-source]
+
+### Prerequisites [#prerequisites]
+
+- **Rust toolchain** (Edition 2024) and a **C++17 / `clang` toolchain** (for `cxx` / `cxx-qt-build`)
+- **`mold` linker** (configured for Linux targets in `.cargo/config.toml`)
+- **Qt 6** development packages (`Qt6Core`, `Qt6Gui`, `Qt6Qml`, `Qt6Quick`, `Qt6QuickControls2`, and `qmake6`)
+- **KDE Frameworks 6** QML modules (`Kirigami` and `qqc2-desktop-style`)
+- **`hidapi`** development library (`libhidapi-dev` / `hidapi`) and `pkg-config`
+
+### Build & Run [#build--run]
+
+`build.rs` automatically picks `/usr/bin/qmake6` when `QMAKE` is unset. If `qmake6` lives elsewhere on your distribution, export `QMAKE` explicitly:
+
+```sh
+git clone https://github.com/Azorimor/linux-dualsense-fw-updater.git
+cd linux-dualsense-fw-updater
+export QMAKE=/usr/bin/qmake6
+cargo build --release
+./target/release/dualsense-updater
+```
+
+Enable verbose HID and update diagnostics via `RUST_LOG`:
+
+```sh
+RUST_LOG=debug ./target/release/dualsense-updater
+```
+
+### Headless Workspace Tests [#headless-workspace-tests]
+
+All unit and integration tests across the 3-crate workspace (`dualsense-core`, `dualsense-ui`, and `dualsense-updater`) run headlessly without a display server or physical controller:
+
+```sh
+cargo test --workspace
+```

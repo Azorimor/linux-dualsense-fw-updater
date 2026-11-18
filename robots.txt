@@ -1,0 +1,4 @@
+User-Agent: *
+Allow: /
+
+Sitemap: https://azorimor.github.io/linux-dualsense-fw-updater/sitemap.xml

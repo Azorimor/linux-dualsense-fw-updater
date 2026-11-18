@@ -68,7 +68,7 @@ BINARY_PATH="$1"
 TAG="$2"
 OUT_DIR="$3"
 
-APP_ID="dev.dualsense.updater"
+APP_ID="io.github.azorimor.linux_dualsense_fw_updater"
 ICON_SIZES=(16x16 22x22 32x32 48x48 64x64 128x128 256x256 512x512)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

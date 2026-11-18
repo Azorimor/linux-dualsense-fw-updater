@@ -134,7 +134,7 @@ fn qml_files_exist_and_declare_bound_component_behavior() {
     assert!(about_qml.contains("pragma ComponentBehavior: Bound"));
     assert!(flash_report_qml.contains("pragma ComponentBehavior: Bound"));
 
-    assert!(main_qml.contains("import dev.dualsense.updater"));
+    assert!(main_qml.contains("import io.github.azorimor.linux_dualsense_fw_updater"));
     assert!(main_qml.contains("import org.kde.kirigami as Kirigami"));
     assert!(main_qml.contains("DualSenseBridge {"));
     assert!(main_qml.contains("id: updater"));

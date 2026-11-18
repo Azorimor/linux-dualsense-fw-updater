@@ -50,7 +50,7 @@ Download the latest release artifacts from [GitHub Releases](https://github.com/
   chmod +x linux-dualsense-fw-updater-<tag>-x86_64.AppImage
   ./linux-dualsense-fw-updater-<tag>-x86_64.AppImage
   ```
-  The AppImage embeds `dev.dualsense.updater.desktop`, `.DirIcon`, and the hicolor PNG/SVG icon set (`16x16`–`512x512` + `scalable`) for desktop launcher / AppImage integration, and the window itself embeds multi-resolution Qt resource icons as a fallback.
+  The AppImage embeds `io.github.azorimor.linux_dualsense_fw_updater.desktop`, `.DirIcon`, and the hicolor PNG/SVG icon set (`16x16`–`512x512` + `scalable`) for desktop launcher / AppImage integration, and the window itself embeds multi-resolution Qt resource icons as a fallback.
 - **Tarball (`x86_64`)**:
   ```sh
   tar -xzf linux-dualsense-fw-updater-<tag>-x86_64.tar.gz
@@ -118,7 +118,7 @@ Default `cargo test --workspace` and GitHub Actions CI omit `--features real-fir
 
 ### Desktop Entry & Icon Installation (From Source)
 
-After installing or placing `dualsense-updater` on your `PATH` (or passing `--exec`), install the XDG desktop entry (`dev.dualsense.updater`) and hicolor icon theme (`16x16`–`512x512` PNGs and `scalable/icon.svg`) using:
+After installing or placing `dualsense-updater` on your `PATH` (or passing `--exec`), install the XDG desktop entry (`io.github.azorimor.linux_dualsense_fw_updater`) and hicolor icon theme (`16x16`–`512x512` PNGs and `scalable/icon.svg`) using:
 
 ```sh
 ./packaging/linux/install-desktop.sh              # installs into ~/.local/share (default)
@@ -136,7 +136,7 @@ After building the release binary, package both the portable `.tar.gz` and `.App
 ./scripts/package-appimage.sh target/release/dualsense-updater v0.1.0 dist
 ```
 
-Desktop integration assets live in `packaging/linux/dev.dualsense.updater.desktop`, `packaging/linux/install-desktop.sh`, and `packaging/linux/icons/` (`16x16`, `22x22`, `32x32`, `48x48`, `64x64`, `128x128`, `256x256`, `512x512` PNGs plus `scalable/icon.svg`). `scripts/package-appimage.sh` bundles the hicolor icons, `.DirIcon`, `.desktop` file, and `install-desktop.sh` into the `.tar.gz` and `.AppImage` (`AppDir`).
+Desktop integration assets live in `packaging/linux/io.github.azorimor.linux_dualsense_fw_updater.desktop`, `packaging/linux/install-desktop.sh`, and `packaging/linux/icons/` (`16x16`, `22x22`, `32x32`, `48x48`, `64x64`, `128x128`, `256x256`, `512x512` PNGs plus `scalable/icon.svg`). `scripts/package-appimage.sh` bundles the hicolor icons, `.DirIcon`, `.desktop` file, and `install-desktop.sh` into the `.tar.gz` and `.AppImage` (`AppDir`).
 
 ## Testing, Coverage, and Structural Checks
 

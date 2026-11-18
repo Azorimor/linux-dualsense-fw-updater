@@ -5,7 +5,7 @@
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};
 use dualsense_updater::cli::{CliAction, parse_cli_args, usage_text};
 
-const MAIN_QML_URL: &str = "qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml";
+const MAIN_QML_URL: &str = "qrc:/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/qml/Main.qml";
 
 fn main() {
     let cli_options = match parse_cli_args(std::env::args_os()) {

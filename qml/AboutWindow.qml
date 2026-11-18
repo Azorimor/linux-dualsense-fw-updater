@@ -34,7 +34,7 @@ QQC2.ApplicationWindow {
             spacing: Kirigami.Units.mediumSpacing
 
             Kirigami.Icon {
-                source: "qrc:/qt/qml/dev/dualsense/updater/packaging/linux/icons/256x256/icon.png"
+                source: "qrc:/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/256x256/icon.png"
                 fallback: "input-gamepad"
                 Layout.preferredWidth: Kirigami.Units.iconSizes.huge
                 Layout.preferredHeight: Kirigami.Units.iconSizes.huge

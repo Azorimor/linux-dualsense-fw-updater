@@ -75,6 +75,10 @@ fn desktop_icons_are_canonical_and_free_of_duplicates() {
         !repo_path("packaging/linux/dev.dualsense.updater.svg").exists(),
         "legacy packaging/linux/dev.dualsense.updater.svg should be removed"
     );
+    assert!(
+        !repo_path("packaging/linux/dev.dualsense.updater.desktop").exists(),
+        "legacy packaging/linux/dev.dualsense.updater.desktop should be removed"
+    );
 
     for (size_dir, expected_px) in ICON_SIZES {
         let icon_path = repo_path(&format!("packaging/linux/icons/{size_dir}/icon.png"));
@@ -99,19 +103,24 @@ fn desktop_icons_are_canonical_and_free_of_duplicates() {
 
 #[test]
 fn desktop_entry_and_qt_integration_match_app_id_and_icons() {
-    assert_eq!(DESKTOP_FILE_ID, "dev.dualsense.updater");
+    assert_eq!(
+        DESKTOP_FILE_ID,
+        "io.github.azorimor.linux_dualsense_fw_updater"
+    );
     assert_eq!(
         EMBEDDED_APP_ICON_URL,
-        "qrc:/qt/qml/dev/dualsense/updater/packaging/linux/icons/256x256/icon.png"
+        "qrc:/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/256x256/icon.png"
     );
 
-    let desktop = fs::read_to_string(repo_path("packaging/linux/dev.dualsense.updater.desktop"))
-        .expect("read desktop file");
+    let desktop = fs::read_to_string(repo_path(
+        "packaging/linux/io.github.azorimor.linux_dualsense_fw_updater.desktop",
+    ))
+    .expect("read desktop file");
     assert!(desktop.contains("[Desktop Entry]"));
     assert!(desktop.contains("Type=Application\n"));
     assert!(desktop.contains("Name=DualSense Firmware Updater\n"));
     assert!(desktop.contains("Exec=dualsense-updater\n"));
-    assert!(desktop.contains("Icon=dev.dualsense.updater\n"));
+    assert!(desktop.contains("Icon=io.github.azorimor.linux_dualsense_fw_updater\n"));
     assert!(desktop.contains("StartupWMClass=dualsense-updater\n"));
     assert!(desktop.contains("Terminal=false\n"));
     assert!(desktop.contains("StartupNotify=true\n"));
@@ -124,13 +133,17 @@ fn desktop_entry_and_qt_integration_match_app_id_and_icons() {
         let rel_png = format!("packaging/linux/icons/{size_dir}/icon.png");
         assert!(build_rs.contains(&rel_png), "build.rs missing {rel_png}");
         assert!(
-            app_icon_cpp.contains(&format!(":/qt/qml/dev/dualsense/updater/{rel_png}")),
+            app_icon_cpp.contains(&format!(
+                ":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/{rel_png}"
+            )),
             "src/app_icon.cpp missing qrc path for {rel_png}"
         );
     }
     let rel_svg = "packaging/linux/icons/scalable/icon.svg";
     assert!(build_rs.contains(rel_svg));
-    assert!(app_icon_cpp.contains(&format!(":/qt/qml/dev/dualsense/updater/{rel_svg}")));
+    assert!(app_icon_cpp.contains(&format!(
+        ":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/{rel_svg}"
+    )));
 
     let main_rs = fs::read_to_string(repo_path("src/main.rs")).expect("read src/main.rs");
     assert!(main_rs.contains("QGuiApplication::set_desktop_file_name"));
@@ -162,16 +175,16 @@ fn install_desktop_script_installs_and_uninstalls_all_xdg_assets() {
 
     let desktop_installed = temp
         .0
-        .join("share/applications/dev.dualsense.updater.desktop");
+        .join("share/applications/io.github.azorimor.linux_dualsense_fw_updater.desktop");
     assert!(desktop_installed.is_file());
     let desktop_contents =
         fs::read_to_string(&desktop_installed).expect("read installed desktop file");
     assert!(desktop_contents.contains("Exec=/opt/dualsense/dualsense-updater\n"));
-    assert!(desktop_contents.contains("Icon=dev.dualsense.updater\n"));
+    assert!(desktop_contents.contains("Icon=io.github.azorimor.linux_dualsense_fw_updater\n"));
 
     for (size_dir, _) in ICON_SIZES {
         let icon_dest = temp.0.join(format!(
-            "share/icons/hicolor/{size_dir}/apps/dev.dualsense.updater.png"
+            "share/icons/hicolor/{size_dir}/apps/io.github.azorimor.linux_dualsense_fw_updater.png"
         ));
         assert!(
             icon_dest.is_file(),
@@ -179,9 +192,9 @@ fn install_desktop_script_installs_and_uninstalls_all_xdg_assets() {
             icon_dest.display()
         );
     }
-    let svg_dest = temp
-        .0
-        .join("share/icons/hicolor/scalable/apps/dev.dualsense.updater.svg");
+    let svg_dest = temp.0.join(
+        "share/icons/hicolor/scalable/apps/io.github.azorimor.linux_dualsense_fw_updater.svg",
+    );
     assert!(svg_dest.is_file(), "missing installed SVG icon");
 
     let uninstall = Command::new("bash")
@@ -201,7 +214,7 @@ fn install_desktop_script_installs_and_uninstalls_all_xdg_assets() {
     assert!(!svg_dest.exists());
     for (size_dir, _) in ICON_SIZES {
         let icon_dest = temp.0.join(format!(
-            "share/icons/hicolor/{size_dir}/apps/dev.dualsense.updater.png"
+            "share/icons/hicolor/{size_dir}/apps/io.github.azorimor.linux_dualsense_fw_updater.png"
         ));
         assert!(!icon_dest.exists());
     }
@@ -249,7 +262,9 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
     let tar_entries = String::from_utf8_lossy(&tar_list.stdout);
     let prefix = "linux-dualsense-fw-updater-v0.0.0-test-x86_64";
     assert!(tar_entries.contains(&format!("{prefix}/dualsense-updater\n")));
-    assert!(tar_entries.contains(&format!("{prefix}/dev.dualsense.updater.desktop\n")));
+    assert!(tar_entries.contains(&format!(
+        "{prefix}/io.github.azorimor.linux_dualsense_fw_updater.desktop\n"
+    )));
     assert!(tar_entries.contains(&format!("{prefix}/install-desktop.sh\n")));
     assert!(tar_entries.contains(&format!("{prefix}/icons/scalable/icon.svg\n")));
     assert!(tar_entries.contains(&format!("{prefix}/THIRD_PARTY_NOTICES.txt\n")));
@@ -267,7 +282,7 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
     assert!(appdir.join("usr/bin/dualsense-updater").is_file());
     assert!(
         appdir
-            .join("usr/share/applications/dev.dualsense.updater.desktop")
+            .join("usr/share/applications/io.github.azorimor.linux_dualsense_fw_updater.desktop")
             .is_file()
     );
     assert!(appdir.join(".DirIcon").is_file());
@@ -288,14 +303,14 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
     }
     assert!(
         appdir
-            .join("usr/share/icons/hicolor/scalable/apps/dev.dualsense.updater.svg")
+            .join("usr/share/icons/hicolor/scalable/apps/io.github.azorimor.linux_dualsense_fw_updater.svg")
             .is_file()
     );
     for (size_dir, _) in ICON_SIZES {
         assert!(
             appdir
                 .join(format!(
-                    "usr/share/icons/hicolor/{size_dir}/apps/dev.dualsense.updater.png"
+                    "usr/share/icons/hicolor/{size_dir}/apps/io.github.azorimor.linux_dualsense_fw_updater.png"
                 ))
                 .is_file()
         );

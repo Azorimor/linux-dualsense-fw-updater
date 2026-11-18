@@ -129,7 +129,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ├── assets/                     # Brand SVGs (`logo.svg`, `logo-symbol.svg`), Vectorcraft source, & GUI screenshots (`assets/desktop/` -> `packaging/linux/icons/`, `assets/web/` -> `website/public/`)
 ├── packaging/                  # Linux desktop integration assets
 │   └── linux/
-│       ├── dev.dualsense.updater.desktop # XDG desktop entry (`dev.dualsense.updater`)
+│       ├── io.github.azorimor.linux_dualsense_fw_updater.desktop # XDG desktop entry (`io.github.azorimor.linux_dualsense_fw_updater`)
 │       ├── install-desktop.sh  # User/system XDG desktop entry & hicolor icon installer (`--user`, `--system`, `--prefix`, `--exec`, `--uninstall`)
 │       └── icons/              # Canonical app icons (`16x16`..`512x512/icon.png` + `scalable/icon.svg`; moved from `assets/desktop`)
 ├── scripts/
@@ -172,7 +172,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │   ├── native_app.cpp          # C++ implementation instantiating QApplication for native desktop file pickers
 │   ├── app_icon.rs             # cxx-qt FFI wrapper, `DESKTOP_FILE_ID`, `EMBEDDED_APP_ICON_URL`, & `qml_imports_path()`
 │   ├── app_icon.h              # C++ header for `configure_application_window_icon()` & `qt_qml_imports_path()`
-│   ├── app_icon.cpp            # Theme icon lookup (`dev.dualsense.updater`), embedded icon fallback, & `QLibraryInfo::QmlImportsPath` helper
+│   ├── app_icon.cpp            # Theme icon lookup (`io.github.azorimor.linux_dualsense_fw_updater`), embedded icon fallback, & `QLibraryInfo::QmlImportsPath` helper
 │   ├── quick_style.rs          # Runtime `org.kde.desktop` QML module probe with automatic `Fusion` fallback & env override support
 │   ├── qt_bridge.rs            # cxx-qt DualSenseBridge QObject binding DefaultAppRuntime & licensesText to QML
 │   ├── snapshot_adapter.rs     # Pure Rust AdaptedSnapshot & file:// URL parser
@@ -180,7 +180,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │   ├── license_report.rs       # Cargo.lock & crate metadata parser/formatter for third-party notices
 │   └── tests/                  # Extracted unit tests (cli_test.rs, native_app_test.rs, snapshot_adapter_test.rs, snapshot_state_test.rs, licenses_test.rs, quick_style_test.rs)
 ├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs, desktop_icon_test.rs, native_app_test.rs)
-└── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
+└── qml/                        # Declarative KDE Kirigami QML views (io.github.azorimor.linux_dualsense_fw_updater module)
     ├── Main.qml                # Kirigami.ApplicationWindow + MenuBar + 6-view StackLayout wizard
     ├── StepIndicator.qml       # 4-step progress breadcrumb header
     ├── DetectControllerStep.qml # Modular Step 0 view: USB/Bluetooth detection, multi-device list, battery & update status
@@ -208,7 +208,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 - **Headless CI compatibility:** All 3 workspace crates decouple business logic and snapshot adaptation from Qt event loops, display servers, and physical DualSense hardware so `cargo test --workspace` runs completely headlessly.
 - **Kirigami style & QML linting:** `src/main.rs` + `src/quick_style.rs` select `org.kde.desktop` when present in QML import paths and fall back to `Fusion` otherwise (unless `QT_QUICK_CONTROLS_STYLE` is set). Keep QML strictly typed (`pragma ComponentBehavior: Bound`, `required property` on delegates) so `qmllint` passes with zero warnings.
 - **Linux system dev libraries:** `libhidapi-dev`, `libudev-dev`, `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, `pkg-config`, and Qt 6 dev packages.
-- **Offscreen smoke check:** Running with `QT_QPA_PLATFORM=offscreen` verifies `QQmlApplicationEngine` loads `qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml` cleanly without X11/Wayland (using `timeout` because the Qt event loop stays open until closed).
+- **Offscreen smoke check:** Running with `QT_QPA_PLATFORM=offscreen` verifies `QQmlApplicationEngine` loads `qrc:/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/qml/Main.qml` cleanly without X11/Wayland (using `timeout` because the Qt event loop stays open until closed).
 
 ---
 

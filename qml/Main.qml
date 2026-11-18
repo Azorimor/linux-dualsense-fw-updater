@@ -9,7 +9,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import dev.dualsense.updater
+import io.github.azorimor.linux_dualsense_fw_updater
 
 Kirigami.ApplicationWindow {
     id: root

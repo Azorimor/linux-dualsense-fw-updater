@@ -14,7 +14,11 @@ import {
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { REPO_URL } from '@/lib/layout.shared';
-import { getDocGitHubUrl, getStaticPageMarkdownUrl } from '@/lib/llms-urls';
+import {
+  getDocGitHubUrl,
+  getPageActionMarkdownUrl,
+  getStaticPageMarkdownUrl,
+} from '@/lib/llms-urls';
 import { getMDXComponents } from '@/mdx-components';
 
 export default async function Page(props: {
@@ -25,7 +29,7 @@ export default async function Page(props: {
   if (!page) notFound();
 
   const MDX = page.data.body;
-  const markdownUrl = getStaticPageMarkdownUrl(page.url);
+  const markdownUrl = getPageActionMarkdownUrl(page.url);
   const githubUrl = getDocGitHubUrl(REPO_URL, page.path);
 
   return (

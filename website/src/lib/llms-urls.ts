@@ -114,14 +114,24 @@ export function toStaticLlmsUrl(
 }
 
 /**
- * Build the static-export `.md` URL for a docs page (including `basePath`).
+ * Build the unprefixed `.md` path for Fumadocs UI `MarkdownCopyButton` and
+ * `ViewOptionsPopover`, which automatically prepend `basePath` via
+ * `import.meta.env.BASE_URL`.
+ */
+export function getPageActionMarkdownUrl(pageUrl: string): string {
+  return `/llms.mdx${getMarkdownPath(pageUrl)}`;
+}
+
+/**
+ * Build the static-export `.md` URL for a docs page (including `basePath`),
+ * used in `<link rel="alternate" type="text/markdown">` metadata.
  */
 export function getStaticPageMarkdownUrl(
   pageUrl: string,
   basePath = SITE_BASE_PATH,
 ): string {
   const prefix = basePath.replace(/\/+$/, '');
-  return `${prefix}/llms.mdx${getMarkdownPath(pageUrl)}`;
+  return `${prefix}${getPageActionMarkdownUrl(pageUrl)}`;
 }
 
 /**

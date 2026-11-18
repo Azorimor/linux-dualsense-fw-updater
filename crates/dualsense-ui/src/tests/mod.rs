@@ -10,8 +10,8 @@ mod viewmodel_disconnect_test;
 mod viewmodel_flow_test;
 
 use dualsense_core::{
-    DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FirmwareCatalog, FirmwareInfo, HidDeviceInfo,
-    REPORT_ID_FIRMWARE_INFO, decode_ds5_color, resolve_controller_target,
+    DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FirmwareCatalog, FirmwareInfo, HidBusType,
+    HidDeviceInfo, REPORT_ID_FIRMWARE_INFO, decode_ds5_color, resolve_controller_target,
 };
 
 use crate::viewmodel::DeviceInspection;
@@ -30,6 +30,7 @@ pub(super) fn sample_hid_device(path: &str, pid: u16, serial: &str) -> HidDevice
             "DualSense Wireless Controller".to_string()
         },
         serial_number: serial.to_string(),
+        bus_type: HidBusType::Usb,
     }
 }
 

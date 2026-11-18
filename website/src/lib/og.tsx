@@ -19,8 +19,9 @@ const iconBase64Promise = readFile(
 );
 
 /**
- * Render a 1200x630 PNG Open Graph card using `next/og` `ImageResponse` and the
- * existing project icon from `website/public/icon-192x192.png`.
+ * Render a 1200x630 PNG Open Graph card matching the website's dark `black.css`
+ * theme (`#050505` background, neutral monochrome palette) with the existing
+ * project icon from `website/public/icon-192x192.png`.
  */
 export async function createOgImageResponse({
   title,
@@ -42,10 +43,9 @@ export async function createOgImageResponse({
           width: '100%',
           height: '100%',
           padding: '56px 64px',
-          background:
-            'linear-gradient(135deg, #090d16 0%, #111827 58%, #0f172a 100%)',
-          color: '#f8fafc',
-          borderBottom: '12px solid #3b82f6',
+          backgroundColor: '#050505',
+          color: '#fafafa',
+          borderBottom: '8px solid #212121',
         }}
       >
         <div
@@ -61,13 +61,16 @@ export async function createOgImageResponse({
             width={56}
             height={56}
             alt=""
-            style={{ borderRadius: '12px' }}
+            style={{
+              borderRadius: '12px',
+              border: '1px solid rgba(128, 128, 128, 0.25)',
+            }}
           />
           <div
             style={{
               fontSize: '26px',
               fontWeight: 600,
-              color: '#93c5fd',
+              color: '#e5e5e5',
             }}
           >
             {OG_SITE_NAME}
@@ -86,7 +89,7 @@ export async function createOgImageResponse({
               fontSize: '54px',
               fontWeight: 800,
               lineHeight: 1.15,
-              color: '#f8fafc',
+              color: '#fafafa',
             }}
           >
             {title}
@@ -96,7 +99,7 @@ export async function createOgImageResponse({
               style={{
                 fontSize: '28px',
                 lineHeight: 1.4,
-                color: '#cbd5e1',
+                color: '#999999',
               }}
             >
               {description}
@@ -110,15 +113,15 @@ export async function createOgImageResponse({
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
-            borderTop: '1px solid rgba(148, 163, 184, 0.28)',
+            borderTop: '1px solid rgba(128, 128, 128, 0.2)',
             paddingTop: '20px',
             fontSize: '22px',
           }}
         >
-          <div style={{ color: '#94a3b8' }}>
+          <div style={{ color: '#999999' }}>
             Linux • KDE Kirigami + Rust • USB HID
           </div>
-          <div style={{ color: '#60a5fa' }}>
+          <div style={{ color: '#d4d4d4' }}>
             azorimor.github.io/linux-dualsense-fw-updater
           </div>
         </div>

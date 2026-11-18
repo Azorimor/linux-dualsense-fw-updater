@@ -2,7 +2,86 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+export const SITE_ORIGIN = 'https://azorimor.github.io';
 export const SITE_BASE_PATH = '/linux-dualsense-fw-updater';
+
+/**
+ * Build a full canonical URL for an HTML page under GitHub Pages `basePath`
+ * matching Next.js `trailingSlash: true`.
+ */
+export function toCanonicalPageUrl(
+  routePath: string,
+  origin = SITE_ORIGIN,
+  basePath = SITE_BASE_PATH,
+): string {
+  const cleanOrigin = origin.replace(/\/+$/, '');
+  const cleanBase = basePath.replace(/\/+$/, '');
+  const trimmed = routePath.trim().replace(/^\/+|\/+$/g, '');
+  return trimmed
+    ? `${cleanOrigin}${cleanBase}/${trimmed}/`
+    : `${cleanOrigin}${cleanBase}/`;
+}
+
+/**
+ * Build a full URL for a root static asset (such as `/sitemap.xml` or
+ * `/robots.txt`) under GitHub Pages `basePath`.
+ */
+export function toSiteAssetUrl(
+  assetPath: string,
+  origin = SITE_ORIGIN,
+  basePath = SITE_BASE_PATH,
+): string {
+  const cleanOrigin = origin.replace(/\/+$/, '');
+  const cleanBase = basePath.replace(/\/+$/, '');
+  const cleanAsset = assetPath.trim().replace(/^\/+/, '');
+  return `${cleanOrigin}${cleanBase}/${cleanAsset}`;
+}
+
+export interface SitemapEntry {
+  url: string;
+  changeFrequency: 'weekly';
+  priority: number;
+}
+
+/**
+ * Build deterministic sitemap entries for the home page, download page, and all
+ * Fumadocs documentation pages.
+ */
+export function buildSitemapEntries(
+  docUrls: readonly string[],
+  origin = SITE_ORIGIN,
+  basePath = SITE_BASE_PATH,
+): SitemapEntry[] {
+  const entries: SitemapEntry[] = [
+    {
+      url: toCanonicalPageUrl('/', origin, basePath),
+      changeFrequency: 'weekly',
+      priority: 1,
+    },
+    {
+      url: toCanonicalPageUrl('/download', origin, basePath),
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+  ];
+
+  const seen = new Set(entries.map((entry) => entry.url));
+  for (const docUrl of docUrls) {
+    const canonical = toCanonicalPageUrl(docUrl, origin, basePath);
+    if (seen.has(canonical)) {
+      continue;
+    }
+    seen.add(canonical);
+    const isDocsRoot = docUrl.replace(/\/+$/, '') === '/docs';
+    entries.push({
+      url: canonical,
+      changeFrequency: 'weekly',
+      priority: isDocsRoot ? 0.9 : 0.8,
+    });
+  }
+
+  return entries;
+}
 
 /**
  * Convert a Fumadocs page URL (e.g. `/docs` or `/docs/getting-started`) to the

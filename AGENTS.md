@@ -160,11 +160,16 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │       │   ├── http.rs         # UreqHttpClient (ureq + rustls) with streaming progress & cancellation
 │       │   ├── flash_report.rs # Anonymized OS/hardware/flash metrics & prefilled GitHub issue URL builder
 │       │   ├── error_map.rs    # FriendlyError plain-English mapping for CoreError / UpdateFailure
+│       │   ├── no_flash.rs     # --no-flash simulation enumerator, dummy BDM-050 device, and simulated update
 │       │   └── tests/          # Extracted unit tests (*_test.rs)
 │       └── tests/              # Integration tests (controller_flows_test.rs, disconnect_monitor_test.rs, http_live_test.rs)
 ├── src/                        # Root `dualsense-updater` Qt6/Kirigami desktop crate
-│   ├── lib.rs                  # Exposes qt_bridge, app_icon, quick_style, snapshot_adapter, licenses, & license_report
-│   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, desktop ID/window icon, runtime org.kde.desktop/Fusion style selection
+│   ├── lib.rs                  # Exposes cli, native_app, qt_bridge, app_icon, quick_style, snapshot_adapter, licenses, & license_report
+│   ├── main.rs                 # CLI parsing (--no-flash/--help), AppImage portal theme, QApplication & QQmlApplicationEngine setup, style selection
+│   ├── cli.rs                  # Command-line parser (--no-flash[=success|error], -h/--help) forwarding remaining args to Qt
+│   ├── native_app.rs           # cxx wrapper around QApplication + AppImage xdgdesktopportal platformtheme helper
+│   ├── native_app.h            # C++ header for NativeApplication QApplication wrapper
+│   ├── native_app.cpp          # C++ implementation instantiating QApplication for native desktop file pickers
 │   ├── app_icon.rs             # cxx-qt FFI wrapper, `DESKTOP_FILE_ID`, `EMBEDDED_APP_ICON_URL`, & `qml_imports_path()`
 │   ├── app_icon.h              # C++ header for `configure_application_window_icon()` & `qt_qml_imports_path()`
 │   ├── app_icon.cpp            # Theme icon lookup (`dev.dualsense.updater`), embedded icon fallback, & `QLibraryInfo::QmlImportsPath` helper
@@ -173,8 +178,8 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │   ├── snapshot_adapter.rs     # Pure Rust AdaptedSnapshot & file:// URL parser
 │   ├── licenses.rs             # Bundled license text loader & query helpers
 │   ├── license_report.rs       # Cargo.lock & crate metadata parser/formatter for third-party notices
-│   └── tests/                  # Extracted unit tests (snapshot_adapter_test.rs, snapshot_state_test.rs, licenses_test.rs, quick_style_test.rs)
-├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs, desktop_icon_test.rs)
+│   └── tests/                  # Extracted unit tests (cli_test.rs, native_app_test.rs, snapshot_adapter_test.rs, snapshot_state_test.rs, licenses_test.rs, quick_style_test.rs)
+├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs, desktop_icon_test.rs, native_app_test.rs)
 └── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
     ├── Main.qml                # Kirigami.ApplicationWindow + MenuBar + 6-view StackLayout wizard
     ├── StepIndicator.qml       # 4-step progress breadcrumb header

@@ -98,6 +98,11 @@ QMAKE=/usr/bin/qmake6 cargo run --release
 
 Logging uses `env_logger` (default `info`). Set `RUST_LOG=debug` for verbose HID and update diagnostics.
 
+#### Debug Simulation & Native File Dialogs
+
+- **Simulation mode (`--no-flash[=success|error]`)**: Pass `--no-flash` (or `--no-flash=success` / `--no-flash=error`) to exercise the full wizard and progress/error UI without writing firmware to real hardware. When no physical USB DualSense is attached, a simulated `BDM-050` controller (`0x0400`) is provided automatically; real attached controllers remain readable for inspection while `0xF4` flash commands are blocked. Run `dualsense-updater --help` for full usage.
+- **Native desktop file picker**: The application runs on `QApplication` (`QtWidgets`) and automatically configures `QT_QPA_PLATFORMTHEME=xdgdesktopportal` inside AppImage bundles so open/save dialogs use the host desktop's native KDE/GTK/XDG portal file picker instead of Qt's fallback QML dialog.
+
 ### Opt-In Verification Against Real Sony Firmware Binaries
 
 To verify firmware parsing, header validation, catalog matching, and simulated HID chunking against real official Sony `.bin` firmware files (kept strictly local and never committed or run on GitHub CI):

@@ -1,6 +1,87 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.0.3] - 2026-11-18
+
+### Bug Fixes
+
+- **viewmodel:** Ignore stale background catalog results when already loaded ([e81fc15](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/e81fc15dbc6f2191272a679e4f9e0ae20ab28386))
+
+- **ui:** Fix StepIndicator and InlineMessage contrast under Fusion BasicTheme ([6f3b37c](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/6f3b37ce44ef2d3067283a88032578f80af682c2))
+
+
+### Build & Packaging
+
+- **appimage:** Bundle xdgdesktopportal platformtheme plugin ([ee1f05e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/ee1f05e8f197c9c255e338ca361cd1d55602715f))
+
+
+### Documentation
+
+- Add feature-ideas.md with upcoming firmware updater ideas ([06d5719](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/06d5719d12ccb263524b5a1b811c9b5a05635159))
+
+- Update AGENTS.md and README.md for safety and flow features ([11d1518](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/11d1518ff1c76e3463249a42771d14f88fde8b9e))
+
+- Document --no-flash, native file picker, and new modules ([fc78f23](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/fc78f239038180b432bea9584c1b8707932375a9))
+
+
+### Features
+
+- **ui:** Implement safety validation, battery, verification, and flow updates ([4281dac](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/4281dac22a4af3ac06a7b378b1fa1aaaa2e6afe8))
+
+- **no-flash:** Add NoFlashOutcome, NoFlashEnumerator, and simulated update ([1a32fec](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/1a32fecefc2f500786a6b0285319324737abe744))
+
+- **viewmodel:** Expose no_flash_active on AppState and UiSnapshot ([593e4ba](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/593e4ba74bf41c5437d6e545153e070ae20e7370))
+
+- **controller:** Wire --no-flash simulation into AppRuntime and tasks ([7a5a8cb](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/7a5a8cbae0e955ee742b78842a35e3307c1c50a7))
+
+- **image:** Add local firmware validation against connected controller ([8567dfa](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/8567dfa83391b44e159b9c9ac9365452c13928ec))
+
+- **transport:** Add HID bus type detection for USB vs Bluetooth ([2578a9d](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/2578a9d71b0a4656af63d157ca55bbf99c009164))
+
+- **protocol:** Parse DualSense USB battery status from input report 0x01 ([6948ecd](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/6948ecd8647edcd2f0dd2339eb4b5fccc92a6a29))
+
+- **updater:** Add bounded post-flash hardware verification ([d2d8c22](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/d2d8c2289913f8b24cbbd362dae1a37d2a038c87))
+
+- **bridge:** Expose safety, battery, verification, and cache properties ([26c5f66](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/26c5f665994aa8deda45bfa833a1343168f67b39))
+
+- **qml:** Split wizard steps and wire safety and flow UI ([8d41c93](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/8d41c93cdeb4a18576450ceba5bc2557c95c0bfa))
+
+- **app:** Instantiate QApplication for native file dialogs ([3a6a0f3](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/3a6a0f3e5ea617ec0e50d72cbd0c23983da53c1a))
+
+- **cli:** Add CLI argument parser for --no-flash and --help ([7b3427a](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/7b3427af9a21682bbe390fe469329c0bd1c3c984))
+
+- **bridge:** Expose no_flash_active and startup no-flash configuration ([8787f49](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/8787f49c72917de402415b02ee023dff44cf7410))
+
+- **app:** Wire CLI --no-flash parsing into main and QML indicator ([d1ca781](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/d1ca7812f47099629a22ff440ab8b9e12c34e4b4))
+
+
+### Miscellaneous
+
+- Merge main into feat/safety-and-flow ([c8189ed](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/c8189edb56a222589812dcfbe46655e9b0c407d9))
+
+
+### Refactor
+
+- **packaging:** Update app ID to io.github.azorimor.linux_dualsense_fw_updater ([45b7b46](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/45b7b460ed269425ec1f573e736e94909e05a99c))
+
+
+### Testing
+
+- **ui:** Update HidDeviceInfo fixtures for bus_type and add mock helpers ([b931955](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/b93195578031a55ebfc9ff5b98ffd7413f0ca25f))
+
+- **ui:** Add unit and integration tests for Block 1 and 2 flows ([16caba3](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/16caba30d3d5b2ce8c573ffe54f71264285f2334))
+
+- **ui:** Fix poll race in disconnect_monitor_test during flashing ([89006c5](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/89006c55c5db1db19b1f6909903750484ddd7cce))
+
+- **ui:** Add unit and integration tests for --no-flash simulation ([937adef](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/937adef63dfdc5b1d55141d7211103686ff6caf4))
+
+- **http:** Keep http_live_test strictly on local loopback servers ([85145f2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/85145f27045e1bbb68fee6c365de7428805ac576))
+
+- **app:** Add unit and integration tests for QApplication and portal theme ([c4ed98a](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/c4ed98a17684b1ee3ff7af81079f8bd50905b223))
+
+
+
+
 ## [0.0.2] - 2026-11-17
 
 ### CI / Workflows

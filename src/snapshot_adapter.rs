@@ -52,6 +52,14 @@ pub struct AdaptedSnapshot {
     pub has_unsupported_board_warning: bool,
     pub unsupported_board_warning: String,
 
+    pub bluetooth_only_detected: bool,
+    pub bluetooth_device_count: i32,
+    pub battery_summary: String,
+    pub has_battery_summary: bool,
+    pub battery_is_low: bool,
+    pub battery_is_critically_low: bool,
+    pub battery_warning: String,
+
     pub use_local_file: bool,
     pub target_ids: Vec<String>,
     pub target_labels: Vec<String>,
@@ -63,12 +71,19 @@ pub struct AdaptedSnapshot {
     pub selected_target_tested: bool,
     pub selected_target_up_to_date: bool,
     pub catalog_checked: bool,
+    pub catalog_checking: bool,
+    pub update_available: bool,
+    pub is_up_to_date: bool,
+    pub version_comparison_text: String,
 
     pub has_local_firmware: bool,
     pub local_firmware_name: String,
     pub local_firmware_version: String,
     pub local_firmware_size: String,
     pub local_firmware_path: String,
+    pub local_firmware_compatible: bool,
+    pub local_firmware_warning: String,
+    pub local_firmware_error: String,
 
     pub warning_acknowledged: bool,
     pub irreversible_warning: String,
@@ -80,6 +95,11 @@ pub struct AdaptedSnapshot {
     pub summary_is_untested: bool,
     pub summary_is_same_or_older: bool,
     pub completed_version: String,
+    pub post_flash_verified: bool,
+    pub completed_verification_note: String,
+    pub has_cached_firmware: bool,
+    pub cached_firmware_suggested_name: String,
+    pub can_save_cached_firmware: bool,
 
     pub has_banner: bool,
     pub banner_severity: i32,
@@ -100,6 +120,7 @@ pub struct AdaptedSnapshot {
     pub recovery_hint: String,
 
     pub is_busy: bool,
+    pub is_flashing: bool,
     pub can_scan: bool,
     pub can_continue_to_firmware: bool,
     pub can_select_target: bool,
@@ -269,6 +290,11 @@ impl AdaptedSnapshot {
             .clone()
             .unwrap_or_default();
         let has_unsupported_board_warning = !unsupported_board_warning.is_empty();
+        let battery_summary = snapshot.battery_summary.clone().unwrap_or_default();
+        let has_battery_summary = !battery_summary.is_empty();
+        let battery_warning = snapshot.battery_warning.clone().unwrap_or_default();
+        let is_flashing =
+            snapshot.step == AppStep::Updating && snapshot.is_busy && !snapshot.can_cancel;
 
         let (
             has_flash_report,
@@ -311,6 +337,13 @@ impl AdaptedSnapshot {
             board_supported: snapshot.board_supported,
             has_unsupported_board_warning,
             unsupported_board_warning,
+            bluetooth_only_detected: snapshot.bluetooth_only_detected,
+            bluetooth_device_count: snapshot.bluetooth_device_count as i32,
+            battery_summary,
+            has_battery_summary,
+            battery_is_low: snapshot.battery_is_low,
+            battery_is_critically_low: snapshot.battery_is_critically_low,
+            battery_warning,
             use_local_file: snapshot.source_kind == FirmwareSourceKind::LocalFile,
             target_ids,
             target_labels,
@@ -322,11 +355,18 @@ impl AdaptedSnapshot {
             selected_target_tested,
             selected_target_up_to_date,
             catalog_checked: snapshot.catalog_checked,
+            catalog_checking: snapshot.catalog_checking,
+            update_available: snapshot.update_available == Some(true),
+            is_up_to_date: snapshot.is_up_to_date,
+            version_comparison_text: snapshot.version_comparison_text.clone(),
             has_local_firmware,
             local_firmware_name,
             local_firmware_version,
             local_firmware_size,
             local_firmware_path,
+            local_firmware_compatible: snapshot.local_firmware_compatible,
+            local_firmware_warning: snapshot.local_firmware_warning.clone().unwrap_or_default(),
+            local_firmware_error: snapshot.local_firmware_error.clone().unwrap_or_default(),
             warning_acknowledged: snapshot.warning_acknowledged,
             irreversible_warning: snapshot.irreversible_warning.clone(),
             has_update_summary,
@@ -337,6 +377,14 @@ impl AdaptedSnapshot {
             summary_is_untested,
             summary_is_same_or_older,
             completed_version: snapshot.completed_version.clone().unwrap_or_default(),
+            post_flash_verified: snapshot.post_flash_verified,
+            completed_verification_note: snapshot
+                .completed_verification_note
+                .clone()
+                .unwrap_or_default(),
+            has_cached_firmware: snapshot.has_cached_firmware,
+            cached_firmware_suggested_name: snapshot.cached_firmware_suggested_name.clone(),
+            can_save_cached_firmware: snapshot.can_save_cached_firmware,
             has_banner,
             banner_severity,
             banner_title,
@@ -353,6 +401,7 @@ impl AdaptedSnapshot {
             error_message: snapshot.error_message.clone(),
             recovery_hint: snapshot.recovery_hint.clone(),
             is_busy: snapshot.is_busy,
+            is_flashing,
             can_scan: snapshot.can_scan,
             can_continue_to_firmware: snapshot.can_continue_to_firmware,
             can_select_target: snapshot.can_select_target,
@@ -443,6 +492,14 @@ fn format_device_detail(dev: &DeviceSummary) -> String {
         .filter(|c| !c.is_empty())
     {
         parts.push(format!("Color: {color}"));
+    }
+    if let Some(battery) = dev
+        .battery_summary
+        .as_deref()
+        .map(str::trim)
+        .filter(|b| !b.is_empty())
+    {
+        parts.push(format!("Battery: {battery}"));
     }
     if let Some(serial) = dev
         .serial_number

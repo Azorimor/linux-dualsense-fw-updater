@@ -106,6 +106,7 @@ fn bdm050_auto_selection_and_full_catalog_update_flow() {
     });
 
     let step0 = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!step0.no_flash_active);
     assert_eq!(step0.step_index, 0);
     assert_eq!(step0.board_model, "BDM-050");
     assert_eq!(step0.color_name, "Midnight Black");
@@ -430,4 +431,37 @@ fn safety_flow_bluetooth_battery_validation_cache_and_verification() {
     assert!(done.has_cached_firmware);
     assert_eq!(done.cached_firmware_suggested_name, "FWUPDATE000B_0630.bin");
     assert!(done.can_save_cached_firmware);
+}
+
+#[test]
+fn no_flash_simulation_state_propagates_through_adapted_snapshot() {
+    let mut state = AppState::with_no_flash(true);
+    state.update(AppEvent::DevicesScanned(Ok(vec![hid_device(
+        "sim://dualsense/0001",
+        DEFAULT_PID,
+        "SIM001000000001",
+    )])));
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "sim://dualsense/0001".to_string(),
+        result: Ok(inspect_device(
+            0x0400,
+            DEFAULT_PID,
+            0x000B,
+            0x0000_0811,
+            Some("SIM001000000001"),
+        )),
+    });
+    state.update(AppEvent::ContinueToFirmwareStep);
+    state.update(AppEvent::CatalogLoaded(Ok(sample_catalog())));
+    state.update(AppEvent::ContinueToConfirmStep);
+    state.update(AppEvent::SetWarningAcknowledged(true));
+    state.update(AppEvent::StartUpdate);
+    state.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::verified(
+        0x0630,
+    ))));
+
+    let completed = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(completed.no_flash_active);
+    assert_eq!(completed.step_index, 4);
+    assert_eq!(completed.completed_version, "0x0630");
 }

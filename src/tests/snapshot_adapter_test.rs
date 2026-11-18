@@ -5,12 +5,13 @@
 use std::path::PathBuf;
 
 use dualsense_core::{BatteryChargingState, BatteryStatus, DEFAULT_PID, DUALSENSE_EDGE_PID};
-use dualsense_ui::{AppEvent, AppState, BannerSeverity};
+use dualsense_ui::{AppEvent, AppState, BannerSeverity, NoFlashOutcome};
 
 use super::{
     sample_bluetooth_hid_device, sample_hid_device, sample_inspection,
     sample_inspection_with_battery,
 };
+use crate::qt_bridge::{set_startup_no_flash, startup_no_flash};
 use crate::snapshot_adapter::{
     AdaptedSnapshot, BANNER_ERROR, BANNER_INFO, BANNER_POSITIVE, BANNER_WARNING,
     format_banner_display, map_banner_severity, parse_file_dialog_selection,
@@ -70,6 +71,7 @@ fn initial_snapshot_adapts_cleanly() {
     assert_eq!(adapted.flash_report_title, "");
     assert_eq!(adapted.flash_report_markdown, "");
     assert_eq!(adapted.flash_report_issue_url, "");
+    assert!(!adapted.no_flash_active);
     assert!(!adapted.target_ids.is_empty());
     assert_eq!(adapted.selected_target_id, "0004");
     assert!(adapted.selected_target_index >= 0);
@@ -358,4 +360,19 @@ fn battery_summary_warnings_and_device_details_adapt_cleanly() {
     assert!(!healthy.battery_is_low);
     assert!(!healthy.battery_is_critically_low);
     assert_eq!(healthy.battery_warning, "");
+}
+
+#[test]
+fn no_flash_flag_and_startup_configuration_adapt_cleanly() {
+    let sim_state = AppState::with_no_flash(true);
+    let adapted = AdaptedSnapshot::from_ui_snapshot(&sim_state.snapshot());
+    assert!(adapted.no_flash_active);
+
+    assert_eq!(startup_no_flash(), None);
+    set_startup_no_flash(Some(NoFlashOutcome::Error));
+    assert_eq!(startup_no_flash(), Some(NoFlashOutcome::Error));
+    set_startup_no_flash(Some(NoFlashOutcome::Success));
+    assert_eq!(startup_no_flash(), Some(NoFlashOutcome::Success));
+    set_startup_no_flash(None);
+    assert_eq!(startup_no_flash(), None);
 }

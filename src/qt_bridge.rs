@@ -5,13 +5,32 @@
 //! CXX-Qt QObject bridge connecting [`dualsense_ui::DefaultAppRuntime`] to QML.
 
 use std::pin::Pin;
+use std::sync::Mutex;
 
 use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::{QString, QStringList};
 use dualsense_ui::{
     APP_VERSION, AppEvent, DefaultAppRuntime, FirmwareSourceKind, GITHUB_ISSUES_URL,
-    GITHUB_PAGES_URL, GITHUB_REPO_URL, UiSnapshot,
+    GITHUB_PAGES_URL, GITHUB_REPO_URL, NoFlashOutcome, UiSnapshot,
 };
+
+static STARTUP_NO_FLASH: Mutex<Option<NoFlashOutcome>> = Mutex::new(None);
+
+/// Configures the optional `--no-flash` simulation outcome used when QML
+/// instantiates [`qobject::DualSenseBridge`].
+pub fn set_startup_no_flash(outcome: Option<NoFlashOutcome>) {
+    let mut guard = STARTUP_NO_FLASH
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    *guard = outcome;
+}
+
+/// Returns the configured startup `--no-flash` simulation outcome, if any.
+pub fn startup_no_flash() -> Option<NoFlashOutcome> {
+    *STARTUP_NO_FLASH
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 use crate::snapshot_adapter::{
     AdaptedSnapshot, BANNER_ERROR, BANNER_INFO, parse_file_dialog_selection,
@@ -130,6 +149,7 @@ pub mod qobject {
         #[qproperty(QString, flash_report_title, READ, NOTIFY)]
         #[qproperty(QString, flash_report_markdown, READ, NOTIFY)]
         #[qproperty(QString, flash_report_issue_url, READ, NOTIFY)]
+        #[qproperty(bool, no_flash_active, READ, NOTIFY)]
         #[qproperty(QString, app_version, READ, CONSTANT)]
         #[qproperty(QString, github_url, READ, CONSTANT)]
         #[qproperty(QString, github_pages_url, READ, CONSTANT)]
@@ -310,6 +330,7 @@ pub struct DualSenseBridgeRust {
     flash_report_title: QString,
     flash_report_markdown: QString,
     flash_report_issue_url: QString,
+    no_flash_active: bool,
     app_version: QString,
     github_url: QString,
     github_pages_url: QString,
@@ -420,6 +441,7 @@ impl Default for DualSenseBridgeRust {
             flash_report_title: QString::default(),
             flash_report_markdown: QString::default(),
             flash_report_issue_url: QString::default(),
+            no_flash_active: false,
             app_version: QString::from(APP_VERSION),
             github_url: QString::from(GITHUB_REPO_URL),
             github_pages_url: QString::from(GITHUB_PAGES_URL),
@@ -459,7 +481,7 @@ macro_rules! sync_fields {
 impl cxx_qt::Initialize for qobject::DualSenseBridge {
     fn initialize(mut self: Pin<&mut Self>) {
         let qt_thread = self.qt_thread();
-        match DefaultAppRuntime::start(move |snapshot| {
+        match DefaultAppRuntime::start_with_no_flash(startup_no_flash(), move |snapshot| {
             let _ = qt_thread.queue(move |qobject| {
                 qobject.apply_snapshot(snapshot);
             });
@@ -623,6 +645,7 @@ impl qobject::DualSenseBridge {
             flash_report_title => flash_report_title_changed : str,
             flash_report_markdown => flash_report_markdown_changed : str,
             flash_report_issue_url => flash_report_issue_url_changed : str,
+            no_flash_active => no_flash_active_changed : copy,
         );
     }
 

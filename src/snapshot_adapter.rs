@@ -136,6 +136,7 @@ pub struct AdaptedSnapshot {
     pub flash_report_title: String,
     pub flash_report_markdown: String,
     pub flash_report_issue_url: String,
+    pub no_flash_active: bool,
 }
 
 impl AdaptedSnapshot {
@@ -416,6 +417,7 @@ impl AdaptedSnapshot {
             flash_report_title,
             flash_report_markdown,
             flash_report_issue_url,
+            no_flash_active: snapshot.no_flash_active,
         }
     }
 }

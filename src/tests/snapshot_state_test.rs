@@ -491,4 +491,28 @@ fn is_flashing_verification_and_cached_firmware_adapt_cleanly() {
     let unverified = AdaptedSnapshot::from_ui_snapshot(&state2.snapshot());
     assert!(!unverified.post_flash_verified);
     assert!(!unverified.completed_verification_note.is_empty());
+    assert!(!unverified.no_flash_active);
+}
+
+#[test]
+fn no_flash_active_persists_across_state_transitions_and_reset() {
+    let mut state = AppState::with_no_flash(true);
+    assert!(AdaptedSnapshot::from_ui_snapshot(&state.snapshot()).no_flash_active);
+
+    state.update(AppEvent::DevicesScanned(Ok(vec![sample_hid_device(
+        "/dev/hidraw0",
+        DEFAULT_PID,
+        "SN1",
+    )])));
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(sample_bdm020_inspection(0x0400)),
+    });
+    assert!(AdaptedSnapshot::from_ui_snapshot(&state.snapshot()).no_flash_active);
+
+    state.update(AppEvent::ResetFlow);
+    assert!(AdaptedSnapshot::from_ui_snapshot(&state.snapshot()).no_flash_active);
+
+    state.update(AppEvent::DevicesPollUpdated(Vec::new()));
+    assert!(AdaptedSnapshot::from_ui_snapshot(&state.snapshot()).no_flash_active);
 }

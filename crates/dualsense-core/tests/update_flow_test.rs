@@ -9,11 +9,12 @@ use common::{
     synthetic_official_firmware,
 };
 use dualsense_core::{
-    CancellationToken, CoreError, DEFAULT_PID, DEFAULT_VID, DualSenseUpdater,
-    FirmwareCatalogClient, FirmwareImage, HidDeviceEnumerator, HidDeviceInfo, HidTransport,
-    StartUpdateError, StartUpdateStatusCode, UpdateConfig, UpdateFailure, UpdatePhase,
-    UpdateProgress, VerifyUpdateImageError, VerifyUpdateStatusCode, WriteUpdateImageError,
-    WriteUpdateStatusCode,
+    BatteryChargingState, CancellationToken, CoreError, DEFAULT_PID, DEFAULT_VID, DualSenseUpdater,
+    FirmwareCatalogClient, FirmwareImage, HidBusType, HidDeviceEnumerator, HidDeviceInfo,
+    HidTransport, LocalImageCompatibility, PostFlashVerificationStatus, StartUpdateError,
+    StartUpdateStatusCode, UpdateConfig, UpdateFailure, UpdatePhase, UpdateProgress,
+    VerifyUpdateImageError, VerifyUpdateStatusCode, WriteUpdateImageError, WriteUpdateStatusCode,
+    has_only_bluetooth_devices, resolve_controller_target,
 };
 
 struct MockEnumerator;
@@ -30,6 +31,7 @@ impl HidDeviceEnumerator for MockEnumerator {
                 usage: 0x0005,
                 product_string: "DualSense Wireless Controller".to_string(),
                 serial_number: "00:11:22:33:44:55".to_string(),
+                bus_type: HidBusType::Usb,
             }])
         } else {
             Ok(Vec::new())
@@ -275,4 +277,82 @@ fn end_to_end_catalog_download_rejects_corrupt_html_undersized_and_mismatched_im
             "unexpected error for {label}: {err:?}"
         );
     }
+}
+
+#[test]
+fn end_to_end_local_validation_battery_bus_detection_and_post_flash_verification() {
+    let bt_only = vec![HidDeviceInfo {
+        path: "/dev/hidraw-bt0".to_string(),
+        vendor_id: DEFAULT_VID,
+        product_id: DEFAULT_PID,
+        interface_number: -1,
+        usage_page: 0x0001,
+        usage: 0x0005,
+        product_string: "DualSense Wireless Controller".to_string(),
+        serial_number: "AA:BB:CC:DD:EE:FF".to_string(),
+        bus_type: HidBusType::Bluetooth,
+    }];
+    assert!(has_only_bluetooth_devices(&bt_only));
+
+    let usb_devices = MockEnumerator
+        .list_usb_dualsense_devices()
+        .expect("usb list");
+    assert_eq!(usb_devices.len(), 1);
+    assert!(!has_only_bluetooth_devices(&usb_devices));
+
+    let mut sim = SimDualSenseController::new(0x0520);
+    sim.battery_byte = Some(0x16); // 60% Charging
+    sim.post_flash_version = Some(0x0630);
+    sim.post_flash_build_date = *b"Nov 10 2025";
+    sim.post_flash_build_time = *b"10:00:00";
+    *sim.post_flash_transient_errors.borrow_mut() = 2;
+
+    let sleeper = NoopSleeper::default();
+    let updater = DualSenseUpdater::with_sleeper_and_config(sim, sleeper, UpdateConfig::default());
+
+    let info = updater.read_firmware_info().expect("read info");
+    let hw = resolve_controller_target(&info, DEFAULT_PID);
+    let battery = updater
+        .try_read_battery_status()
+        .expect("battery status present");
+    assert_eq!(battery.percentage, 60);
+    assert_eq!(battery.charging_state, BatteryChargingState::Charging);
+
+    // Mismatched local file (000E on 000B controller) is caught cleanly
+    let bad_local = FirmwareImage::from_bytes(synthetic_official_firmware(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+        DEFAULT_PID,
+        0x000E,
+        0x0641,
+    ))
+    .expect("parses");
+    let bad_val = bad_local.validate_for_controller(&hw, DEFAULT_PID);
+    assert_eq!(bad_val.compatibility, LocalImageCompatibility::Incompatible);
+    assert!(!bad_val.is_flashable());
+
+    // Valid local file (000B on 000B controller)
+    let good_local = FirmwareImage::from_bytes(synthetic_official_firmware(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+        DEFAULT_PID,
+        0x000B,
+        0x0630,
+    ))
+    .expect("parses");
+    let good_val = good_local.validate_for_controller(&hw, DEFAULT_PID);
+    assert_eq!(good_val.compatibility, LocalImageCompatibility::Compatible);
+    assert!(good_val.is_exact_match());
+
+    let cancel = CancellationToken::new();
+    updater
+        .run_full_update(&good_local, &cancel, |_| {})
+        .expect("update succeeds");
+
+    let verification = updater.verify_post_flash_firmware(good_local.version());
+    assert!(verification.is_verified());
+    assert_eq!(verification.status, PostFlashVerificationStatus::Verified);
+    assert_eq!(verification.attempts, 3);
+    let verified_info = verification.firmware_info.expect("verified info");
+    assert_eq!(verified_info.firmware_version, 0x0630);
+    assert_eq!(verified_info.build_date, "Nov 10 2025");
+    assert_eq!(verified_info.build_time, "10:00:00");
 }

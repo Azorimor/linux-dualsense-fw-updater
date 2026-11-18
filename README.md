@@ -27,15 +27,16 @@ Edge.
 
 Launch `dualsense-updater` and follow the four guided KDE Kirigami wizard steps:
 
-1. **Controller** — Connects over a wired USB data cable (updates cannot run over Bluetooth) and automatically inspects connected DualSense / DualSense Edge controllers, displaying:
+1. **Controller** — Connects over a wired USB data cable (updates cannot run over Bluetooth) and automatically inspects all connected USB DualSense / DualSense Edge controllers, displaying:
    - Board revision (`BDM-020`, `BDM-030`, `BDM-040`, `BDM-050`, `BDM-060`, or `DualSense Edge`) and mapped hardware target (`0004`, `000B`, `000E`, `0044`)
-   - Current firmware version, FW series, build date/time, serial number, and controller shell color
-   - **Live USB unplug/replug detection** (background polling updates the UI automatically if the controller is disconnected or swapped while idle)
+   - Current firmware version, FW series, build date/time, serial number, controller shell color, and **battery level / charging status** (flagging low or critically low discharging batteries)
+   - **Bluetooth-only detection hint**: if controllers are only connected over Bluetooth, displays tailored guidance to plug in a USB data cable
+   - **Automatic background catalog check & live USB polling**: automatically checks Sony's catalog in the background once inspected to show live update availability, while background USB polling updates the UI automatically if controllers are disconnected or swapped while idle
 2. **Firmware** — Choose either:
-   - **Download Official Sony Firmware**: checks Sony's catalog (`info.json`) for your controller target and downloads the latest official image automatically.
-   - **Use a Local Firmware File (`.bin`)**: inspects a local firmware image on disk.
-3. **Review** — Compares current and target firmware versions, warns if the controller is already on the same or newer version or if the target is untested (DualSense Edge), and requires explicit confirmation that firmware updates cannot be reversed.
-4. **Update** — Streams download progress (with safe cancellation before flashing begins), initializes the update, writes firmware blocks, verifies, and finalizes. If an error occurs, plain-English recovery hints and `Scan Controllers` / `Try Again` / `Start Over` actions are shown.
+   - **Download Official Sony Firmware**: shows a clear current-vs-latest version comparison from Sony's catalog (`info.json`), downloads the latest official image automatically, and caches verified official `.bin` downloads in memory for reuse or saving to disk (**Save Firmware Copy…**).
+   - **Use a Local Firmware File (`.bin`)**: validates the local file's Sony firmware header, embedded target ID, and USB PID against the selected controller—blocking incompatible images and warning on unverified headers before proceeding.
+3. **Review** — Summarizes controller details, battery status, current and target firmware versions, and source; surfaces warnings for low/critically low discharging battery, unverified local image headers, same-or-newer firmware versions, or untested targets (DualSense Edge); and requires explicit confirmation that firmware updates cannot be reversed.
+4. **Update** — Streams download progress (with safe cancellation before flashing begins), initializes the update, writes firmware blocks, verifies, and finalizes while blocking accidental window close/quit during active flashing. After flashing finishes, performs **post-flash hardware verification** to confirm the controller reports the expected firmware version and lets you save a cached official `.bin` copy (**Save Firmware Copy…**) for offline reuse. If an error occurs, plain-English recovery hints and `Scan Controllers` / `Try Again` / `Start Over` actions are shown.
 
 - **Built-in About & Licenses Windows**: Open **Help → About Unofficial DualSense Firmware Updater** for version info and project links (GitHub repository, website, issue tracker), or **Help → Licenses** to inspect the bundled third-party crate notices, `GPL-3.0-or-later` license text, and `nchie` MIT attribution.
 - **Optional Flash Run Reporting**: After a firmware update succeeds or fails, use **Flash Run Infos** or **Open GitHub Issue** to inspect or open a prefilled `[Flash Report]` GitHub issue containing anonymized OS, hardware revision, firmware version, and error metrics (never serial numbers or local file paths).
@@ -49,7 +50,7 @@ Download the latest release artifacts from [GitHub Releases](https://github.com/
   chmod +x linux-dualsense-fw-updater-<tag>-x86_64.AppImage
   ./linux-dualsense-fw-updater-<tag>-x86_64.AppImage
   ```
-  The AppImage embeds `dev.dualsense.updater.desktop`, `.DirIcon`, and the hicolor PNG/SVG icon set (`16x16`–`512x512` + `scalable`) for desktop launcher / AppImage integration, and the window itself embeds multi-resolution Qt resource icons as a fallback.
+  The AppImage embeds `io.github.azorimor.linux_dualsense_fw_updater.desktop`, `.DirIcon`, and the hicolor PNG/SVG icon set (`16x16`–`512x512` + `scalable`) for desktop launcher / AppImage integration, and the window itself embeds multi-resolution Qt resource icons as a fallback.
 - **Tarball (`x86_64`)**:
   ```sh
   tar -xzf linux-dualsense-fw-updater-<tag>-x86_64.tar.gz
@@ -97,6 +98,11 @@ QMAKE=/usr/bin/qmake6 cargo run --release
 
 Logging uses `env_logger` (default `info`). Set `RUST_LOG=debug` for verbose HID and update diagnostics.
 
+#### Debug Simulation & Native File Dialogs
+
+- **Simulation mode (`--no-flash[=success|error]`)**: Pass `--no-flash` (or `--no-flash=success` / `--no-flash=error`) to exercise the full wizard and progress/error UI without writing firmware to real hardware. When no physical USB DualSense is attached, a simulated `BDM-050` controller (`0x0400`) is provided automatically; real attached controllers remain readable for inspection while `0xF4` flash commands are blocked. Run `dualsense-updater --help` for full usage.
+- **Native desktop file picker**: The application runs on `QApplication` (`QtWidgets`) and automatically configures `QT_QPA_PLATFORMTHEME=xdgdesktopportal` inside AppImage bundles so open/save dialogs use the host desktop's native KDE/GTK/XDG portal file picker instead of Qt's fallback QML dialog.
+
 ### Opt-In Verification Against Real Sony Firmware Binaries
 
 To verify firmware parsing, header validation, catalog matching, and simulated HID chunking against real official Sony `.bin` firmware files (kept strictly local and never committed or run on GitHub CI):
@@ -112,7 +118,7 @@ Default `cargo test --workspace` and GitHub Actions CI omit `--features real-fir
 
 ### Desktop Entry & Icon Installation (From Source)
 
-After installing or placing `dualsense-updater` on your `PATH` (or passing `--exec`), install the XDG desktop entry (`dev.dualsense.updater`) and hicolor icon theme (`16x16`–`512x512` PNGs and `scalable/icon.svg`) using:
+After installing or placing `dualsense-updater` on your `PATH` (or passing `--exec`), install the XDG desktop entry (`io.github.azorimor.linux_dualsense_fw_updater`) and hicolor icon theme (`16x16`–`512x512` PNGs and `scalable/icon.svg`) using:
 
 ```sh
 ./packaging/linux/install-desktop.sh              # installs into ~/.local/share (default)
@@ -130,7 +136,7 @@ After building the release binary, package both the portable `.tar.gz` and `.App
 ./scripts/package-appimage.sh target/release/dualsense-updater v0.1.0 dist
 ```
 
-Desktop integration assets live in `packaging/linux/dev.dualsense.updater.desktop`, `packaging/linux/install-desktop.sh`, and `packaging/linux/icons/` (`16x16`, `22x22`, `32x32`, `48x48`, `64x64`, `128x128`, `256x256`, `512x512` PNGs plus `scalable/icon.svg`). `scripts/package-appimage.sh` bundles the hicolor icons, `.DirIcon`, `.desktop` file, and `install-desktop.sh` into the `.tar.gz` and `.AppImage` (`AppDir`).
+Desktop integration assets live in `packaging/linux/io.github.azorimor.linux_dualsense_fw_updater.desktop`, `packaging/linux/install-desktop.sh`, and `packaging/linux/icons/` (`16x16`, `22x22`, `32x32`, `48x48`, `64x64`, `128x128`, `256x256`, `512x512` PNGs plus `scalable/icon.svg`). `scripts/package-appimage.sh` bundles the hicolor icons, `.DirIcon`, `.desktop` file, and `install-desktop.sh` into the `.tar.gz` and `.AppImage` (`AppDir`).
 
 ## Testing, Coverage, and Structural Checks
 

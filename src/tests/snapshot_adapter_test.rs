@@ -4,10 +4,14 @@
 
 use std::path::PathBuf;
 
-use dualsense_core::{DEFAULT_PID, DUALSENSE_EDGE_PID};
-use dualsense_ui::{AppEvent, AppState, BannerSeverity};
+use dualsense_core::{BatteryChargingState, BatteryStatus, DEFAULT_PID, DUALSENSE_EDGE_PID};
+use dualsense_ui::{AppEvent, AppState, BannerSeverity, NoFlashOutcome};
 
-use super::{sample_hid_device, sample_inspection};
+use super::{
+    sample_bluetooth_hid_device, sample_hid_device, sample_inspection,
+    sample_inspection_with_battery,
+};
+use crate::qt_bridge::{set_startup_no_flash, startup_no_flash};
 use crate::snapshot_adapter::{
     AdaptedSnapshot, BANNER_ERROR, BANNER_INFO, BANNER_POSITIVE, BANNER_WARNING,
     format_banner_display, map_banner_severity, parse_file_dialog_selection,
@@ -40,6 +44,26 @@ fn initial_snapshot_adapts_cleanly() {
     assert!(!adapted.progress_visible);
     assert_eq!(adapted.progress_percentage, -1);
     assert!(adapted.can_scan);
+    assert!(!adapted.is_flashing);
+    assert!(!adapted.bluetooth_only_detected);
+    assert_eq!(adapted.bluetooth_device_count, 0);
+    assert_eq!(adapted.battery_summary, "");
+    assert!(!adapted.has_battery_summary);
+    assert!(!adapted.battery_is_low);
+    assert!(!adapted.battery_is_critically_low);
+    assert_eq!(adapted.battery_warning, "");
+    assert!(!adapted.catalog_checking);
+    assert!(!adapted.update_available);
+    assert!(!adapted.is_up_to_date);
+    assert_eq!(adapted.version_comparison_text, "");
+    assert!(!adapted.local_firmware_compatible);
+    assert_eq!(adapted.local_firmware_warning, "");
+    assert_eq!(adapted.local_firmware_error, "");
+    assert!(!adapted.post_flash_verified);
+    assert_eq!(adapted.completed_verification_note, "");
+    assert!(!adapted.has_cached_firmware);
+    assert_eq!(adapted.cached_firmware_suggested_name, "");
+    assert!(!adapted.can_save_cached_firmware);
     assert!(!adapted.can_continue_to_firmware);
     assert!(!adapted.can_start_update);
     assert!(!adapted.has_flash_report);
@@ -47,6 +71,7 @@ fn initial_snapshot_adapts_cleanly() {
     assert_eq!(adapted.flash_report_title, "");
     assert_eq!(adapted.flash_report_markdown, "");
     assert_eq!(adapted.flash_report_issue_url, "");
+    assert!(!adapted.no_flash_active);
     assert!(!adapted.target_ids.is_empty());
     assert_eq!(adapted.selected_target_id, "0004");
     assert!(adapted.selected_target_index >= 0);
@@ -246,4 +271,108 @@ fn unsupported_bdm010_and_unknown_boards_adapt_warning_and_disable_target() {
     assert!(!unknown.can_check_updates);
     assert!(unknown.has_unsupported_board_warning);
     assert!(!unknown.unsupported_board_warning.is_empty());
+}
+
+#[test]
+fn bluetooth_only_detection_and_usb_override_adapt_cleanly() {
+    let mut state = AppState::new();
+    state.update(AppEvent::DevicesScanned(Ok(vec![
+        sample_bluetooth_hid_device("/dev/hidraw9", DEFAULT_PID, "BT-1"),
+    ])));
+
+    let bt_only = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!bt_only.has_devices);
+    assert_eq!(bt_only.device_count, 0);
+    assert!(bt_only.bluetooth_only_detected);
+    assert_eq!(bt_only.bluetooth_device_count, 1);
+    assert_eq!(bt_only.banner_severity, BANNER_WARNING);
+    assert!(bt_only.banner_title.contains("Bluetooth"));
+    assert!(!bt_only.can_continue_to_firmware);
+
+    state.update(AppEvent::DevicesScanned(Ok(vec![
+        sample_bluetooth_hid_device("/dev/hidraw9", DEFAULT_PID, "BT-1"),
+        sample_hid_device("/dev/hidraw0", DEFAULT_PID, "USB-1"),
+    ])));
+    let with_usb = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(with_usb.has_devices);
+    assert_eq!(with_usb.device_count, 1);
+    assert!(!with_usb.bluetooth_only_detected);
+    assert_eq!(with_usb.bluetooth_device_count, 1);
+}
+
+#[test]
+fn battery_summary_warnings_and_device_details_adapt_cleanly() {
+    let mut state = AppState::new();
+    state.update(AppEvent::DevicesScanned(Ok(vec![sample_hid_device(
+        "/dev/hidraw0",
+        DEFAULT_PID,
+        "",
+    )])));
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(sample_inspection_with_battery(
+            "Oct  1 2024",
+            "12:34:56",
+            0x0520,
+            DEFAULT_PID,
+            0x000B,
+            0x0000_0811,
+            Some("F55301K0H14359961"),
+            Some(BatteryStatus {
+                level: 1,
+                percentage: 10,
+                charging_state: BatteryChargingState::Discharging,
+            }),
+        )),
+    });
+
+    let critical = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(critical.has_battery_summary);
+    assert!(critical.battery_summary.contains("10%"));
+    assert!(critical.battery_is_low);
+    assert!(critical.battery_is_critically_low);
+    assert!(critical.battery_warning.contains("critically low"));
+    assert!(critical.device_details[0].contains("Firmware: 0x0520"));
+    assert!(critical.device_details[0].contains("Board: BDM-050"));
+    assert!(critical.device_details[0].contains("Color: Midnight Black"));
+    assert!(critical.device_details[0].contains("Battery: "));
+
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(sample_inspection_with_battery(
+            "Oct  1 2024",
+            "12:34:56",
+            0x0520,
+            DEFAULT_PID,
+            0x000B,
+            0x0000_0811,
+            Some("F55301K0H14359961"),
+            Some(BatteryStatus {
+                level: 8,
+                percentage: 85,
+                charging_state: BatteryChargingState::Charging,
+            }),
+        )),
+    });
+
+    let healthy = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(healthy.has_battery_summary);
+    assert!(!healthy.battery_is_low);
+    assert!(!healthy.battery_is_critically_low);
+    assert_eq!(healthy.battery_warning, "");
+}
+
+#[test]
+fn no_flash_flag_and_startup_configuration_adapt_cleanly() {
+    let sim_state = AppState::with_no_flash(true);
+    let adapted = AdaptedSnapshot::from_ui_snapshot(&sim_state.snapshot());
+    assert!(adapted.no_flash_active);
+
+    assert_eq!(startup_no_flash(), None);
+    set_startup_no_flash(Some(NoFlashOutcome::Error));
+    assert_eq!(startup_no_flash(), Some(NoFlashOutcome::Error));
+    set_startup_no_flash(Some(NoFlashOutcome::Success));
+    assert_eq!(startup_no_flash(), Some(NoFlashOutcome::Success));
+    set_startup_no_flash(None);
+    assert_eq!(startup_no_flash(), None);
 }

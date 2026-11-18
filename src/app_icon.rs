@@ -14,12 +14,11 @@ mod ffi {
     }
 }
 
-/// XDG desktop file identifier matching `packaging/linux/dev.dualsense.updater.desktop`.
-pub const DESKTOP_FILE_ID: &str = "dev.dualsense.updater";
+/// XDG desktop file identifier matching `packaging/linux/io.github.azorimor.linux_dualsense_fw_updater.desktop`.
+pub const DESKTOP_FILE_ID: &str = "io.github.azorimor.linux_dualsense_fw_updater";
 
 /// Qt resource URL for the 256x256 application icon used in QML views.
-pub const EMBEDDED_APP_ICON_URL: &str =
-    "qrc:/qt/qml/dev/dualsense/updater/packaging/linux/icons/256x256/icon.png";
+pub const EMBEDDED_APP_ICON_URL: &str = "qrc:/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/256x256/icon.png";
 
 /// Apply the desktop icon (from the active icon theme, falling back to embedded
 /// multi-resolution Qt resources) to `QGuiApplication`.

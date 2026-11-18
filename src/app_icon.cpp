@@ -24,18 +24,18 @@ struct EmbeddedIconSpec {
 };
 
 constexpr EmbeddedIconSpec kEmbeddedPngIcons[] = {
-    {":/qt/qml/dev/dualsense/updater/packaging/linux/icons/16x16/icon.png", 16},
-    {":/qt/qml/dev/dualsense/updater/packaging/linux/icons/22x22/icon.png", 22},
-    {":/qt/qml/dev/dualsense/updater/packaging/linux/icons/32x32/icon.png", 32},
-    {":/qt/qml/dev/dualsense/updater/packaging/linux/icons/48x48/icon.png", 48},
-    {":/qt/qml/dev/dualsense/updater/packaging/linux/icons/64x64/icon.png", 64},
-    {":/qt/qml/dev/dualsense/updater/packaging/linux/icons/128x128/icon.png", 128},
-    {":/qt/qml/dev/dualsense/updater/packaging/linux/icons/256x256/icon.png", 256},
-    {":/qt/qml/dev/dualsense/updater/packaging/linux/icons/512x512/icon.png", 512},
+    {":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/16x16/icon.png", 16},
+    {":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/22x22/icon.png", 22},
+    {":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/32x32/icon.png", 32},
+    {":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/48x48/icon.png", 48},
+    {":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/64x64/icon.png", 64},
+    {":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/128x128/icon.png", 128},
+    {":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/256x256/icon.png", 256},
+    {":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/512x512/icon.png", 512},
 };
 
 constexpr const char* kEmbeddedSvgIcon =
-    ":/qt/qml/dev/dualsense/updater/packaging/linux/icons/scalable/icon.svg";
+    ":/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/packaging/linux/icons/scalable/icon.svg";
 
 QIcon build_embedded_icon() {
     QIcon fallback;
@@ -57,7 +57,7 @@ QIcon build_embedded_icon() {
 void configure_application_window_icon() {
     const QIcon embedded = build_embedded_icon();
     const QIcon resolved =
-        QIcon::fromTheme(QStringLiteral("dev.dualsense.updater"), embedded);
+        QIcon::fromTheme(QStringLiteral("io.github.azorimor.linux_dualsense_fw_updater"), embedded);
     QGuiApplication::setWindowIcon(resolved);
 }
 

@@ -378,3 +378,74 @@ fn decode_ds5_color_matches_all_known_codes_and_rejects_invalid_inputs() {
         assert_eq!(decode_ds5_color(serial), expected, "serial={serial}");
     }
 }
+
+#[test]
+fn battery_status_decodes_usb_input_report_0x01_and_rejects_invalid_reports() {
+    // Discharging at 10% (high nibble 0x0, low nibble 0x1)
+    let mut r_low = vec![0u8; INPUT_REPORT_USB_LEN];
+    r_low[0] = REPORT_ID_INPUT;
+    r_low[INPUT_REPORT_BATTERY_OFFSET] = 0x01;
+    let low = BatteryStatus::from_input_report(&r_low).expect("valid discharging report");
+    assert_eq!(low.level, 1);
+    assert_eq!(low.percentage, 10);
+    assert_eq!(low.charging_state, BatteryChargingState::Discharging);
+    assert!(!low.is_charging_or_full());
+    assert!(low.is_low());
+    assert!(low.is_critically_low());
+    assert_eq!(low.formatted_summary(), "10% (Discharging)");
+
+    // Charging at 60% (high nibble 0x1, low nibble 0x6)
+    let mut r_charging = vec![0u8; INPUT_REPORT_USB_LEN];
+    r_charging[0] = REPORT_ID_INPUT;
+    r_charging[INPUT_REPORT_BATTERY_OFFSET] = 0x16;
+    let charging = BatteryStatus::from_input_report(&r_charging).expect("valid charging report");
+    assert_eq!(charging.level, 6);
+    assert_eq!(charging.percentage, 60);
+    assert_eq!(charging.charging_state, BatteryChargingState::Charging);
+    assert!(charging.is_charging_or_full());
+    assert!(!charging.is_low());
+    assert!(!charging.is_critically_low());
+    assert_eq!(charging.formatted_summary(), "60% (Charging)");
+
+    // Charging at 0% is NOT considered low/critically low because it's actively charging
+    r_charging[INPUT_REPORT_BATTERY_OFFSET] = 0x10;
+    let charging_zero = BatteryStatus::from_input_report(&r_charging).expect("valid report");
+    assert!(!charging_zero.is_low());
+    assert!(!charging_zero.is_critically_low());
+
+    // Full (high nibble 0x2, low nibble 0x9 -> normalized to 100%)
+    let mut r_full = vec![0u8; INPUT_REPORT_USB_LEN];
+    r_full[0] = REPORT_ID_INPUT;
+    r_full[INPUT_REPORT_BATTERY_OFFSET] = 0x29;
+    let full = BatteryStatus::from_input_report(&r_full).expect("valid full report");
+    assert_eq!(full.charging_state, BatteryChargingState::Full);
+    assert_eq!(full.percentage, 100);
+    assert!(full.is_charging_or_full());
+    assert_eq!(full.formatted_summary(), "100% (Full)");
+
+    // Fault (0xA, 0xB, 0xF) & Unknown
+    for nibble in [0xAu8, 0xB, 0xF] {
+        let mut r_fault = vec![0u8; INPUT_REPORT_USB_LEN];
+        r_fault[0] = REPORT_ID_INPUT;
+        r_fault[INPUT_REPORT_BATTERY_OFFSET] = (nibble << 4) | 0x05;
+        let fault = BatteryStatus::from_input_report(&r_fault).expect("valid fault report");
+        assert_eq!(fault.charging_state, BatteryChargingState::Fault);
+        assert_eq!(fault.percentage, 50);
+    }
+    let mut r_unk = vec![0u8; INPUT_REPORT_USB_LEN];
+    r_unk[0] = REPORT_ID_INPUT;
+    r_unk[INPUT_REPORT_BATTERY_OFFSET] = 0x4F; // unknown status 0x4, level clamped to 10 -> 100%
+    let unk = BatteryStatus::from_input_report(&r_unk).expect("valid unknown report");
+    assert_eq!(unk.charging_state, BatteryChargingState::Unknown(0x4));
+    assert_eq!(unk.level, 10);
+    assert_eq!(unk.percentage, 100);
+    assert_eq!(unk.charging_state.as_str(), "Unknown");
+
+    // Rejects wrong report ID, empty, and short (e.g. 10-byte BT 0x01) reports
+    assert_eq!(BatteryStatus::from_input_report(&[]), None);
+    assert_eq!(BatteryStatus::from_input_report(&[0x01; 10]), None);
+    assert_eq!(
+        BatteryStatus::from_input_report(&[0x31; INPUT_REPORT_USB_LEN]),
+        None
+    );
+}

@@ -12,6 +12,7 @@ use dualsense_core::{
 use super::{sample_bdm020_inspection, sample_catalog, sample_edge_inspection, sample_hid_device};
 use crate::viewmodel::{
     AppCommand, AppEvent, AppState, AppStep, BannerSeverity, DeviceTarget, LocalFirmwareInfo,
+    UpdateOutcome,
 };
 
 #[test]
@@ -63,28 +64,39 @@ fn scan_select_and_auto_edge_target_selection_flow() {
         Some(BannerSeverity::Warning)
     );
 
-    // Scan finding two devices (standard + Edge) auto-probes first device
+    // Scan finding two devices (standard + Edge) auto-probes both USB devices
     let d1 = sample_hid_device("/dev/hidraw0", DEFAULT_PID, "STD-1");
     let d2 = sample_hid_device("/dev/hidraw1", DUALSENSE_EDGE_PID, "EDGE-1");
     let cmds = state.update(AppEvent::DevicesScanned(Ok(vec![d1.clone(), d2.clone()])));
     assert_eq!(
         cmds,
-        vec![AppCommand::ReadDeviceFirmwareInfo {
-            device: DeviceTarget {
-                path: "/dev/hidraw0".to_string(),
-                vendor_id: DEFAULT_VID,
-                product_id: DEFAULT_PID,
-            }
-        }]
+        vec![
+            AppCommand::ReadDeviceFirmwareInfo {
+                device: DeviceTarget {
+                    path: "/dev/hidraw0".to_string(),
+                    vendor_id: DEFAULT_VID,
+                    product_id: DEFAULT_PID,
+                }
+            },
+            AppCommand::ReadDeviceFirmwareInfo {
+                device: DeviceTarget {
+                    path: "/dev/hidraw1".to_string(),
+                    vendor_id: DEFAULT_VID,
+                    product_id: DUALSENSE_EDGE_PID,
+                }
+            },
+        ]
     );
 
-    // Firmware info arrives
-    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+    // Firmware info arrives for first device -> triggers background catalog fetch without blocking
+    let auto_cmds = state.update(AppEvent::DeviceFirmwareInfoLoaded {
         path: "/dev/hidraw0".to_string(),
         result: Ok(sample_bdm020_inspection(0x0520)),
     });
+    assert_eq!(auto_cmds, vec![AppCommand::FetchCatalog]);
     let snap = state.snapshot();
     assert!(snap.can_continue_to_firmware);
+    assert!(snap.catalog_checking);
     assert!(snap.board_supported);
     assert!(snap.can_select_target);
     assert_eq!(snap.board_model, "BDM-020");
@@ -100,11 +112,12 @@ fn scan_select_and_auto_edge_target_selection_flow() {
         Some(BannerSeverity::Positive)
     );
 
-    // Selecting Edge controller auto-selects target 0044 and probes its info
+    // Selecting Edge controller auto-selects target 0044 (already queued, waits for info)
     let cmds = state.update(AppEvent::SelectDevice {
         path: "/dev/hidraw1".to_string(),
     });
-    assert_eq!(cmds.len(), 1);
+    assert!(cmds.is_empty());
+    assert!(state.snapshot().is_busy);
     assert_eq!(state.snapshot().selected_target_id, "0044");
     state.update(AppEvent::DeviceFirmwareInfoLoaded {
         path: "/dev/hidraw1".to_string(),
@@ -130,14 +143,18 @@ fn guided_catalog_confirm_progress_and_completion_flow() {
     });
     state.update(AppEvent::ContinueToFirmwareStep);
 
+    // Background catalog check started automatically; deliver it first, then verify manual Refresh
+    assert!(state.snapshot().catalog_checking);
+    state.update(AppEvent::CatalogLoaded(Ok(sample_catalog())));
+
     let snap = state.snapshot();
     assert_eq!(snap.step, AppStep::SelectFirmware);
     assert!(snap.can_check_updates);
     assert!(snap.can_select_file);
-    assert!(!snap.can_review_update);
+    assert!(snap.can_review_update);
     assert!(snap.can_go_back);
 
-    // Fetch catalog
+    // Manual CheckForUpdates / Refresh still works
     let cmds = state.update(AppEvent::CheckForUpdates);
     assert_eq!(cmds, vec![AppCommand::FetchCatalog]);
     assert!(state.snapshot().can_cancel);
@@ -260,7 +277,9 @@ fn guided_catalog_confirm_progress_and_completion_flow() {
     );
 
     // Finish update
-    state.update(AppEvent::UpdateFinished(Ok(0x0630)));
+    state.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::verified(
+        0x0630,
+    ))));
     let done_snap = state.snapshot();
     assert_eq!(done_snap.step, AppStep::Completed);
     assert!(!done_snap.is_busy);
@@ -300,10 +319,12 @@ fn local_file_flow_cancellation_and_friendly_error_recovery() {
 
     state.update(AppEvent::LocalFileInspected {
         path: path.clone(),
-        result: Ok(LocalFirmwareInfo {
-            version: 0x0630,
-            size_bytes: 1_572_864,
-        }),
+        result: Ok(LocalFirmwareInfo::official(
+            0x0630,
+            1_572_864,
+            DEFAULT_PID,
+            "0004",
+        )),
     });
     let snap = state.snapshot();
     assert!(snap.can_review_update);

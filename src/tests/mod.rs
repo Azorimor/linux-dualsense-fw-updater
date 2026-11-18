@@ -2,18 +2,26 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod cli_test;
 mod licenses_test;
+mod native_app_test;
 mod quick_style_test;
 mod snapshot_adapter_test;
 mod snapshot_state_test;
 
 use dualsense_core::{
-    DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FirmwareCatalog, FirmwareInfo, FirmwareRelease,
-    HidDeviceInfo, REPORT_ID_FIRMWARE_INFO, decode_ds5_color, resolve_controller_target,
+    BatteryStatus, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FirmwareCatalog, FirmwareInfo,
+    FirmwareRelease, HidBusType, HidDeviceInfo, REPORT_ID_FIRMWARE_INFO, decode_ds5_color,
+    resolve_controller_target,
 };
 use dualsense_ui::DeviceInspection;
 
-pub(super) fn sample_hid_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
+pub(super) fn sample_hid_device_with_bus(
+    path: &str,
+    pid: u16,
+    serial: &str,
+    bus_type: HidBusType,
+) -> HidDeviceInfo {
     HidDeviceInfo {
         path: path.to_string(),
         vendor_id: DEFAULT_VID,
@@ -27,7 +35,16 @@ pub(super) fn sample_hid_device(path: &str, pid: u16, serial: &str) -> HidDevice
             "DualSense Wireless Controller".to_string()
         },
         serial_number: serial.to_string(),
+        bus_type,
     }
+}
+
+pub(super) fn sample_hid_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
+    sample_hid_device_with_bus(path, pid, serial, HidBusType::Usb)
+}
+
+pub(super) fn sample_bluetooth_hid_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
+    sample_hid_device_with_bus(path, pid, serial, HidBusType::Bluetooth)
 }
 
 pub(super) fn sample_firmware_info(
@@ -51,7 +68,7 @@ pub(super) fn sample_firmware_info(
     FirmwareInfo::from_report(raw).expect("valid firmware info")
 }
 
-pub(super) fn sample_inspection(
+pub(super) fn sample_inspection_with_battery(
     build_date: &str,
     build_time: &str,
     version: u16,
@@ -59,6 +76,7 @@ pub(super) fn sample_inspection(
     fw_series: u16,
     hw_info: u32,
     serial: Option<&str>,
+    battery_status: Option<BatteryStatus>,
 ) -> DeviceInspection {
     let firmware_info = sample_firmware_info(build_date, build_time, version, fw_series, hw_info);
     let hardware = resolve_controller_target(&firmware_info, pid);
@@ -69,7 +87,22 @@ pub(super) fn sample_inspection(
         hardware,
         serial_number,
         color_name,
+        battery_status,
     }
+}
+
+pub(super) fn sample_inspection(
+    build_date: &str,
+    build_time: &str,
+    version: u16,
+    pid: u16,
+    fw_series: u16,
+    hw_info: u32,
+    serial: Option<&str>,
+) -> DeviceInspection {
+    sample_inspection_with_battery(
+        build_date, build_time, version, pid, fw_series, hw_info, serial, None,
+    )
 }
 
 pub(super) fn sample_bdm020_inspection(version: u16) -> DeviceInspection {

@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use common::{
     ArcEnumerator, MockEnumerator, MockHttp, NoopSleeper, SAMPLE_CATALOG_JSON, fast_update_config,
-    make_device, make_firmware_image_bytes, make_official_firmware_image_bytes, wait_until,
+    make_device, make_official_firmware_image_bytes, wait_until,
 };
 use dualsense_core::{DEFAULT_PID, FirmwareImage, REPORT_ID_UPDATE_COMMAND, UpdateCommand};
 use dualsense_ui::{AppEvent, AppRuntime, AppStep, BannerSeverity, ProgressStage};
@@ -68,8 +68,9 @@ fn live_unplug_on_step1_and_step2_resets_to_detect_and_locks_progression() {
 
     // Advance to Step 2 (ConfirmUpdate), acknowledge warning, then unplug again
     runtime.dispatch(AppEvent::ContinueToFirmwareStep);
-    runtime.dispatch(AppEvent::CheckForUpdates);
-    wait_until(&mut rx, |s| !s.is_busy && s.can_review_update);
+    wait_until(&mut rx, |s| {
+        s.step == AppStep::SelectFirmware && !s.is_busy && s.can_review_update
+    });
     runtime.dispatch(AppEvent::ContinueToConfirmStep);
     runtime.dispatch(AppEvent::SetWarningAcknowledged(true));
     wait_until(&mut rx, |s| s.can_start_update);
@@ -110,8 +111,9 @@ fn live_unplug_during_download_cancels_download_and_stays_at_step0() {
     wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
 
     runtime.dispatch(AppEvent::ContinueToFirmwareStep);
-    runtime.dispatch(AppEvent::CheckForUpdates);
-    wait_until(&mut rx, |s| !s.is_busy && s.catalog_checked);
+    wait_until(&mut rx, |s| {
+        s.step == AppStep::SelectFirmware && !s.is_busy && s.catalog_checked
+    });
 
     runtime.dispatch(AppEvent::ContinueToConfirmStep);
     runtime.dispatch(AppEvent::SetWarningAcknowledged(true));
@@ -214,8 +216,9 @@ fn live_unplug_on_completed_leaves_completion_page_undisturbed() {
     runtime.dispatch(AppEvent::ScanDevices);
     wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
     runtime.dispatch(AppEvent::ContinueToFirmwareStep);
-    runtime.dispatch(AppEvent::CheckForUpdates);
-    wait_until(&mut rx, |s| !s.is_busy && s.can_review_update);
+    wait_until(&mut rx, |s| {
+        s.step == AppStep::SelectFirmware && !s.is_busy && s.can_review_update
+    });
     runtime.dispatch(AppEvent::ContinueToConfirmStep);
     runtime.dispatch(AppEvent::SetWarningAcknowledged(true));
     wait_until(&mut rx, |s| s.can_start_update);
@@ -241,7 +244,12 @@ fn live_unplug_on_completed_leaves_completion_page_undisturbed() {
 
 #[test]
 fn polling_skips_flashing_and_avoids_redundant_snapshots_when_unchanged() {
-    let image_bytes = make_firmware_image_bytes(512, 0x0630);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+        DEFAULT_PID,
+        0x0004,
+        0x0630,
+    );
     let temp_path = std::env::temp_dir().join(format!(
         "dualsense_ui_poll_flash_{}.bin",
         std::process::id()
@@ -291,14 +299,24 @@ fn polling_skips_flashing_and_avoids_redundant_snapshots_when_unchanged() {
     runtime.dispatch(AppEvent::SetWarningAcknowledged(true));
     wait_until(&mut rx, |s| s.can_start_update);
 
-    // Slow down HID responses so flashing lasts ~120ms across several 15ms poll ticks.
-    enum_mock.set_report_delay(Some(Duration::from_millis(30)));
-    enum_mock.reset_list_call_count();
+    // Slow down HID responses so flashing lasts ~275ms across many 15ms poll ticks.
+    enum_mock.set_report_delay(Some(Duration::from_micros(60)));
     runtime.dispatch(AppEvent::StartUpdate);
-    wait_until(&mut rx, |s| s.step == AppStep::Completed);
+    // Wait until flashing is well into WritingFirmware so any pre-StartUpdate poll task has settled.
+    wait_until(&mut rx, |s| {
+        s.step == AppStep::Updating
+            && s.progress.stage == ProgressStage::WritingFirmware
+            && s.progress.percentage.is_some_and(|p| p >= 15)
+            && !s.can_cancel
+    });
+    enum_mock.reset_list_call_count();
 
-    // During FlashingFirmware, list_devices must not be polled at all.
+    // Sleep across several 15ms poll intervals while FlashingFirmware is still active.
+    thread::sleep(Duration::from_millis(80));
+    assert_eq!(runtime.snapshot().step, AppStep::Updating);
     assert_eq!(enum_mock.list_call_count(), 0);
+
+    wait_until(&mut rx, |s| s.step == AppStep::Completed);
 
     let _ = std::fs::remove_file(&temp_path);
     runtime.shutdown();

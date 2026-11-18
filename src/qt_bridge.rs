@@ -5,13 +5,32 @@
 //! CXX-Qt QObject bridge connecting [`dualsense_ui::DefaultAppRuntime`] to QML.
 
 use std::pin::Pin;
+use std::sync::Mutex;
 
 use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::{QString, QStringList};
 use dualsense_ui::{
     APP_VERSION, AppEvent, DefaultAppRuntime, FirmwareSourceKind, GITHUB_ISSUES_URL,
-    GITHUB_PAGES_URL, GITHUB_REPO_URL, UiSnapshot,
+    GITHUB_PAGES_URL, GITHUB_REPO_URL, NoFlashOutcome, UiSnapshot,
 };
+
+static STARTUP_NO_FLASH: Mutex<Option<NoFlashOutcome>> = Mutex::new(None);
+
+/// Configures the optional `--no-flash` simulation outcome used when QML
+/// instantiates [`qobject::DualSenseBridge`].
+pub fn set_startup_no_flash(outcome: Option<NoFlashOutcome>) {
+    let mut guard = STARTUP_NO_FLASH
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    *guard = outcome;
+}
+
+/// Returns the configured startup `--no-flash` simulation outcome, if any.
+pub fn startup_no_flash() -> Option<NoFlashOutcome> {
+    *STARTUP_NO_FLASH
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 use crate::snapshot_adapter::{
     AdaptedSnapshot, BANNER_ERROR, BANNER_INFO, parse_file_dialog_selection,
@@ -54,6 +73,13 @@ pub mod qobject {
         #[qproperty(bool, board_supported, READ, NOTIFY)]
         #[qproperty(bool, has_unsupported_board_warning, READ, NOTIFY)]
         #[qproperty(QString, unsupported_board_warning, READ, NOTIFY)]
+        #[qproperty(bool, bluetooth_only_detected, READ, NOTIFY)]
+        #[qproperty(i32, bluetooth_device_count, READ, NOTIFY)]
+        #[qproperty(QString, battery_summary, READ, NOTIFY)]
+        #[qproperty(bool, has_battery_summary, READ, NOTIFY)]
+        #[qproperty(bool, battery_is_low, READ, NOTIFY)]
+        #[qproperty(bool, battery_is_critically_low, READ, NOTIFY)]
+        #[qproperty(QString, battery_warning, READ, NOTIFY)]
         #[qproperty(bool, use_local_file, READ, NOTIFY)]
         #[qproperty(QStringList, target_ids, READ, NOTIFY)]
         #[qproperty(QStringList, target_labels, READ, NOTIFY)]
@@ -65,11 +91,18 @@ pub mod qobject {
         #[qproperty(bool, selected_target_tested, READ, NOTIFY)]
         #[qproperty(bool, selected_target_up_to_date, READ, NOTIFY)]
         #[qproperty(bool, catalog_checked, READ, NOTIFY)]
+        #[qproperty(bool, catalog_checking, READ, NOTIFY)]
+        #[qproperty(bool, update_available, READ, NOTIFY)]
+        #[qproperty(bool, is_up_to_date, READ, NOTIFY)]
+        #[qproperty(QString, version_comparison_text, READ, NOTIFY)]
         #[qproperty(bool, has_local_firmware, READ, NOTIFY)]
         #[qproperty(QString, local_firmware_name, READ, NOTIFY)]
         #[qproperty(QString, local_firmware_version, READ, NOTIFY)]
         #[qproperty(QString, local_firmware_size, READ, NOTIFY)]
         #[qproperty(QString, local_firmware_path, READ, NOTIFY)]
+        #[qproperty(bool, local_firmware_compatible, READ, NOTIFY)]
+        #[qproperty(QString, local_firmware_warning, READ, NOTIFY)]
+        #[qproperty(QString, local_firmware_error, READ, NOTIFY)]
         #[qproperty(bool, warning_acknowledged, READ, NOTIFY)]
         #[qproperty(QString, irreversible_warning, READ, NOTIFY)]
         #[qproperty(bool, has_update_summary, READ, NOTIFY)]
@@ -80,6 +113,11 @@ pub mod qobject {
         #[qproperty(bool, summary_is_untested, READ, NOTIFY)]
         #[qproperty(bool, summary_is_same_or_older, READ, NOTIFY)]
         #[qproperty(QString, completed_version, READ, NOTIFY)]
+        #[qproperty(bool, post_flash_verified, READ, NOTIFY)]
+        #[qproperty(QString, completed_verification_note, READ, NOTIFY)]
+        #[qproperty(bool, has_cached_firmware, READ, NOTIFY)]
+        #[qproperty(QString, cached_firmware_suggested_name, READ, NOTIFY)]
+        #[qproperty(bool, can_save_cached_firmware, READ, NOTIFY)]
         #[qproperty(bool, has_banner, READ, NOTIFY)]
         #[qproperty(i32, banner_severity, READ, NOTIFY)]
         #[qproperty(QString, banner_title, READ, NOTIFY)]
@@ -96,6 +134,7 @@ pub mod qobject {
         #[qproperty(QString, error_message, READ, NOTIFY)]
         #[qproperty(QString, recovery_hint, READ, NOTIFY)]
         #[qproperty(bool, is_busy, READ, NOTIFY)]
+        #[qproperty(bool, is_flashing, READ, NOTIFY)]
         #[qproperty(bool, can_scan, READ, NOTIFY)]
         #[qproperty(bool, can_continue_to_firmware, READ, NOTIFY)]
         #[qproperty(bool, can_select_target, READ, NOTIFY)]
@@ -110,6 +149,7 @@ pub mod qobject {
         #[qproperty(QString, flash_report_title, READ, NOTIFY)]
         #[qproperty(QString, flash_report_markdown, READ, NOTIFY)]
         #[qproperty(QString, flash_report_issue_url, READ, NOTIFY)]
+        #[qproperty(bool, no_flash_active, READ, NOTIFY)]
         #[qproperty(QString, app_version, READ, CONSTANT)]
         #[qproperty(QString, github_url, READ, CONSTANT)]
         #[qproperty(QString, github_pages_url, READ, CONSTANT)]
@@ -160,6 +200,9 @@ pub mod qobject {
         fn start_update(self: &DualSenseBridge);
 
         #[qinvokable]
+        fn save_cached_firmware(self: &DualSenseBridge, file_url: &QString);
+
+        #[qinvokable]
         fn cancel_operation(self: &DualSenseBridge);
 
         #[qinvokable]
@@ -204,6 +247,13 @@ pub struct DualSenseBridgeRust {
     board_supported: bool,
     has_unsupported_board_warning: bool,
     unsupported_board_warning: QString,
+    bluetooth_only_detected: bool,
+    bluetooth_device_count: i32,
+    battery_summary: QString,
+    has_battery_summary: bool,
+    battery_is_low: bool,
+    battery_is_critically_low: bool,
+    battery_warning: QString,
 
     use_local_file: bool,
     target_ids: QStringList,
@@ -216,12 +266,19 @@ pub struct DualSenseBridgeRust {
     selected_target_tested: bool,
     selected_target_up_to_date: bool,
     catalog_checked: bool,
+    catalog_checking: bool,
+    update_available: bool,
+    is_up_to_date: bool,
+    version_comparison_text: QString,
 
     has_local_firmware: bool,
     local_firmware_name: QString,
     local_firmware_version: QString,
     local_firmware_size: QString,
     local_firmware_path: QString,
+    local_firmware_compatible: bool,
+    local_firmware_warning: QString,
+    local_firmware_error: QString,
 
     warning_acknowledged: bool,
     irreversible_warning: QString,
@@ -233,6 +290,11 @@ pub struct DualSenseBridgeRust {
     summary_is_untested: bool,
     summary_is_same_or_older: bool,
     completed_version: QString,
+    post_flash_verified: bool,
+    completed_verification_note: QString,
+    has_cached_firmware: bool,
+    cached_firmware_suggested_name: QString,
+    can_save_cached_firmware: bool,
 
     has_banner: bool,
     banner_severity: i32,
@@ -253,6 +315,7 @@ pub struct DualSenseBridgeRust {
     recovery_hint: QString,
 
     is_busy: bool,
+    is_flashing: bool,
     can_scan: bool,
     can_continue_to_firmware: bool,
     can_select_target: bool,
@@ -267,6 +330,7 @@ pub struct DualSenseBridgeRust {
     flash_report_title: QString,
     flash_report_markdown: QString,
     flash_report_issue_url: QString,
+    no_flash_active: bool,
     app_version: QString,
     github_url: QString,
     github_pages_url: QString,
@@ -301,6 +365,13 @@ impl Default for DualSenseBridgeRust {
             board_supported: false,
             has_unsupported_board_warning: false,
             unsupported_board_warning: QString::default(),
+            bluetooth_only_detected: false,
+            bluetooth_device_count: 0,
+            battery_summary: QString::default(),
+            has_battery_summary: false,
+            battery_is_low: false,
+            battery_is_critically_low: false,
+            battery_warning: QString::default(),
             use_local_file: false,
             target_ids: QStringList::default(),
             target_labels: QStringList::default(),
@@ -312,11 +383,18 @@ impl Default for DualSenseBridgeRust {
             selected_target_tested: true,
             selected_target_up_to_date: false,
             catalog_checked: false,
+            catalog_checking: false,
+            update_available: false,
+            is_up_to_date: false,
+            version_comparison_text: QString::default(),
             has_local_firmware: false,
             local_firmware_name: QString::default(),
             local_firmware_version: QString::default(),
             local_firmware_size: QString::default(),
             local_firmware_path: QString::default(),
+            local_firmware_compatible: false,
+            local_firmware_warning: QString::default(),
+            local_firmware_error: QString::default(),
             warning_acknowledged: false,
             irreversible_warning: QString::default(),
             has_update_summary: false,
@@ -327,6 +405,11 @@ impl Default for DualSenseBridgeRust {
             summary_is_untested: false,
             summary_is_same_or_older: false,
             completed_version: QString::default(),
+            post_flash_verified: false,
+            completed_verification_note: QString::default(),
+            has_cached_firmware: false,
+            cached_firmware_suggested_name: QString::default(),
+            can_save_cached_firmware: false,
             has_banner: false,
             banner_severity: BANNER_INFO,
             banner_title: QString::default(),
@@ -343,6 +426,7 @@ impl Default for DualSenseBridgeRust {
             error_message: QString::default(),
             recovery_hint: QString::default(),
             is_busy: false,
+            is_flashing: false,
             can_scan: false,
             can_continue_to_firmware: false,
             can_select_target: false,
@@ -357,6 +441,7 @@ impl Default for DualSenseBridgeRust {
             flash_report_title: QString::default(),
             flash_report_markdown: QString::default(),
             flash_report_issue_url: QString::default(),
+            no_flash_active: false,
             app_version: QString::from(APP_VERSION),
             github_url: QString::from(GITHUB_REPO_URL),
             github_pages_url: QString::from(GITHUB_PAGES_URL),
@@ -376,10 +461,27 @@ macro_rules! sync_prop {
     }};
 }
 
+macro_rules! sync_fields {
+    ($this:ident, $adapted:ident; $($field:ident => $signal:ident : $kind:ident),* $(,)?) => {
+        $(
+            sync_fields!(@one $this, $adapted, $field, $signal, $kind);
+        )*
+    };
+    (@one $this:ident, $adapted:ident, $field:ident, $signal:ident, copy) => {
+        sync_prop!($this, $field, $signal, $adapted.$field);
+    };
+    (@one $this:ident, $adapted:ident, $field:ident, $signal:ident, str) => {
+        sync_prop!($this, $field, $signal, QString::from(&$adapted.$field));
+    };
+    (@one $this:ident, $adapted:ident, $field:ident, $signal:ident, list) => {
+        sync_prop!($this, $field, $signal, to_qstring_list(&$adapted.$field));
+    };
+}
+
 impl cxx_qt::Initialize for qobject::DualSenseBridge {
     fn initialize(mut self: Pin<&mut Self>) {
         let qt_thread = self.qt_thread();
-        match DefaultAppRuntime::start(move |snapshot| {
+        match DefaultAppRuntime::start_with_no_flash(startup_no_flash(), move |snapshot| {
             let _ = qt_thread.queue(move |qobject| {
                 qobject.apply_snapshot(snapshot);
             });
@@ -436,445 +538,114 @@ impl qobject::DualSenseBridge {
     fn apply_snapshot(mut self: Pin<&mut Self>, snapshot: UiSnapshot) {
         let adapted = AdaptedSnapshot::from_ui_snapshot(&snapshot);
 
-        sync_prop!(self, step_index, step_index_changed, adapted.step_index);
-        sync_prop!(
-            self,
-            step_title,
-            step_title_changed,
-            QString::from(&adapted.step_title)
-        );
-        sync_prop!(
-            self,
-            step_subtitle,
-            step_subtitle_changed,
-            QString::from(&adapted.step_subtitle)
-        );
-
-        sync_prop!(
-            self,
-            device_paths,
-            device_paths_changed,
-            to_qstring_list(&adapted.device_paths)
-        );
-        sync_prop!(
-            self,
-            device_labels,
-            device_labels_changed,
-            to_qstring_list(&adapted.device_labels)
-        );
-        sync_prop!(
-            self,
-            device_details,
-            device_details_changed,
-            to_qstring_list(&adapted.device_details)
-        );
-        sync_prop!(
-            self,
-            device_count,
-            device_count_changed,
-            adapted.device_count
-        );
-        sync_prop!(self, has_devices, has_devices_changed, adapted.has_devices);
-        sync_prop!(
-            self,
-            selected_device_index,
-            selected_device_index_changed,
-            adapted.selected_device_index
-        );
-        sync_prop!(
-            self,
-            selected_device_path,
-            selected_device_path_changed,
-            QString::from(&adapted.selected_device_path)
-        );
-        sync_prop!(
-            self,
-            selected_device_label,
-            selected_device_label_changed,
-            QString::from(&adapted.selected_device_label)
-        );
-        sync_prop!(
-            self,
-            selected_device_firmware,
-            selected_device_firmware_changed,
-            QString::from(&adapted.selected_device_firmware)
-        );
-        sync_prop!(
-            self,
-            selected_device_build_info,
-            selected_device_build_info_changed,
-            QString::from(&adapted.selected_device_build_info)
-        );
-        sync_prop!(
-            self,
-            selected_device_is_edge,
-            selected_device_is_edge_changed,
-            adapted.selected_device_is_edge
-        );
-        sync_prop!(
-            self,
-            board_model,
-            board_model_changed,
-            QString::from(&adapted.board_model)
-        );
-        sync_prop!(
-            self,
-            fw_series_text,
-            fw_series_text_changed,
-            QString::from(&adapted.fw_series_text)
-        );
-        sync_prop!(
-            self,
-            hw_model_text,
-            hw_model_text_changed,
-            QString::from(&adapted.hw_model_text)
-        );
-        sync_prop!(
-            self,
-            color_name,
-            color_name_changed,
-            QString::from(&adapted.color_name)
-        );
-        sync_prop!(
-            self,
-            serial_number,
-            serial_number_changed,
-            QString::from(&adapted.serial_number)
-        );
-        sync_prop!(
-            self,
-            detected_target_id,
-            detected_target_id_changed,
-            QString::from(&adapted.detected_target_id)
-        );
-        sync_prop!(
-            self,
-            board_supported,
-            board_supported_changed,
-            adapted.board_supported
-        );
-        sync_prop!(
-            self,
-            has_unsupported_board_warning,
-            has_unsupported_board_warning_changed,
-            adapted.has_unsupported_board_warning
-        );
-        sync_prop!(
-            self,
-            unsupported_board_warning,
-            unsupported_board_warning_changed,
-            QString::from(&adapted.unsupported_board_warning)
-        );
-
-        sync_prop!(
-            self,
-            use_local_file,
-            use_local_file_changed,
-            adapted.use_local_file
-        );
-        sync_prop!(
-            self,
-            target_ids,
-            target_ids_changed,
-            to_qstring_list(&adapted.target_ids)
-        );
-        sync_prop!(
-            self,
-            target_labels,
-            target_labels_changed,
-            to_qstring_list(&adapted.target_labels)
-        );
-        sync_prop!(
-            self,
-            target_version_labels,
-            target_version_labels_changed,
-            to_qstring_list(&adapted.target_version_labels)
-        );
-        sync_prop!(
-            self,
-            selected_target_index,
-            selected_target_index_changed,
-            adapted.selected_target_index
-        );
-        sync_prop!(
-            self,
-            selected_target_id,
-            selected_target_id_changed,
-            QString::from(&adapted.selected_target_id)
-        );
-        sync_prop!(
-            self,
-            selected_target_label,
-            selected_target_label_changed,
-            QString::from(&adapted.selected_target_label)
-        );
-        sync_prop!(
-            self,
-            selected_target_latest_version,
-            selected_target_latest_version_changed,
-            QString::from(&adapted.selected_target_latest_version)
-        );
-        sync_prop!(
-            self,
-            selected_target_tested,
-            selected_target_tested_changed,
-            adapted.selected_target_tested
-        );
-        sync_prop!(
-            self,
-            selected_target_up_to_date,
-            selected_target_up_to_date_changed,
-            adapted.selected_target_up_to_date
-        );
-        sync_prop!(
-            self,
-            catalog_checked,
-            catalog_checked_changed,
-            adapted.catalog_checked
-        );
-
-        sync_prop!(
-            self,
-            has_local_firmware,
-            has_local_firmware_changed,
-            adapted.has_local_firmware
-        );
-        sync_prop!(
-            self,
-            local_firmware_name,
-            local_firmware_name_changed,
-            QString::from(&adapted.local_firmware_name)
-        );
-        sync_prop!(
-            self,
-            local_firmware_version,
-            local_firmware_version_changed,
-            QString::from(&adapted.local_firmware_version)
-        );
-        sync_prop!(
-            self,
-            local_firmware_size,
-            local_firmware_size_changed,
-            QString::from(&adapted.local_firmware_size)
-        );
-        sync_prop!(
-            self,
-            local_firmware_path,
-            local_firmware_path_changed,
-            QString::from(&adapted.local_firmware_path)
-        );
-
-        sync_prop!(
-            self,
-            warning_acknowledged,
-            warning_acknowledged_changed,
-            adapted.warning_acknowledged
-        );
-        sync_prop!(
-            self,
-            irreversible_warning,
-            irreversible_warning_changed,
-            QString::from(&adapted.irreversible_warning)
-        );
-        sync_prop!(
-            self,
-            has_update_summary,
-            has_update_summary_changed,
-            adapted.has_update_summary
-        );
-        sync_prop!(
-            self,
-            summary_controller,
-            summary_controller_changed,
-            QString::from(&adapted.summary_controller)
-        );
-        sync_prop!(
-            self,
-            summary_current_version,
-            summary_current_version_changed,
-            QString::from(&adapted.summary_current_version)
-        );
-        sync_prop!(
-            self,
-            summary_target_version,
-            summary_target_version_changed,
-            QString::from(&adapted.summary_target_version)
-        );
-        sync_prop!(
-            self,
-            summary_source,
-            summary_source_changed,
-            QString::from(&adapted.summary_source)
-        );
-        sync_prop!(
-            self,
-            summary_is_untested,
-            summary_is_untested_changed,
-            adapted.summary_is_untested
-        );
-        sync_prop!(
-            self,
-            summary_is_same_or_older,
-            summary_is_same_or_older_changed,
-            adapted.summary_is_same_or_older
-        );
-        sync_prop!(
-            self,
-            completed_version,
-            completed_version_changed,
-            QString::from(&adapted.completed_version)
-        );
-
-        sync_prop!(self, has_banner, has_banner_changed, adapted.has_banner);
-        sync_prop!(
-            self,
-            banner_severity,
-            banner_severity_changed,
-            adapted.banner_severity
-        );
-        sync_prop!(
-            self,
-            banner_title,
-            banner_title_changed,
-            QString::from(&adapted.banner_title)
-        );
-        sync_prop!(
-            self,
-            banner_text,
-            banner_text_changed,
-            QString::from(&adapted.banner_text)
-        );
-        sync_prop!(
-            self,
-            banner_display_text,
-            banner_display_text_changed,
-            QString::from(&adapted.banner_display_text)
-        );
-
-        sync_prop!(
-            self,
-            progress_visible,
-            progress_visible_changed,
-            adapted.progress_visible
-        );
-        sync_prop!(
-            self,
-            progress_indeterminate,
-            progress_indeterminate_changed,
-            adapted.progress_indeterminate
+        sync_fields!(
+            self, adapted;
+            step_index => step_index_changed : copy,
+            step_title => step_title_changed : str,
+            step_subtitle => step_subtitle_changed : str,
+            device_paths => device_paths_changed : list,
+            device_labels => device_labels_changed : list,
+            device_details => device_details_changed : list,
+            device_count => device_count_changed : copy,
+            has_devices => has_devices_changed : copy,
+            selected_device_index => selected_device_index_changed : copy,
+            selected_device_path => selected_device_path_changed : str,
+            selected_device_label => selected_device_label_changed : str,
+            selected_device_firmware => selected_device_firmware_changed : str,
+            selected_device_build_info => selected_device_build_info_changed : str,
+            selected_device_is_edge => selected_device_is_edge_changed : copy,
+            board_model => board_model_changed : str,
+            fw_series_text => fw_series_text_changed : str,
+            hw_model_text => hw_model_text_changed : str,
+            color_name => color_name_changed : str,
+            serial_number => serial_number_changed : str,
+            detected_target_id => detected_target_id_changed : str,
+            board_supported => board_supported_changed : copy,
+            has_unsupported_board_warning => has_unsupported_board_warning_changed : copy,
+            unsupported_board_warning => unsupported_board_warning_changed : str,
+            bluetooth_only_detected => bluetooth_only_detected_changed : copy,
+            bluetooth_device_count => bluetooth_device_count_changed : copy,
+            battery_summary => battery_summary_changed : str,
+            has_battery_summary => has_battery_summary_changed : copy,
+            battery_is_low => battery_is_low_changed : copy,
+            battery_is_critically_low => battery_is_critically_low_changed : copy,
+            battery_warning => battery_warning_changed : str,
+            use_local_file => use_local_file_changed : copy,
+            target_ids => target_ids_changed : list,
+            target_labels => target_labels_changed : list,
+            target_version_labels => target_version_labels_changed : list,
+            selected_target_index => selected_target_index_changed : copy,
+            selected_target_id => selected_target_id_changed : str,
+            selected_target_label => selected_target_label_changed : str,
+            selected_target_latest_version => selected_target_latest_version_changed : str,
+            selected_target_tested => selected_target_tested_changed : copy,
+            selected_target_up_to_date => selected_target_up_to_date_changed : copy,
+            catalog_checked => catalog_checked_changed : copy,
+            catalog_checking => catalog_checking_changed : copy,
+            update_available => update_available_changed : copy,
+            is_up_to_date => is_up_to_date_changed : copy,
+            version_comparison_text => version_comparison_text_changed : str,
+            has_local_firmware => has_local_firmware_changed : copy,
+            local_firmware_name => local_firmware_name_changed : str,
+            local_firmware_version => local_firmware_version_changed : str,
+            local_firmware_size => local_firmware_size_changed : str,
+            local_firmware_path => local_firmware_path_changed : str,
+            local_firmware_compatible => local_firmware_compatible_changed : copy,
+            local_firmware_warning => local_firmware_warning_changed : str,
+            local_firmware_error => local_firmware_error_changed : str,
+            warning_acknowledged => warning_acknowledged_changed : copy,
+            irreversible_warning => irreversible_warning_changed : str,
+            has_update_summary => has_update_summary_changed : copy,
+            summary_controller => summary_controller_changed : str,
+            summary_current_version => summary_current_version_changed : str,
+            summary_target_version => summary_target_version_changed : str,
+            summary_source => summary_source_changed : str,
+            summary_is_untested => summary_is_untested_changed : copy,
+            summary_is_same_or_older => summary_is_same_or_older_changed : copy,
+            completed_version => completed_version_changed : str,
+            post_flash_verified => post_flash_verified_changed : copy,
+            completed_verification_note => completed_verification_note_changed : str,
+            has_cached_firmware => has_cached_firmware_changed : copy,
+            cached_firmware_suggested_name => cached_firmware_suggested_name_changed : str,
+            can_save_cached_firmware => can_save_cached_firmware_changed : copy,
+            has_banner => has_banner_changed : copy,
+            banner_severity => banner_severity_changed : copy,
+            banner_title => banner_title_changed : str,
+            banner_text => banner_text_changed : str,
+            banner_display_text => banner_display_text_changed : str,
+            progress_visible => progress_visible_changed : copy,
+            progress_indeterminate => progress_indeterminate_changed : copy,
         );
         if (self.rust().progress_value - adapted.progress_value).abs() > f64::EPSILON {
             self.as_mut().rust_mut().progress_value = adapted.progress_value;
             self.as_mut().progress_value_changed();
         }
-        sync_prop!(
-            self,
-            progress_percentage,
-            progress_percentage_changed,
-            adapted.progress_percentage
-        );
-        sync_prop!(
-            self,
-            status_title,
-            status_title_changed,
-            QString::from(&adapted.status_title)
-        );
-        sync_prop!(
-            self,
-            status_detail,
-            status_detail_changed,
-            QString::from(&adapted.status_detail)
-        );
-
-        sync_prop!(self, has_error, has_error_changed, adapted.has_error);
-        sync_prop!(
-            self,
-            error_title,
-            error_title_changed,
-            QString::from(&adapted.error_title)
-        );
-        sync_prop!(
-            self,
-            error_message,
-            error_message_changed,
-            QString::from(&adapted.error_message)
-        );
-        sync_prop!(
-            self,
-            recovery_hint,
-            recovery_hint_changed,
-            QString::from(&adapted.recovery_hint)
-        );
-
-        sync_prop!(self, is_busy, is_busy_changed, adapted.is_busy);
-        sync_prop!(self, can_scan, can_scan_changed, adapted.can_scan);
-        sync_prop!(
-            self,
-            can_continue_to_firmware,
-            can_continue_to_firmware_changed,
-            adapted.can_continue_to_firmware
-        );
-        sync_prop!(
-            self,
-            can_select_target,
-            can_select_target_changed,
-            adapted.can_select_target
-        );
-        sync_prop!(
-            self,
-            can_check_updates,
-            can_check_updates_changed,
-            adapted.can_check_updates
-        );
-        sync_prop!(
-            self,
-            can_select_file,
-            can_select_file_changed,
-            adapted.can_select_file
-        );
-        sync_prop!(
-            self,
-            can_review_update,
-            can_review_update_changed,
-            adapted.can_review_update
-        );
-        sync_prop!(
-            self,
-            can_start_update,
-            can_start_update_changed,
-            adapted.can_start_update
-        );
-        sync_prop!(self, can_cancel, can_cancel_changed, adapted.can_cancel);
-        sync_prop!(self, can_go_back, can_go_back_changed, adapted.can_go_back);
-        sync_prop!(
-            self,
-            has_flash_report,
-            has_flash_report_changed,
-            adapted.has_flash_report
-        );
-        sync_prop!(
-            self,
-            flash_report_succeeded,
-            flash_report_succeeded_changed,
-            adapted.flash_report_succeeded
-        );
-        sync_prop!(
-            self,
-            flash_report_title,
-            flash_report_title_changed,
-            QString::from(&adapted.flash_report_title)
-        );
-        sync_prop!(
-            self,
-            flash_report_markdown,
-            flash_report_markdown_changed,
-            QString::from(&adapted.flash_report_markdown)
-        );
-        sync_prop!(
-            self,
-            flash_report_issue_url,
-            flash_report_issue_url_changed,
-            QString::from(&adapted.flash_report_issue_url)
+        sync_fields!(
+            self, adapted;
+            progress_percentage => progress_percentage_changed : copy,
+            status_title => status_title_changed : str,
+            status_detail => status_detail_changed : str,
+            has_error => has_error_changed : copy,
+            error_title => error_title_changed : str,
+            error_message => error_message_changed : str,
+            recovery_hint => recovery_hint_changed : str,
+            is_busy => is_busy_changed : copy,
+            is_flashing => is_flashing_changed : copy,
+            can_scan => can_scan_changed : copy,
+            can_continue_to_firmware => can_continue_to_firmware_changed : copy,
+            can_select_target => can_select_target_changed : copy,
+            can_check_updates => can_check_updates_changed : copy,
+            can_select_file => can_select_file_changed : copy,
+            can_review_update => can_review_update_changed : copy,
+            can_start_update => can_start_update_changed : copy,
+            can_cancel => can_cancel_changed : copy,
+            can_go_back => can_go_back_changed : copy,
+            has_flash_report => has_flash_report_changed : copy,
+            flash_report_succeeded => flash_report_succeeded_changed : copy,
+            flash_report_title => flash_report_title_changed : str,
+            flash_report_markdown => flash_report_markdown_changed : str,
+            flash_report_issue_url => flash_report_issue_url_changed : str,
+            no_flash_active => no_flash_active_changed : copy,
         );
     }
 
@@ -953,6 +724,14 @@ impl qobject::DualSenseBridge {
 
     pub fn start_update(&self) {
         self.dispatch(AppEvent::StartUpdate);
+    }
+
+    pub fn save_cached_firmware(&self, file_url: &QString) {
+        let raw = file_url.to_string();
+        match parse_file_dialog_selection(&raw) {
+            Some(path) => self.dispatch(AppEvent::SaveCachedFirmware { path }),
+            None => log::warn!("Ignoring unsupported save firmware dialog selection: {raw:?}"),
+        }
     }
 
     pub fn cancel_operation(&self) {

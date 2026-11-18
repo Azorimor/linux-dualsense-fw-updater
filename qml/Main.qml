@@ -9,18 +9,27 @@ import QtQuick.Controls as QQC2
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import dev.dualsense.updater
+import io.github.azorimor.linux_dualsense_fw_updater
 
 Kirigami.ApplicationWindow {
     id: root
 
-    title: "DualSense Firmware Updater"
+    title: updater.noFlashActive
+        ? "DualSense Firmware Updater [Simulation: --no-flash]"
+        : "DualSense Firmware Updater"
     width: 720
     height: 660
     minimumWidth: 580
     minimumHeight: 540
 
     pageStack.globalToolBar.style: Kirigami.ApplicationHeaderStyle.None
+
+    onClosing: close => {
+        if (updater.isFlashing) {
+            close.accepted = false
+            flashingCloseWarningDialog.open()
+        }
+    }
 
     DualSenseBridge {
         id: updater
@@ -48,6 +57,21 @@ Kirigami.ApplicationWindow {
         reportSucceeded: updater.flashReportSucceeded
     }
 
+    QQC2.Dialog {
+        id: flashingCloseWarningDialog
+        title: "Firmware Update in Progress"
+        modal: true
+        parent: QQC2.Overlay.overlay
+        anchors.centerIn: parent
+        standardButtons: QQC2.Dialog.Ok
+
+        QQC2.Label {
+            width: Math.min(root.width - Kirigami.Units.largeSpacing * 4, 420)
+            text: "Firmware is currently being written to your DualSense controller. Do not close this window or unplug the USB cable until the update finishes."
+            wrapMode: Text.WordWrap
+        }
+    }
+
     menuBar: QQC2.MenuBar {
         QQC2.Menu {
             title: "File"
@@ -62,7 +86,8 @@ Kirigami.ApplicationWindow {
 
             QQC2.MenuItem {
                 text: "Quit"
-                onTriggered: Qt.quit()
+                enabled: !updater.isFlashing
+                onTriggered: root.close()
             }
         }
 
@@ -97,18 +122,31 @@ Kirigami.ApplicationWindow {
         onAccepted: updater.selectLocalFile(selectedFile.toString())
     }
 
+    FileDialog {
+        id: saveFirmwareFileDialog
+        title: "Save Firmware Copy"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["Firmware images (*.bin)", "All files (*)"]
+        onAccepted: updater.saveCachedFirmware(selectedFile.toString())
+    }
+
     Connections {
         target: updater
         function onStepIndexChanged() {
             if (updater.stepIndex !== 1 && firmwareFileDialog.visible) {
                 firmwareFileDialog.close()
             }
+            if (updater.stepIndex === 3 && saveFirmwareFileDialog.visible) {
+                saveFirmwareFileDialog.close()
+            }
         }
     }
 
     pageStack.initialPage: Kirigami.ScrollablePage {
         id: mainPage
-        title: "DualSense Firmware Updater"
+        title: updater.noFlashActive
+        ? "DualSense Firmware Updater [Simulation: --no-flash]"
+        : "DualSense Firmware Updater"
         padding: Kirigami.Units.largeSpacing
 
         Item {
@@ -120,784 +158,416 @@ Kirigami.ApplicationWindow {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Kirigami.Units.largeSpacing
 
-            StepIndicator {
-                Layout.fillWidth: true
-                currentStepIndex: updater.stepIndex
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing
-
-                Kirigami.Heading {
+                Kirigami.InlineMessage {
+                    id: simulationBanner
                     Layout.fillWidth: true
-                    level: 2
-                    text: updater.stepTitle
-                    wrapMode: Text.WordWrap
+                    visible: updater.noFlashActive
+                    type: Kirigami.MessageType.Information
+                    text: "Simulation mode (--no-flash) is active. No firmware will be flashed to real hardware."
                 }
 
-                QQC2.Label {
+                StepIndicator {
                     Layout.fillWidth: true
-                    text: updater.stepSubtitle
-                    wrapMode: Text.WordWrap
-                    opacity: 0.78
+                    currentStepIndex: updater.stepIndex
                 }
-            }
 
-            Kirigami.InlineMessage {
-                id: statusBanner
-                Layout.fillWidth: true
-                visible: updater.hasBanner && updater.stepIndex !== 5
-                text: updater.bannerDisplayText
-                // Kirigami's BasicTheme fallback binds activeTextColor to highlightedText (#ffffff in Fusion).
-                Kirigami.Theme.activeTextColor: Qt.colorEqual(
-                        root.Kirigami.Theme.activeTextColor,
-                        root.Kirigami.Theme.highlightedTextColor)
-                    ? root.Kirigami.Theme.highlightColor
-                    : root.Kirigami.Theme.activeTextColor
-                type: {
-                    switch (updater.bannerSeverity) {
-                    case 1:
-                        return Kirigami.MessageType.Positive
-                    case 2:
-                        return Kirigami.MessageType.Warning
-                    case 3:
-                        return Kirigami.MessageType.Error
-                    default:
-                        return Kirigami.MessageType.Information
-                    }
-                }
-            }
-
-            // Inline activity bar for non-flashing background steps (scan, catalog check, file inspect)
-            Kirigami.AbstractCard {
-                Layout.fillWidth: true
-                visible: updater.progressVisible && updater.stepIndex !== 3
-
-                contentItem: ColumnLayout {
+                ColumnLayout {
+                    Layout.fillWidth: true
                     spacing: Kirigami.Units.smallSpacing
 
-                    QQC2.Label {
+                    Kirigami.Heading {
                         Layout.fillWidth: true
-                        text: updater.statusTitle
-                        font.bold: true
+                        level: 2
+                        text: updater.stepTitle
                         wrapMode: Text.WordWrap
                     }
 
-                    QQC2.ProgressBar {
+                    QQC2.Label {
                         Layout.fillWidth: true
-                        indeterminate: updater.progressIndeterminate
-                        from: 0.0
-                        to: 1.0
-                        value: updater.progressIndeterminate ? 0.0 : updater.progressValue
+                        text: updater.stepSubtitle
+                        wrapMode: Text.WordWrap
+                        opacity: 0.78
                     }
+                }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        visible: updater.canCancel
-
-                        Item {
-                            Layout.fillWidth: true
-                        }
-
-                        QQC2.Button {
-                            text: "Cancel"
-                            icon.name: "dialog-cancel"
-                            enabled: updater.canCancel
-                            onClicked: updater.cancelOperation()
+                Kirigami.InlineMessage {
+                    id: statusBanner
+                    Layout.fillWidth: true
+                    visible: updater.hasBanner && updater.stepIndex !== 5
+                    text: updater.bannerDisplayText
+                    // Kirigami's BasicTheme fallback binds activeTextColor to highlightedText (#ffffff in Fusion).
+                    Kirigami.Theme.activeTextColor: Qt.colorEqual(
+                            root.Kirigami.Theme.activeTextColor,
+                            root.Kirigami.Theme.highlightedTextColor)
+                        ? root.Kirigami.Theme.highlightColor
+                        : root.Kirigami.Theme.activeTextColor
+                    type: {
+                        switch (updater.bannerSeverity) {
+                        case 1:
+                            return Kirigami.MessageType.Positive
+                        case 2:
+                            return Kirigami.MessageType.Warning
+                        case 3:
+                            return Kirigami.MessageType.Error
+                        default:
+                            return Kirigami.MessageType.Information
                         }
                     }
                 }
-            }
 
-            StackLayout {
-                id: stepStack
-                Layout.fillWidth: true
-                currentIndex: updater.stepIndex
-
-                // ---------------------------------------------------------
-                // Step 0: Detect Controller
-                // ---------------------------------------------------------
-                ColumnLayout {
+                // Inline activity bar for non-flashing background steps (scan, catalog check, file inspect)
+                Kirigami.AbstractCard {
                     Layout.fillWidth: true
-                    spacing: Kirigami.Units.largeSpacing
+                    visible: updater.progressVisible && updater.stepIndex !== 3
 
-                    Kirigami.PlaceholderMessage {
-                        Layout.fillWidth: true
-                        Layout.topMargin: Kirigami.Units.largeSpacing
-                        Layout.bottomMargin: Kirigami.Units.largeSpacing
-                        visible: !updater.hasDevices && !updater.isBusy
-                        icon.name: "input-gamepad"
-                        text: "No DualSense Controller Found"
-                        explanation: "Connect your controller directly to a USB port with a data cable. Firmware updates cannot run over Bluetooth."
-
-                        QQC2.Button {
-                            Layout.alignment: Qt.AlignHCenter
-                            text: "Check Again"
-                            icon.name: "view-refresh"
-                            enabled: updater.canScan
-                            onClicked: updater.scanControllers()
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        visible: updater.hasDevices
+                    contentItem: ColumnLayout {
                         spacing: Kirigami.Units.smallSpacing
 
                         QQC2.Label {
                             Layout.fillWidth: true
-                            text: updater.deviceCount > 1
-                                ? "Select the controller you want to update:"
-                                : "Detected controller:"
+                            text: updater.statusTitle
                             font.bold: true
+                            wrapMode: Text.WordWrap
                         }
 
-                        Repeater {
-                            model: updater.deviceCount
+                        QQC2.ProgressBar {
+                            Layout.fillWidth: true
+                            indeterminate: updater.progressIndeterminate
+                            from: 0.0
+                            to: 1.0
+                            value: updater.progressIndeterminate ? 0.0 : updater.progressValue
+                        }
 
-                            Kirigami.AbstractCard {
-                                id: deviceCard
-                                required property int index
-                                readonly property bool isSelected: index === updater.selectedDeviceIndex
+                        RowLayout {
+                            Layout.fillWidth: true
+                            visible: updater.canCancel
 
+                            Item {
                                 Layout.fillWidth: true
-                                showClickFeedback: updater.deviceCount > 1 && !updater.isBusy
+                            }
 
-                                contentItem: RowLayout {
-                                    spacing: Kirigami.Units.mediumSpacing
+                            QQC2.Button {
+                                text: "Cancel"
+                                icon.name: "dialog-cancel"
+                                enabled: updater.canCancel
+                                onClicked: updater.cancelOperation()
+                            }
+                        }
+                    }
+                }
 
-                                    QQC2.RadioButton {
-                                        checked: deviceCard.isSelected
-                                        enabled: !updater.isBusy
-                                        onClicked: updater.selectDeviceAt(deviceCard.index)
-                                    }
+                StackLayout {
+                    id: stepStack
+                    Layout.fillWidth: true
+                    currentIndex: updater.stepIndex
 
-                                    Kirigami.Icon {
-                                        source: "input-gamepad"
-                                        Layout.preferredWidth: Kirigami.Units.iconSizes.medium
-                                        Layout.preferredHeight: Kirigami.Units.iconSizes.medium
-                                    }
+                    // Step 0: Detect Controller
+                    DetectControllerStep {
+                        Layout.fillWidth: true
+                        updater: updater
+                    }
 
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
+                    // Step 1: Choose Update Source
+                    SelectFirmwareStep {
+                        Layout.fillWidth: true
+                        updater: updater
+                        onChooseLocalFileRequested: firmwareFileDialog.open()
+                        onSaveFirmwareRequested: saveFirmwareFileDialog.open()
+                    }
 
-                                        QQC2.Label {
-                                            Layout.fillWidth: true
-                                            text: updater.deviceLabels[deviceCard.index] ?? ""
-                                            font.bold: true
-                                            wrapMode: Text.WordWrap
-                                        }
+                    // Step 2: Review & Confirm
+                    ConfirmUpdateStep {
+                        Layout.fillWidth: true
+                        updater: updater
+                    }
 
-                                        QQC2.Label {
-                                            Layout.fillWidth: true
-                                            text: updater.deviceDetails[deviceCard.index] ?? ""
-                                            opacity: 0.78
-                                            wrapMode: Text.WordWrap
-                                        }
-                                    }
+                    // Step 3: Updating (Progress)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.largeSpacing
+
+                        Kirigami.AbstractCard {
+                            Layout.fillWidth: true
+
+                            contentItem: ColumnLayout {
+                                spacing: Kirigami.Units.mediumSpacing
+
+                                Kirigami.Heading {
+                                    Layout.fillWidth: true
+                                    level: 3
+                                    text: updater.statusTitle.length > 0
+                                        ? updater.statusTitle
+                                        : "Working…"
+                                    wrapMode: Text.WordWrap
                                 }
 
-                                onClicked: {
-                                    if (!updater.isBusy) {
-                                        updater.selectDeviceAt(deviceCard.index)
-                                    }
+                                QQC2.ProgressBar {
+                                    Layout.fillWidth: true
+                                    indeterminate: updater.progressIndeterminate
+                                    from: 0.0
+                                    to: 1.0
+                                    value: updater.progressIndeterminate ? 0.0 : updater.progressValue
+                                }
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    visible: updater.statusDetail.length > 0
+                                    text: updater.statusDetail
+                                    opacity: 0.82
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: updater.canCancel
+                                        ? "Downloading from Sony's server. You can cancel safely before installation begins."
+                                        : "Writing firmware to your controller. Do not unplug the USB cable or close this window."
+                                    opacity: 0.72
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+
+                            Item {
+                                Layout.fillWidth: true
+                            }
+
+                            QQC2.Button {
+                                text: "Cancel"
+                                icon.name: "dialog-cancel"
+                                visible: updater.canCancel
+                                enabled: updater.canCancel
+                                onClicked: updater.cancelOperation()
+                            }
+                        }
+                    }
+
+                    // Step 4: Completed
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.largeSpacing
+
+                        Kirigami.PlaceholderMessage {
+                            Layout.fillWidth: true
+                            Layout.topMargin: Kirigami.Units.largeSpacing
+                            Layout.bottomMargin: Kirigami.Units.largeSpacing
+                            icon.name: "dialog-ok-apply"
+                            text: "Firmware Update Complete"
+                            explanation: "Your DualSense controller is now running firmware "
+                                + updater.completedVersion
+                                + ". You can safely unplug the USB cable and use your controller normally."
+
+                            RowLayout {
+                                Layout.alignment: Qt.AlignHCenter
+                                spacing: Kirigami.Units.mediumSpacing
+
+                                QQC2.Button {
+                                    text: "Update Another Controller"
+                                    icon.name: "view-refresh"
+                                    onClicked: updater.startOver()
+                                }
+
+                                QQC2.Button {
+                                    text: "Close"
+                                    icon.name: "window-close"
+                                    highlighted: true
+                                    onClicked: root.close()
+                                }
+                            }
+                        }
+
+                        Kirigami.InlineMessage {
+                            Layout.fillWidth: true
+                            visible: updater.completedVerificationNote.length > 0
+                            type: updater.postFlashVerified
+                                ? Kirigami.MessageType.Positive
+                                : Kirigami.MessageType.Warning
+                            text: updater.completedVerificationNote
+                        }
+
+                        Kirigami.AbstractCard {
+                            Layout.fillWidth: true
+                            visible: updater.canSaveCachedFirmware
+
+                            contentItem: RowLayout {
+                                spacing: Kirigami.Units.mediumSpacing
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: "Optional: Save a copy of "
+                                        + updater.cachedFirmwareSuggestedName
+                                        + " for updating another controller offline."
+                                    wrapMode: Text.WordWrap
+                                    opacity: 0.82
+                                }
+
+                                QQC2.Button {
+                                    text: "Save Firmware Copy…"
+                                    icon.name: "document-save-as"
+                                    enabled: updater.canSaveCachedFirmware
+                                    onClicked: saveFirmwareFileDialog.open()
                                 }
                             }
                         }
 
                         Kirigami.AbstractCard {
                             Layout.fillWidth: true
-                            visible: updater.selectedDeviceLabel.length > 0
+                            visible: updater.hasFlashReport
 
-                            contentItem: Kirigami.FormLayout {
-                                QQC2.Label {
-                                    Kirigami.FormData.label: "Controller:"
-                                    text: updater.selectedDeviceLabel
-                                    wrapMode: Text.WordWrap
-                                }
-                                QQC2.Label {
-                                    Kirigami.FormData.label: "Board Model:"
-                                    visible: updater.boardModel.length > 0
-                                    text: updater.boardModel
-                                    font.bold: true
-                                }
-                                QQC2.Label {
-                                    Kirigami.FormData.label: "Color:"
-                                    visible: updater.colorName.length > 0
-                                    text: updater.colorName
-                                }
-                                QQC2.Label {
-                                    Kirigami.FormData.label: "Current Firmware:"
-                                    text: updater.selectedDeviceFirmware
-                                    font.bold: true
-                                }
-                                QQC2.Label {
-                                    Kirigami.FormData.label: "Build Info:"
-                                    visible: updater.selectedDeviceBuildInfo.length > 0
-                                    text: updater.selectedDeviceBuildInfo
-                                }
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Kirigami.Units.smallSpacing
-
-                        QQC2.Button {
-                            visible: updater.hasDevices
-                            text: "Check Again"
-                            icon.name: "view-refresh"
-                            enabled: updater.canScan
-                            onClicked: updater.scanControllers()
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                        }
-
-                        QQC2.Button {
-                            text: "Continue"
-                            icon.name: "go-next"
-                            highlighted: true
-                            enabled: updater.canContinueToFirmware
-                            onClicked: updater.continueToFirmware()
-                        }
-                    }
-                }
-
-                // ---------------------------------------------------------
-                // Step 1: Choose Update Source
-                // ---------------------------------------------------------
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.largeSpacing
-
-                    Kirigami.AbstractCard {
-                        Layout.fillWidth: true
-                        visible: updater.boardModel.length > 0
-
-                        contentItem: Kirigami.FormLayout {
-                            QQC2.Label {
-                                Kirigami.FormData.label: "Board Model:"
-                                text: updater.boardModel
-                                font.bold: true
-                            }
-                            QQC2.Label {
-                                Kirigami.FormData.label: "Color:"
-                                visible: updater.colorName.length > 0
-                                text: updater.colorName
-                            }
-                            QQC2.Label {
-                                Kirigami.FormData.label: "FW Series:"
-                                visible: updater.fwSeriesText.length > 0
-                                text: updater.fwSeriesText
-                            }
-                        }
-                    }
-
-                    Kirigami.InlineMessage {
-                        Layout.fillWidth: true
-                        visible: updater.hasUnsupportedBoardWarning && !updater.useLocalFile
-                        type: Kirigami.MessageType.Warning
-                        text: updater.unsupportedBoardWarning
-                    }
-
-                    // Option A: Official Sony Firmware
-                    Kirigami.AbstractCard {
-                        Layout.fillWidth: true
-
-                        contentItem: ColumnLayout {
-                            spacing: Kirigami.Units.mediumSpacing
-
-                            QQC2.RadioButton {
-                                text: "Download Official Sony Firmware (Recommended)"
-                                font.bold: true
-                                checked: !updater.useLocalFile
-                                enabled: !updater.isBusy
-                                onClicked: updater.setUseLocalFile(false)
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.leftMargin: Kirigami.Units.largeSpacing
+                            contentItem: ColumnLayout {
                                 spacing: Kirigami.Units.smallSpacing
-                                enabled: !updater.useLocalFile && !updater.isBusy
 
                                 QQC2.Label {
                                     Layout.fillWidth: true
-                                    text: "Choose your controller hardware model:"
+                                    text: "Optional: Share Flash Result on GitHub"
+                                    font.bold: true
+                                }
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: "Open a prefilled GitHub issue with anonymized controller, firmware, and OS metrics (no serial numbers). You can review and edit everything before submitting."
                                     wrapMode: Text.WordWrap
-                                }
-
-                                QQC2.ComboBox {
-                                    id: targetComboBox
-                                    Layout.fillWidth: true
-                                    enabled: updater.canSelectTarget
-                                    model: updater.targetLabels
-                                    currentIndex: updater.selectedTargetIndex
-                                    onActivated: index => {
-                                        updater.selectTargetAt(index)
-                                        targetComboBox.currentIndex = Qt.binding(() => updater.selectedTargetIndex)
-                                    }
-                                    onModelChanged: targetComboBox.currentIndex = Qt.binding(() => updater.selectedTargetIndex)
-                                }
-
-                                Kirigami.InlineMessage {
-                                    Layout.fillWidth: true
-                                    visible: !updater.selectedTargetTested
-                                    type: Kirigami.MessageType.Warning
-                                    text: "DualSense Edge has not been hardware-tested with this utility. Proceed with caution."
+                                    opacity: 0.82
                                 }
 
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: Kirigami.Units.mediumSpacing
+                                    spacing: Kirigami.Units.smallSpacing
 
                                     QQC2.Button {
-                                        text: updater.catalogChecked ? "Refresh Version" : "Check for Update"
-                                        icon.name: "download"
-                                        enabled: updater.canCheckUpdates
+                                        text: "Flash Run Infos"
+                                        icon.name: "document-properties"
                                         onClicked: {
-                                            updater.setUseLocalFile(false)
-                                            updater.checkForUpdates()
+                                            flashReportWindow.show()
+                                            flashReportWindow.raise()
+                                            flashReportWindow.requestActivate()
                                         }
                                     }
 
-                                    QQC2.Label {
-                                        Layout.fillWidth: true
-                                        text: updater.catalogChecked
-                                            ? ("Latest Sony firmware: " + updater.selectedTargetLatestVersion)
-                                            : "Click \"Check for Update\" to check Sony's server."
-                                        wrapMode: Text.WordWrap
-                                        opacity: 0.82
+                                    QQC2.Button {
+                                        text: "Open GitHub Issue"
+                                        icon.name: "internet-web-browser"
+                                        enabled: updater.flashReportIssueUrl.length > 0
+                                        onClicked: Qt.openUrlExternally(updater.flashReportIssueUrl)
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Option B: Local Firmware Image (.bin)
-                    Kirigami.AbstractCard {
+                    // Step 5: Error
+                    ColumnLayout {
                         Layout.fillWidth: true
+                        spacing: Kirigami.Units.largeSpacing
 
-                        contentItem: ColumnLayout {
-                            spacing: Kirigami.Units.mediumSpacing
+                        Kirigami.InlineMessage {
+                            Layout.fillWidth: true
+                            visible: true
+                            type: Kirigami.MessageType.Error
+                            text: updater.errorTitle.length > 0
+                                ? (updater.errorTitle + " — " + updater.errorMessage)
+                                : updater.errorMessage
+                        }
 
-                            QQC2.RadioButton {
-                                text: "Use a Local Firmware File (.bin)"
-                                font.bold: true
-                                checked: updater.useLocalFile
-                                enabled: !updater.isBusy
-                                onClicked: updater.setUseLocalFile(true)
-                            }
+                        Kirigami.AbstractCard {
+                            Layout.fillWidth: true
+                            visible: updater.recoveryHint.length > 0
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.leftMargin: Kirigami.Units.largeSpacing
+                            contentItem: ColumnLayout {
                                 spacing: Kirigami.Units.smallSpacing
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: "What to try next"
+                                    font.bold: true
+                                }
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: updater.recoveryHint
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+                        }
+
+                        Kirigami.AbstractCard {
+                            Layout.fillWidth: true
+                            visible: updater.hasFlashReport
+
+                            contentItem: ColumnLayout {
+                                spacing: Kirigami.Units.smallSpacing
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: "Optional: Report Flash Attempt on GitHub"
+                                    font.bold: true
+                                }
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: "Open a prefilled GitHub issue with anonymized controller, firmware, error, and OS metrics (no serial numbers) so maintainers can investigate compatibility."
+                                    wrapMode: Text.WordWrap
+                                    opacity: 0.82
+                                }
 
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: Kirigami.Units.mediumSpacing
+                                    spacing: Kirigami.Units.smallSpacing
 
                                     QQC2.Button {
-                                        text: "Choose File…"
-                                        icon.name: "document-open"
-                                        enabled: updater.canSelectFile
+                                        text: "Flash Run Infos"
+                                        icon.name: "document-properties"
                                         onClicked: {
-                                            updater.setUseLocalFile(true)
-                                            firmwareFileDialog.open()
+                                            flashReportWindow.show()
+                                            flashReportWindow.raise()
+                                            flashReportWindow.requestActivate()
                                         }
                                     }
 
-                                    QQC2.Label {
-                                        Layout.fillWidth: true
-                                        text: updater.hasLocalFirmware
-                                            ? (updater.localFirmwareName + " — version " + updater.localFirmwareVersion + " (" + updater.localFirmwareSize + ")")
-                                            : "No firmware file selected."
-                                        wrapMode: Text.WordWrap
-                                        opacity: 0.82
+                                    QQC2.Button {
+                                        text: "Open GitHub Issue"
+                                        icon.name: "internet-web-browser"
+                                        enabled: updater.flashReportIssueUrl.length > 0
+                                        onClicked: Qt.openUrlExternally(updater.flashReportIssueUrl)
                                     }
                                 }
                             }
                         }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Kirigami.Units.smallSpacing
-
-                        QQC2.Button {
-                            text: "Back"
-                            icon.name: "go-previous"
-                            enabled: updater.canGoBack
-                            onClicked: updater.goBack()
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                        }
-
-                        QQC2.Button {
-                            text: "Review Update"
-                            icon.name: "go-next"
-                            highlighted: true
-                            enabled: updater.canReviewUpdate
-                            onClicked: updater.reviewUpdate()
-                        }
-                    }
-                }
-
-                // ---------------------------------------------------------
-                // Step 2: Review & Confirm
-                // ---------------------------------------------------------
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.largeSpacing
-
-                    Kirigami.AbstractCard {
-                        Layout.fillWidth: true
-                        visible: updater.hasUpdateSummary
-
-                        contentItem: Kirigami.FormLayout {
-                            QQC2.Label {
-                                Kirigami.FormData.label: "Controller:"
-                                text: updater.summaryController
-                                wrapMode: Text.WordWrap
-                            }
-                            QQC2.Label {
-                                Kirigami.FormData.label: "Current Firmware:"
-                                text: updater.summaryCurrentVersion
-                            }
-                            QQC2.Label {
-                                Kirigami.FormData.label: "New Firmware:"
-                                text: updater.summaryTargetVersion
-                                font.bold: true
-                            }
-                            QQC2.Label {
-                                Kirigami.FormData.label: "Source:"
-                                text: updater.summarySource
-                                wrapMode: Text.WordWrap
-                            }
-                        }
-                    }
-
-                    Kirigami.InlineMessage {
-                        Layout.fillWidth: true
-                        visible: true
-                        type: Kirigami.MessageType.Warning
-                        text: updater.irreversibleWarning
-                    }
-
-                    Kirigami.InlineMessage {
-                        Layout.fillWidth: true
-                        visible: updater.summaryIsSameOrOlder
-                        type: Kirigami.MessageType.Warning
-                        text: "Your controller already has this firmware version (or newer). Continuing may stop with an error because downgrades are blocked by Sony's firmware."
-                    }
-
-                    Kirigami.InlineMessage {
-                        Layout.fillWidth: true
-                        visible: updater.summaryIsUntested
-                        type: Kirigami.MessageType.Warning
-                        text: "This hardware target has not been tested by the maintainers. Proceed only if you accept the risk."
-                    }
-
-                    QQC2.CheckBox {
-                        Layout.fillWidth: true
-                        checked: updater.warningAcknowledged
-                        enabled: !updater.isBusy
-                        text: "I understand that firmware updates cannot be reversed and I will keep the USB cable connected."
-                        onToggled: updater.setWarningAcknowledged(checked)
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Kirigami.Units.smallSpacing
-
-                        QQC2.Button {
-                            text: "Back"
-                            icon.name: "go-previous"
-                            enabled: updater.canGoBack
-                            onClicked: updater.goBack()
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                        }
-
-                        QQC2.Button {
-                            text: "Start Update"
-                            icon.name: "system-software-update"
-                            highlighted: true
-                            enabled: updater.canStartUpdate
-                            onClicked: updater.startUpdate()
-                        }
-                    }
-                }
-
-                // ---------------------------------------------------------
-                // Step 3: Updating (Progress)
-                // ---------------------------------------------------------
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.largeSpacing
-
-                    Kirigami.AbstractCard {
-                        Layout.fillWidth: true
-
-                        contentItem: ColumnLayout {
-                            spacing: Kirigami.Units.mediumSpacing
-
-                            Kirigami.Heading {
-                                Layout.fillWidth: true
-                                level: 3
-                                text: updater.statusTitle.length > 0
-                                    ? updater.statusTitle
-                                    : "Working…"
-                                wrapMode: Text.WordWrap
-                            }
-
-                            QQC2.ProgressBar {
-                                Layout.fillWidth: true
-                                indeterminate: updater.progressIndeterminate
-                                from: 0.0
-                                to: 1.0
-                                value: updater.progressIndeterminate ? 0.0 : updater.progressValue
-                            }
-
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                visible: updater.statusDetail.length > 0
-                                text: updater.statusDetail
-                                opacity: 0.82
-                                wrapMode: Text.WordWrap
-                            }
-
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                text: updater.canCancel
-                                    ? "Downloading from Sony's server. You can cancel safely before installation begins."
-                                    : "Writing firmware to your controller. Do not unplug the USB cable or close this window."
-                                opacity: 0.72
-                                wrapMode: Text.WordWrap
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-
-                        Item {
-                            Layout.fillWidth: true
-                        }
-
-                        QQC2.Button {
-                            text: "Cancel"
-                            icon.name: "dialog-cancel"
-                            visible: updater.canCancel
-                            enabled: updater.canCancel
-                            onClicked: updater.cancelOperation()
-                        }
-                    }
-                }
-
-                // ---------------------------------------------------------
-                // Step 4: Completed
-                // ---------------------------------------------------------
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.largeSpacing
-
-                    Kirigami.PlaceholderMessage {
-                        Layout.fillWidth: true
-                        Layout.topMargin: Kirigami.Units.largeSpacing
-                        Layout.bottomMargin: Kirigami.Units.largeSpacing
-                        icon.name: "dialog-ok-apply"
-                        text: "Firmware Update Complete"
-                        explanation: "Your DualSense controller is now running firmware "
-                            + updater.completedVersion
-                            + ". You can safely unplug the USB cable and use your controller normally."
 
                         RowLayout {
-                            Layout.alignment: Qt.AlignHCenter
-                            spacing: Kirigami.Units.mediumSpacing
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
 
                             QQC2.Button {
-                                text: "Update Another Controller"
-                                icon.name: "view-refresh"
+                                text: "Start Over"
+                                icon.name: "edit-undo"
                                 onClicked: updater.startOver()
                             }
 
+                            Item {
+                                Layout.fillWidth: true
+                            }
+
                             QQC2.Button {
-                                text: "Close"
-                                icon.name: "window-close"
+                                text: "Scan Controllers"
+                                icon.name: "view-refresh"
+                                enabled: updater.canScan
+                                onClicked: updater.scanControllers()
+                            }
+
+                            QQC2.Button {
+                                text: "Try Again"
+                                icon.name: "dialog-ok"
                                 highlighted: true
-                                onClicked: Qt.quit()
+                                onClicked: updater.dismissError()
                             }
-                        }
-                    }
-
-                    Kirigami.AbstractCard {
-                        Layout.fillWidth: true
-                        visible: updater.hasFlashReport
-
-                        contentItem: ColumnLayout {
-                            spacing: Kirigami.Units.smallSpacing
-
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                text: "Optional: Share Flash Result on GitHub"
-                                font.bold: true
-                            }
-
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                text: "Open a prefilled GitHub issue with anonymized controller, firmware, and OS metrics (no serial numbers). You can review and edit everything before submitting."
-                                wrapMode: Text.WordWrap
-                                opacity: 0.82
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                QQC2.Button {
-                                    text: "Flash Run Infos"
-                                    icon.name: "document-properties"
-                                    onClicked: {
-                                        flashReportWindow.show()
-                                        flashReportWindow.raise()
-                                        flashReportWindow.requestActivate()
-                                    }
-                                }
-
-                                QQC2.Button {
-                                    text: "Open GitHub Issue"
-                                    icon.name: "internet-web-browser"
-                                    enabled: updater.flashReportIssueUrl.length > 0
-                                    onClicked: Qt.openUrlExternally(updater.flashReportIssueUrl)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ---------------------------------------------------------
-                // Step 5: Error
-                // ---------------------------------------------------------
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.largeSpacing
-
-                    Kirigami.InlineMessage {
-                        Layout.fillWidth: true
-                        visible: true
-                        type: Kirigami.MessageType.Error
-                        text: updater.errorTitle.length > 0
-                            ? (updater.errorTitle + " — " + updater.errorMessage)
-                            : updater.errorMessage
-                    }
-
-                    Kirigami.AbstractCard {
-                        Layout.fillWidth: true
-                        visible: updater.recoveryHint.length > 0
-
-                        contentItem: ColumnLayout {
-                            spacing: Kirigami.Units.smallSpacing
-
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                text: "What to try next"
-                                font.bold: true
-                            }
-
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                text: updater.recoveryHint
-                                wrapMode: Text.WordWrap
-                            }
-                        }
-                    }
-
-                    Kirigami.AbstractCard {
-                        Layout.fillWidth: true
-                        visible: updater.hasFlashReport
-
-                        contentItem: ColumnLayout {
-                            spacing: Kirigami.Units.smallSpacing
-
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                text: "Optional: Report Flash Attempt on GitHub"
-                                font.bold: true
-                            }
-
-                            QQC2.Label {
-                                Layout.fillWidth: true
-                                text: "Open a prefilled GitHub issue with anonymized controller, firmware, error, and OS metrics (no serial numbers) so maintainers can investigate compatibility."
-                                wrapMode: Text.WordWrap
-                                opacity: 0.82
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                QQC2.Button {
-                                    text: "Flash Run Infos"
-                                    icon.name: "document-properties"
-                                    onClicked: {
-                                        flashReportWindow.show()
-                                        flashReportWindow.raise()
-                                        flashReportWindow.requestActivate()
-                                    }
-                                }
-
-                                QQC2.Button {
-                                    text: "Open GitHub Issue"
-                                    icon.name: "internet-web-browser"
-                                    enabled: updater.flashReportIssueUrl.length > 0
-                                    onClicked: Qt.openUrlExternally(updater.flashReportIssueUrl)
-                                }
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Kirigami.Units.smallSpacing
-
-                        QQC2.Button {
-                            text: "Start Over"
-                            icon.name: "edit-undo"
-                            onClicked: updater.startOver()
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                        }
-
-                        QQC2.Button {
-                            text: "Scan Controllers"
-                            icon.name: "view-refresh"
-                            enabled: updater.canScan
-                            onClicked: updater.scanControllers()
-                        }
-
-                        QQC2.Button {
-                            text: "Try Again"
-                            icon.name: "dialog-ok"
-                            highlighted: true
-                            onClicked: updater.dismissError()
                         }
                     }
                 }
             }
-        }
         }
     }
 }

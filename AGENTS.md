@@ -129,7 +129,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ├── assets/                     # Brand SVGs (`logo.svg`, `logo-symbol.svg`), Vectorcraft source, & GUI screenshots (`assets/desktop/` -> `packaging/linux/icons/`, `assets/web/` -> `website/public/`)
 ├── packaging/                  # Linux desktop integration assets
 │   └── linux/
-│       ├── dev.dualsense.updater.desktop # XDG desktop entry (`dev.dualsense.updater`)
+│       ├── io.github.azorimor.linux_dualsense_fw_updater.desktop # XDG desktop entry (`io.github.azorimor.linux_dualsense_fw_updater`)
 │       ├── install-desktop.sh  # User/system XDG desktop entry & hicolor icon installer (`--user`, `--system`, `--prefix`, `--exec`, `--uninstall`)
 │       └── icons/              # Canonical app icons (`16x16`..`512x512/icon.png` + `scalable/icon.svg`; moved from `assets/desktop`)
 ├── scripts/
@@ -156,27 +156,36 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │       │   ├── lib.rs          # Public crate re-exports
 │       │   ├── viewmodel/      # Modular Elm/TEA ViewModel (mod, types, state, transitions, snapshot, progress)
 │       │   ├── controller.rs   # AppController & AppRuntime (Tokio workers + 800 ms live USB device polling)
+│       │   ├── controller_tasks.rs # HID inspection, local image loading, firmware cache, & post-flash verification tasks
 │       │   ├── http.rs         # UreqHttpClient (ureq + rustls) with streaming progress & cancellation
 │       │   ├── flash_report.rs # Anonymized OS/hardware/flash metrics & prefilled GitHub issue URL builder
 │       │   ├── error_map.rs    # FriendlyError plain-English mapping for CoreError / UpdateFailure
+│       │   ├── no_flash.rs     # --no-flash simulation enumerator, dummy BDM-050 device, and simulated update
 │       │   └── tests/          # Extracted unit tests (*_test.rs)
 │       └── tests/              # Integration tests (controller_flows_test.rs, disconnect_monitor_test.rs, http_live_test.rs)
 ├── src/                        # Root `dualsense-updater` Qt6/Kirigami desktop crate
-│   ├── lib.rs                  # Exposes qt_bridge, app_icon, quick_style, snapshot_adapter, licenses, & license_report
-│   ├── main.rs                 # QGuiApplication & QQmlApplicationEngine setup, desktop ID/window icon, runtime org.kde.desktop/Fusion style selection
+│   ├── lib.rs                  # Exposes cli, native_app, qt_bridge, app_icon, quick_style, snapshot_adapter, licenses, & license_report
+│   ├── main.rs                 # CLI parsing (--no-flash/--help), AppImage portal theme, QApplication & QQmlApplicationEngine setup, style selection
+│   ├── cli.rs                  # Command-line parser (--no-flash[=success|error], -h/--help) forwarding remaining args to Qt
+│   ├── native_app.rs           # cxx wrapper around QApplication + AppImage xdgdesktopportal platformtheme helper
+│   ├── native_app.h            # C++ header for NativeApplication QApplication wrapper
+│   ├── native_app.cpp          # C++ implementation instantiating QApplication for native desktop file pickers
 │   ├── app_icon.rs             # cxx-qt FFI wrapper, `DESKTOP_FILE_ID`, `EMBEDDED_APP_ICON_URL`, & `qml_imports_path()`
 │   ├── app_icon.h              # C++ header for `configure_application_window_icon()` & `qt_qml_imports_path()`
-│   ├── app_icon.cpp            # Theme icon lookup (`dev.dualsense.updater`), embedded icon fallback, & `QLibraryInfo::QmlImportsPath` helper
+│   ├── app_icon.cpp            # Theme icon lookup (`io.github.azorimor.linux_dualsense_fw_updater`), embedded icon fallback, & `QLibraryInfo::QmlImportsPath` helper
 │   ├── quick_style.rs          # Runtime `org.kde.desktop` QML module probe with automatic `Fusion` fallback & env override support
 │   ├── qt_bridge.rs            # cxx-qt DualSenseBridge QObject binding DefaultAppRuntime & licensesText to QML
 │   ├── snapshot_adapter.rs     # Pure Rust AdaptedSnapshot & file:// URL parser
 │   ├── licenses.rs             # Bundled license text loader & query helpers
 │   ├── license_report.rs       # Cargo.lock & crate metadata parser/formatter for third-party notices
-│   └── tests/                  # Extracted unit tests (snapshot_adapter_test.rs, snapshot_state_test.rs, licenses_test.rs, quick_style_test.rs)
-├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs, desktop_icon_test.rs)
-└── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
+│   └── tests/                  # Extracted unit tests (cli_test.rs, native_app_test.rs, snapshot_adapter_test.rs, snapshot_state_test.rs, licenses_test.rs, quick_style_test.rs)
+├── tests/                      # Root headless integration tests (snapshot_integration_test.rs, qml_bindings_test.rs, desktop_icon_test.rs, native_app_test.rs)
+└── qml/                        # Declarative KDE Kirigami QML views (io.github.azorimor.linux_dualsense_fw_updater module)
     ├── Main.qml                # Kirigami.ApplicationWindow + MenuBar + 6-view StackLayout wizard
     ├── StepIndicator.qml       # 4-step progress breadcrumb header
+    ├── DetectControllerStep.qml # Modular Step 0 view: USB/Bluetooth detection, multi-device list, battery & update status
+    ├── SelectFirmwareStep.qml  # Modular Step 1 view: official catalog check/cache save & local .bin validation
+    ├── ConfirmUpdateStep.qml   # Modular Step 2 view: summary, battery/image/target warnings & confirmation
     ├── LicensesWindow.qml      # Third-party open-source licenses viewer window
     ├── AboutWindow.qml         # About dialog with version, disclaimer, and GitHub / Pages links
     └── FlashReportWindow.qml   # Optional post-flash anonymized report preview, copy, & GitHub issue opener
@@ -189,7 +198,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ### Layer Responsibilities
 - **`dualsense-core`:** Zero UI/Qt dependencies. Encapsulates USB HID feature reports (`0x20`, `0xF4`, `0xF5`), `FirmwareImage` (read once into memory), `DualSenseUpdater` (bounded polling via `UpdateConfig` + `Sleeper` + `CancellationToken`), and Sony catalog/download logic behind `HidTransport`, `HidDeviceEnumerator`, and `HttpClient`.
 - **`dualsense-ui`:** Pure Rust Elm/TEA state machine (`AppState::update` -> `Vec<AppCommand>`) and `AppController` / `AppRuntime` executing HID, disk, HTTPS, and live 800 ms USB disconnect/replug polling tasks (`DevicesPollUpdated`, skipped during active flashing) on a Tokio runtime, emitting `UiSnapshot` updates and plain-English `FriendlyError` guidance.
-- **Root `dualsense-updater` (`src/` + `qml/`):** `DualSenseBridge` (`#[cxx_qt::bridge]`) marshals `UiSnapshot` via `AdaptedSnapshot` onto the Qt thread (`cxx_qt::Threading`). QML stays thin and declarative (`pragma ComponentBehavior: Bound`) over `updater` properties and `#[qinvokable]` slots. All unit and integration tests live in `src/tests/` and `tests/` across all three crates.
+- **Root `dualsense-updater` (`src/` + `qml/`):** `DualSenseBridge` (`#[cxx_qt::bridge]`) marshals `UiSnapshot` via `AdaptedSnapshot` onto the Qt thread (`cxx_qt::Threading`). QML stays thin and declarative (`pragma ComponentBehavior: Bound`) with modular step views (`DetectControllerStep.qml`, `SelectFirmwareStep.qml`, `ConfirmUpdateStep.qml`) over `updater` properties and `#[qinvokable]` slots. All unit and integration tests live in `src/tests/` and `tests/` across all three crates.
 
 ---
 
@@ -199,7 +208,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 - **Headless CI compatibility:** All 3 workspace crates decouple business logic and snapshot adaptation from Qt event loops, display servers, and physical DualSense hardware so `cargo test --workspace` runs completely headlessly.
 - **Kirigami style & QML linting:** `src/main.rs` + `src/quick_style.rs` select `org.kde.desktop` when present in QML import paths and fall back to `Fusion` otherwise (unless `QT_QUICK_CONTROLS_STYLE` is set). Keep QML strictly typed (`pragma ComponentBehavior: Bound`, `required property` on delegates) so `qmllint` passes with zero warnings.
 - **Linux system dev libraries:** `libhidapi-dev`, `libudev-dev`, `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, `pkg-config`, and Qt 6 dev packages.
-- **Offscreen smoke check:** Running with `QT_QPA_PLATFORM=offscreen` verifies `QQmlApplicationEngine` loads `qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml` cleanly without X11/Wayland (using `timeout` because the Qt event loop stays open until closed).
+- **Offscreen smoke check:** Running with `QT_QPA_PLATFORM=offscreen` verifies `QQmlApplicationEngine` loads `qrc:/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/qml/Main.qml` cleanly without X11/Wayland (using `timeout` because the Qt event loop stays open until closed).
 
 ---
 
@@ -216,7 +225,7 @@ reuse lint
 cargo deny --locked --all-features check licenses
 ./scripts/coverage.sh  # requires cargo-llvm-cov + llvm-tools; writes target/coverage/{lcov.info,html/index.html}
 cargo check
-/usr/lib/qt6/bin/qmllint -I target/cxxqt/qml_modules -I /usr/lib/qt6/qml qml/StepIndicator.qml qml/Main.qml
+/usr/lib/qt6/bin/qmllint -I target/cxxqt/qml_modules -I /usr/lib/qt6/qml qml/*.qml
 cargo build --release
 QT_QPA_PLATFORM=offscreen timeout 3s ./target/release/dualsense-updater  # expect exit 124 (clean startup)
 ```

@@ -27,19 +27,25 @@ pub use error::{
     VerifyUpdateImageError, WriteUpdateImageError,
 };
 pub use image::{
-    FirmwareImage, MIN_OFFICIAL_FIRMWARE_BYTES, SONY_HEADER_SIGNATURE, SONY_VENDOR_HEADER_LEN,
+    FirmwareImage, LocalImageCompatibility, LocalImageValidation, MIN_OFFICIAL_FIRMWARE_BYTES,
+    SONY_HEADER_SIGNATURE, SONY_VENDOR_HEADER_LEN,
 };
 pub use protocol::{
-    BoardModel, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FIRMWARE_INFO_REPORT_LEN,
-    FIRMWARE_PID_OFFSET, FIRMWARE_TARGET_OFFSET, FIRMWARE_VERSION_OFFSET, FirmwareInfo,
-    MAX_HID_CHUNK_SIZE, REPORT_ID_FIRMWARE_INFO, REPORT_ID_SERIAL_COMMAND,
-    REPORT_ID_SERIAL_RESPONSE, REPORT_ID_UPDATE_COMMAND, REPORT_ID_UPDATE_STATUS,
-    SERIAL_REPORT_LEN, StartUpdateStatusCode, UPDATE_HEADER_LEN, UPDATE_STATUS_REPORT_LEN,
-    UpdateCommand, UpdateStatus, VerifyUpdateStatusCode, WRITE_BLOCK_SIZE, WriteUpdateStatusCode,
-    decode_ascii, decode_ds5_color, encode_update_command_chunks, encode_update_report,
+    BatteryChargingState, BatteryStatus, BoardModel, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID,
+    FIRMWARE_INFO_REPORT_LEN, FIRMWARE_PID_OFFSET, FIRMWARE_TARGET_OFFSET, FIRMWARE_VERSION_OFFSET,
+    FirmwareInfo, INPUT_REPORT_BATTERY_OFFSET, INPUT_REPORT_USB_LEN, MAX_HID_CHUNK_SIZE,
+    REPORT_ID_FIRMWARE_INFO, REPORT_ID_INPUT, REPORT_ID_SERIAL_COMMAND, REPORT_ID_SERIAL_RESPONSE,
+    REPORT_ID_UPDATE_COMMAND, REPORT_ID_UPDATE_STATUS, SERIAL_REPORT_LEN, StartUpdateStatusCode,
+    UPDATE_HEADER_LEN, UPDATE_STATUS_REPORT_LEN, UpdateCommand, UpdateStatus,
+    VerifyUpdateStatusCode, WRITE_BLOCK_SIZE, WriteUpdateStatusCode, decode_ascii,
+    decode_ds5_color, encode_update_command_chunks, encode_update_report,
 };
 pub use transport::{
-    DualSenseDevice, HidApiBackend, HidApiTransport, HidDeviceEnumerator, HidDeviceInfo,
-    HidTransport, Sleeper, StdSleeper,
+    BATTERY_READ_TIMEOUT_MS, DualSenseDevice, HidApiBackend, HidApiTransport, HidBusType,
+    HidDeviceEnumerator, HidDeviceInfo, HidTransport, Sleeper, StdSleeper,
+    filter_bluetooth_devices, filter_usb_devices, has_only_bluetooth_devices,
 };
-pub use updater::{DualSenseUpdater, UpdateConfig, UpdateProgress};
+pub use updater::{
+    DEFAULT_POST_FLASH_ATTEMPTS, DEFAULT_POST_FLASH_RETRY_DELAY, DualSenseUpdater,
+    PostFlashVerification, PostFlashVerificationStatus, UpdateConfig, UpdateProgress,
+};

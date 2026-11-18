@@ -104,12 +104,21 @@ fn extract_updater_usages(qml_src: &str) -> (BTreeSet<String>, BTreeSet<String>)
 fn qml_files_exist_and_declare_bound_component_behavior() {
     let main_path = repo_path("qml/Main.qml");
     let step_path = repo_path("qml/StepIndicator.qml");
+    let detect_path = repo_path("qml/DetectControllerStep.qml");
+    let select_fw_path = repo_path("qml/SelectFirmwareStep.qml");
+    let confirm_path = repo_path("qml/ConfirmUpdateStep.qml");
     let licenses_path = repo_path("qml/LicensesWindow.qml");
     let about_path = repo_path("qml/AboutWindow.qml");
     let flash_report_path = repo_path("qml/FlashReportWindow.qml");
 
     let main_qml = std::fs::read_to_string(&main_path).expect("read qml/Main.qml");
     let step_qml = std::fs::read_to_string(&step_path).expect("read qml/StepIndicator.qml");
+    let detect_qml =
+        std::fs::read_to_string(&detect_path).expect("read qml/DetectControllerStep.qml");
+    let select_fw_qml =
+        std::fs::read_to_string(&select_fw_path).expect("read qml/SelectFirmwareStep.qml");
+    let confirm_qml =
+        std::fs::read_to_string(&confirm_path).expect("read qml/ConfirmUpdateStep.qml");
     let licenses_qml =
         std::fs::read_to_string(&licenses_path).expect("read qml/LicensesWindow.qml");
     let about_qml = std::fs::read_to_string(&about_path).expect("read qml/AboutWindow.qml");
@@ -118,14 +127,22 @@ fn qml_files_exist_and_declare_bound_component_behavior() {
 
     assert!(main_qml.contains("pragma ComponentBehavior: Bound"));
     assert!(step_qml.contains("pragma ComponentBehavior: Bound"));
+    assert!(detect_qml.contains("pragma ComponentBehavior: Bound"));
+    assert!(select_fw_qml.contains("pragma ComponentBehavior: Bound"));
+    assert!(confirm_qml.contains("pragma ComponentBehavior: Bound"));
     assert!(licenses_qml.contains("pragma ComponentBehavior: Bound"));
     assert!(about_qml.contains("pragma ComponentBehavior: Bound"));
     assert!(flash_report_qml.contains("pragma ComponentBehavior: Bound"));
 
-    assert!(main_qml.contains("import dev.dualsense.updater"));
+    assert!(main_qml.contains("import io.github.azorimor.linux_dualsense_fw_updater"));
     assert!(main_qml.contains("import org.kde.kirigami as Kirigami"));
     assert!(main_qml.contains("DualSenseBridge {"));
     assert!(main_qml.contains("id: updater"));
+    assert!(main_qml.contains("onClosing:"));
+    assert!(main_qml.contains("updater.isFlashing"));
+    assert!(main_qml.contains("saveFirmwareFileDialog"));
+    assert!(main_qml.contains("updater.saveCachedFirmware("));
+    assert!(main_qml.contains("updater.completedVerificationNote"));
     assert!(main_qml.contains("LicensesWindow {"));
     assert!(main_qml.contains("licensesText: updater.licensesText"));
     assert!(main_qml.contains("AboutWindow {"));
@@ -142,6 +159,24 @@ fn qml_files_exist_and_declare_bound_component_behavior() {
     assert!(main_qml.contains("currentStepIndex: updater.stepIndex"));
     assert!(main_qml.contains("currentIndex: updater.stepIndex"));
     assert!(main_qml.contains("firmwareFileDialog.close()"));
+    assert!(main_qml.contains("updater.noFlashActive"));
+    assert!(main_qml.contains("[Simulation: --no-flash]"));
+
+    assert!(detect_qml.contains("required property DualSenseBridge updater"));
+    assert!(detect_qml.contains("required property int index"));
+    assert!(detect_qml.contains("bluetoothOnlyDetected"));
+    assert!(detect_qml.contains("batterySummary"));
+    assert!(detect_qml.contains("versionComparisonText"));
+
+    assert!(select_fw_qml.contains("required property DualSenseBridge updater"));
+    assert!(select_fw_qml.contains("versionComparisonText"));
+    assert!(select_fw_qml.contains("localFirmwareWarning"));
+    assert!(select_fw_qml.contains("localFirmwareError"));
+    assert!(select_fw_qml.contains("canSaveCachedFirmware"));
+
+    assert!(confirm_qml.contains("required property DualSenseBridge updater"));
+    assert!(confirm_qml.contains("batteryWarning"));
+    assert!(confirm_qml.contains("localFirmwareWarning"));
 
     assert!(step_qml.contains("required property int currentStepIndex"));
     assert!(step_qml.contains("required property int index"));
@@ -170,7 +205,6 @@ fn qml_files_exist_and_declare_bound_component_behavior() {
 fn main_qml_only_references_declared_bridge_properties_and_invokables() {
     let bridge_src =
         std::fs::read_to_string(repo_path("src/qt_bridge.rs")).expect("read src/qt_bridge.rs");
-    let main_qml = std::fs::read_to_string(repo_path("qml/Main.qml")).expect("read qml/Main.qml");
 
     let (declared_props, declared_methods) = extract_bridge_members(&bridge_src);
     assert!(
@@ -182,27 +216,79 @@ fn main_qml_only_references_declared_bridge_properties_and_invokables() {
         "expected #[qinvokable] declarations in src/qt_bridge.rs"
     );
 
-    let (used_props, used_methods) = extract_updater_usages(&main_qml);
+    let qml_files = [
+        "qml/Main.qml",
+        "qml/DetectControllerStep.qml",
+        "qml/SelectFirmwareStep.qml",
+        "qml/ConfirmUpdateStep.qml",
+    ];
+
+    let mut used_props = BTreeSet::new();
+    let mut used_methods = BTreeSet::new();
+    for rel in qml_files {
+        let src = std::fs::read_to_string(repo_path(rel)).unwrap_or_else(|e| panic!("{rel}: {e}"));
+        let (props, methods) = extract_updater_usages(&src);
+        used_props.extend(props);
+        used_methods.extend(methods);
+    }
     assert!(!used_props.is_empty());
     assert!(!used_methods.is_empty());
 
     let missing_props: Vec<String> = used_props
-        .into_iter()
-        .filter(|p| !declared_props.contains(p))
+        .iter()
+        .filter(|p| !declared_props.contains(*p))
+        .cloned()
         .collect();
     assert!(
         missing_props.is_empty(),
-        "Main.qml references undeclared DualSenseBridge properties: {missing_props:?}"
+        "QML references undeclared DualSenseBridge properties: {missing_props:?}"
     );
 
     let missing_methods: Vec<String> = used_methods
-        .into_iter()
-        .filter(|m| !declared_methods.contains(m))
+        .iter()
+        .filter(|m| !declared_methods.contains(*m))
+        .cloned()
         .collect();
     assert!(
         missing_methods.is_empty(),
-        "Main.qml calls undeclared DualSenseBridge invokables: {missing_methods:?}"
+        "QML calls undeclared DualSenseBridge invokables: {missing_methods:?}"
     );
+
+    // Verify new Block 1 & 2 properties and slot are wired across QML
+    for expected_prop in [
+        "isFlashing",
+        "bluetoothOnlyDetected",
+        "bluetoothDeviceCount",
+        "batterySummary",
+        "hasBatterySummary",
+        "batteryIsLow",
+        "batteryIsCriticallyLow",
+        "batteryWarning",
+        "catalogChecking",
+        "updateAvailable",
+        "isUpToDate",
+        "versionComparisonText",
+        "localFirmwareCompatible",
+        "localFirmwareWarning",
+        "localFirmwareError",
+        "postFlashVerified",
+        "completedVerificationNote",
+        "hasCachedFirmware",
+        "cachedFirmwareSuggestedName",
+        "canSaveCachedFirmware",
+        "noFlashActive",
+    ] {
+        assert!(
+            declared_props.contains(expected_prop),
+            "DualSenseBridge missing expected property {expected_prop}"
+        );
+        assert!(
+            used_props.contains(expected_prop),
+            "QML does not reference expected property updater.{expected_prop}"
+        );
+    }
+    assert!(declared_methods.contains("saveCachedFirmware"));
+    assert!(used_methods.contains("saveCachedFirmware"));
 }
 
 #[test]

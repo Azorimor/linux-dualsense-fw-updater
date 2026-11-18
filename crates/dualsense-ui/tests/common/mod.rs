@@ -11,11 +11,13 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use dualsense_core::{
-    CancellationToken, CoreError, DUALSENSE_EDGE_PID, DownloadProgress, FIRMWARE_INFO_REPORT_LEN,
-    FIRMWARE_PID_OFFSET, FIRMWARE_TARGET_OFFSET, FIRMWARE_VERSION_OFFSET, HidDeviceEnumerator,
-    HidDeviceInfo, HidTransport, HttpClient, REPORT_ID_FIRMWARE_INFO, REPORT_ID_SERIAL_RESPONSE,
-    REPORT_ID_UPDATE_STATUS, Result, SERIAL_REPORT_LEN, Sleeper, StartUpdateStatusCode,
-    UpdateCommand, UpdateConfig, VerifyUpdateStatusCode, WRITE_BLOCK_SIZE, WriteUpdateStatusCode,
+    BatteryChargingState, CancellationToken, CoreError, DUALSENSE_EDGE_PID, DownloadProgress,
+    FIRMWARE_INFO_REPORT_LEN, FIRMWARE_PID_OFFSET, FIRMWARE_TARGET_OFFSET, FIRMWARE_VERSION_OFFSET,
+    HidBusType, HidDeviceEnumerator, HidDeviceInfo, HidTransport, HttpClient,
+    INPUT_REPORT_BATTERY_OFFSET, INPUT_REPORT_USB_LEN, REPORT_ID_FIRMWARE_INFO, REPORT_ID_INPUT,
+    REPORT_ID_SERIAL_RESPONSE, REPORT_ID_UPDATE_STATUS, Result, SERIAL_REPORT_LEN, Sleeper,
+    StartUpdateStatusCode, UpdateCommand, UpdateConfig, VerifyUpdateStatusCode, WRITE_BLOCK_SIZE,
+    WriteUpdateStatusCode,
 };
 use dualsense_ui::UiSnapshot;
 use tokio::sync::watch;
@@ -33,6 +35,7 @@ pub struct SharedMockTransport {
     sent_reports: Arc<Mutex<Vec<Vec<u8>>>>,
     responses: Arc<Mutex<VecDeque<Result<Vec<u8>>>>>,
     serial_response: Arc<Mutex<Option<Result<Vec<u8>>>>>,
+    battery_report: Arc<Mutex<Option<Result<Vec<u8>>>>>,
     response_delay: Option<Duration>,
 }
 
@@ -63,16 +66,26 @@ impl HidTransport for SharedMockTransport {
             .push(data.to_vec());
         Ok(())
     }
+
+    fn read_input_report(&self, _timeout_ms: i32) -> Result<Option<Vec<u8>>> {
+        match self.battery_report.lock().expect("lock battery").clone() {
+            Some(Ok(report)) => Ok(Some(report)),
+            Some(Err(err)) => Err(err),
+            None => Ok(None),
+        }
+    }
 }
 
 type ResponseQueueMap = Mutex<BTreeMap<String, Arc<Mutex<VecDeque<Result<Vec<u8>>>>>>>;
 type SerialResponseMap = Mutex<BTreeMap<String, Arc<Mutex<Option<Result<Vec<u8>>>>>>>;
+type BatteryReportMap = Mutex<BTreeMap<String, Arc<Mutex<Option<Result<Vec<u8>>>>>>>;
 type SentReportsMap = Mutex<BTreeMap<String, Arc<Mutex<Vec<Vec<u8>>>>>>;
 
 pub struct MockEnumerator {
     list_result: Mutex<Result<Vec<HidDeviceInfo>>>,
     queues: ResponseQueueMap,
     serial_by_path: SerialResponseMap,
+    battery_by_path: BatteryReportMap,
     sent_by_path: SentReportsMap,
     open_error: Mutex<Option<CoreError>>,
     list_calls: AtomicUsize,
@@ -85,6 +98,7 @@ impl Default for MockEnumerator {
             list_result: Mutex::new(Ok(Vec::new())),
             queues: Mutex::new(BTreeMap::new()),
             serial_by_path: Mutex::new(BTreeMap::new()),
+            battery_by_path: Mutex::new(BTreeMap::new()),
             sent_by_path: Mutex::new(BTreeMap::new()),
             open_error: Mutex::new(None),
             list_calls: AtomicUsize::new(0),
@@ -162,6 +176,27 @@ impl MockEnumerator {
             .or_default()
             .clone();
         *slot.lock().expect("lock serial") = Some(Ok(raw));
+    }
+
+    pub fn set_battery_report(&self, path: &str, level_nibble: u8, charging: BatteryChargingState) {
+        let high_nibble = match charging {
+            BatteryChargingState::Discharging => 0x0,
+            BatteryChargingState::Charging => 0x1,
+            BatteryChargingState::Full => 0x2,
+            BatteryChargingState::Fault => 0xB,
+            BatteryChargingState::Unknown(v) => v & 0x0F,
+        };
+        let mut raw = vec![0u8; INPUT_REPORT_USB_LEN];
+        raw[0] = REPORT_ID_INPUT;
+        raw[INPUT_REPORT_BATTERY_OFFSET] = (high_nibble << 4) | (level_nibble & 0x0F);
+        let slot = self
+            .battery_by_path
+            .lock()
+            .expect("lock battery map")
+            .entry(path.to_string())
+            .or_default()
+            .clone();
+        *slot.lock().expect("lock battery") = Some(Ok(raw));
     }
 
     pub fn push_status(&self, path: &str, cmd: UpdateCommand, status_raw: u8) {
@@ -263,6 +298,13 @@ impl HidDeviceEnumerator for MockEnumerator {
             .sent_by_path
             .lock()
             .expect("lock sent map")
+            .entry(target_path.clone())
+            .or_default()
+            .clone();
+        let battery_arc = self
+            .battery_by_path
+            .lock()
+            .expect("lock battery map")
             .entry(target_path)
             .or_default()
             .clone();
@@ -271,6 +313,7 @@ impl HidDeviceEnumerator for MockEnumerator {
             sent_reports: sent_arc,
             responses: queue,
             serial_response: serial_arc,
+            battery_report: battery_arc,
             response_delay,
         }))
     }
@@ -292,6 +335,7 @@ pub struct MockHttp {
     catalog_result: Mutex<Result<String>>,
     firmware_bytes: Mutex<Result<Vec<u8>>>,
     slow_cancel_mode: bool,
+    download_calls: Arc<AtomicUsize>,
 }
 
 impl MockHttp {
@@ -300,6 +344,20 @@ impl MockHttp {
             catalog_result: Mutex::new(Ok(catalog_json.to_string())),
             firmware_bytes: Mutex::new(Ok(image)),
             slow_cancel_mode: false,
+            download_calls: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
+    pub fn with_download_counter(
+        catalog_json: &str,
+        image: Vec<u8>,
+        download_calls: Arc<AtomicUsize>,
+    ) -> Self {
+        Self {
+            catalog_result: Mutex::new(Ok(catalog_json.to_string())),
+            firmware_bytes: Mutex::new(Ok(image)),
+            slow_cancel_mode: false,
+            download_calls,
         }
     }
 
@@ -308,6 +366,7 @@ impl MockHttp {
             catalog_result: Mutex::new(Ok(catalog_json.to_string())),
             firmware_bytes: Mutex::new(Ok(Vec::new())),
             slow_cancel_mode: true,
+            download_calls: Arc::new(AtomicUsize::new(0)),
         }
     }
 }
@@ -326,6 +385,7 @@ impl HttpClient for MockHttp {
         cancel: &CancellationToken,
         on_progress: &mut dyn FnMut(DownloadProgress),
     ) -> Result<Vec<u8>> {
+        self.download_calls.fetch_add(1, Ordering::SeqCst);
         if self.slow_cancel_mode {
             on_progress(DownloadProgress {
                 downloaded_bytes: 25,
@@ -369,11 +429,28 @@ impl HttpClient for MockHttp {
 }
 
 pub fn make_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
+    make_device_with_bus(path, pid, serial, HidBusType::Usb)
+}
+
+pub fn make_bluetooth_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
+    make_device_with_bus(path, pid, serial, HidBusType::Bluetooth)
+}
+
+pub fn make_device_with_bus(
+    path: &str,
+    pid: u16,
+    serial: &str,
+    bus_type: HidBusType,
+) -> HidDeviceInfo {
     HidDeviceInfo {
         path: path.to_string(),
         vendor_id: dualsense_core::DEFAULT_VID,
         product_id: pid,
-        interface_number: 3,
+        interface_number: if bus_type == HidBusType::Bluetooth {
+            -1
+        } else {
+            3
+        },
         usage_page: 1,
         usage: 5,
         product_string: if pid == DUALSENSE_EDGE_PID {
@@ -382,6 +459,7 @@ pub fn make_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
             "DualSense Wireless Controller".to_string()
         },
         serial_number: serial.to_string(),
+        bus_type,
     }
 }
 

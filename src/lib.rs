@@ -5,8 +5,10 @@
 //! Root desktop crate library exposing the Qt bridge, licenses, and snapshot adapter.
 
 pub mod app_icon;
+pub mod cli;
 pub mod license_report;
 pub mod licenses;
+pub mod native_app;
 pub mod qt_bridge;
 pub mod quick_style;
 pub mod snapshot_adapter;

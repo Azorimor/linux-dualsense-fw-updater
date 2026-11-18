@@ -9,6 +9,7 @@ use dualsense_core::{CoreError, DEFAULT_PID, DEFAULT_VID, UpdatePhase, UpdatePro
 use super::{sample_bdm020_inspection, sample_catalog, sample_hid_device};
 use crate::viewmodel::{
     AppCommand, AppEvent, AppState, AppStep, BannerSeverity, DeviceTarget, LocalFirmwareInfo,
+    UpdateOutcome,
 };
 
 fn inspected_state_at_step(target_step: AppStep) -> AppState {
@@ -162,7 +163,9 @@ fn unplug_on_completed_stays_on_completion_page_without_error() {
         total_blocks: 2,
         percentage: 100.0,
     }));
-    state.update(AppEvent::UpdateFinished(Ok(0x0630)));
+    state.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::verified(
+        0x0630,
+    ))));
     assert_eq!(state.snapshot().step, AppStep::Completed);
 
     let cmds = state.update(AppEvent::DevicesPollUpdated(Vec::new()));
@@ -188,10 +191,20 @@ fn flashing_ignores_poll_updates_and_preserves_inspected_devices_when_second_add
     let d1 = sample_hid_device("/dev/hidraw0", DEFAULT_PID, "STD-1");
     let d2 = sample_hid_device("/dev/hidraw1", DEFAULT_PID, "STD-2");
 
-    // Adding a second device keeps d1's inspected firmware version intact
-    let cmds = state.update(AppEvent::DevicesPollUpdated(vec![d1.clone(), d2]));
-    assert!(cmds.is_empty());
+    // Adding a second device keeps d1's inspected firmware version intact and queues background inspection for d2
+    let cmds = state.update(AppEvent::DevicesPollUpdated(vec![d1.clone(), d2.clone()]));
+    assert_eq!(
+        cmds,
+        vec![AppCommand::ReadDeviceFirmwareInfo {
+            device: DeviceTarget {
+                path: d2.path.clone(),
+                vendor_id: d2.vendor_id,
+                product_id: d2.product_id,
+            }
+        }]
+    );
     let snap = state.snapshot();
+    assert!(!snap.is_busy);
     assert_eq!(snap.devices.len(), 2);
     assert_eq!(
         snap.selected_device
@@ -268,10 +281,12 @@ fn step_transitions_are_guarded_when_no_connected_device_selected() {
     let mut state2 = inspected_state_at_step(AppStep::SelectFirmware);
     state2.update(AppEvent::LocalFileInspected {
         path: PathBuf::from("/tmp/fw.bin"),
-        result: Ok(LocalFirmwareInfo {
-            version: 0x0630,
-            size_bytes: 4096,
-        }),
+        result: Ok(LocalFirmwareInfo::official(
+            0x0630,
+            262_144,
+            DEFAULT_PID,
+            "0004",
+        )),
     });
     state2.update(AppEvent::DevicesPollUpdated(Vec::new()));
     assert_disconnected_at_step0(&state2);

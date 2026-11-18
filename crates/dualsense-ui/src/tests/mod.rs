@@ -5,23 +5,43 @@
 mod error_map_test;
 mod flash_report_test;
 mod http_test;
+mod no_flash_test;
 mod viewmodel_board_test;
 mod viewmodel_disconnect_test;
 mod viewmodel_flow_test;
+mod viewmodel_safety_flow_test;
 
 use dualsense_core::{
-    DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FirmwareCatalog, FirmwareInfo, HidDeviceInfo,
-    REPORT_ID_FIRMWARE_INFO, decode_ds5_color, resolve_controller_target,
+    BatteryStatus, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, FirmwareCatalog, FirmwareInfo,
+    HidBusType, HidDeviceInfo, REPORT_ID_FIRMWARE_INFO, decode_ds5_color,
+    resolve_controller_target,
 };
 
 use crate::viewmodel::DeviceInspection;
 
 pub(super) fn sample_hid_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
+    sample_hid_device_with_bus(path, pid, serial, HidBusType::Usb)
+}
+
+pub(super) fn sample_bluetooth_hid_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
+    sample_hid_device_with_bus(path, pid, serial, HidBusType::Bluetooth)
+}
+
+pub(super) fn sample_hid_device_with_bus(
+    path: &str,
+    pid: u16,
+    serial: &str,
+    bus_type: HidBusType,
+) -> HidDeviceInfo {
     HidDeviceInfo {
         path: path.to_string(),
         vendor_id: DEFAULT_VID,
         product_id: pid,
-        interface_number: 3,
+        interface_number: if bus_type == HidBusType::Bluetooth {
+            -1
+        } else {
+            3
+        },
         usage_page: 1,
         usage: 5,
         product_string: if pid == DUALSENSE_EDGE_PID {
@@ -30,6 +50,7 @@ pub(super) fn sample_hid_device(path: &str, pid: u16, serial: &str) -> HidDevice
             "DualSense Wireless Controller".to_string()
         },
         serial_number: serial.to_string(),
+        bus_type,
     }
 }
 
@@ -55,6 +76,17 @@ pub(super) fn sample_inspection(
     hw_info: u32,
     serial: Option<&str>,
 ) -> DeviceInspection {
+    sample_inspection_with_battery(version, pid, fw_series, hw_info, serial, None)
+}
+
+pub(super) fn sample_inspection_with_battery(
+    version: u16,
+    pid: u16,
+    fw_series: u16,
+    hw_info: u32,
+    serial: Option<&str>,
+    battery_status: Option<BatteryStatus>,
+) -> DeviceInspection {
     let fw_info = sample_firmware_info_with_hw(version, fw_series, hw_info);
     let hardware = resolve_controller_target(&fw_info, pid);
     let serial_number = serial.map(ToString::to_string);
@@ -64,6 +96,7 @@ pub(super) fn sample_inspection(
         hardware,
         serial_number,
         color_name,
+        battery_status,
     }
 }
 

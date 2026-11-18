@@ -4,8 +4,11 @@
 
 use std::path::PathBuf;
 
-use dualsense_core::{CoreError, DEFAULT_PID, DownloadProgress, UpdatePhase, UpdateProgress};
-use dualsense_ui::{AppEvent, AppState, LocalFirmwareInfo};
+use dualsense_core::{
+    CoreError, DEFAULT_PID, DownloadProgress, PostFlashVerification, PostFlashVerificationStatus,
+    UpdatePhase, UpdateProgress,
+};
+use dualsense_ui::{AppEvent, AppState, LocalFirmwareInfo, UpdateOutcome};
 
 use super::{
     sample_bdm020_inspection, sample_catalog_for_0004, sample_hid_device, sample_inspection,
@@ -76,10 +79,12 @@ fn catalog_and_local_file_selection_populate_firmware_and_review_fields() {
     });
     state.update(AppEvent::LocalFileInspected {
         path: PathBuf::from("/tmp/FWUPDATE0004.bin"),
-        result: Ok(LocalFirmwareInfo {
-            version: 0x0630,
-            size_bytes: 2 * 1024 * 1024,
-        }),
+        result: Ok(LocalFirmwareInfo::official(
+            0x0630,
+            2 * 1024 * 1024,
+            DEFAULT_PID,
+            "0004",
+        )),
     });
     state.update(AppEvent::ContinueToConfirmStep);
     state.update(AppEvent::SetWarningAcknowledged(true));
@@ -170,7 +175,9 @@ fn progress_and_error_states_adapt_accurately() {
     state.update(AppEvent::DismissError);
     state.update(AppEvent::SetWarningAcknowledged(true));
     state.update(AppEvent::StartUpdate);
-    state.update(AppEvent::UpdateFinished(Ok(0x0630)));
+    state.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::verified(
+        0x0630,
+    ))));
     let completed = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
     assert_eq!(completed.step_index, 4);
     assert_eq!(completed.completed_version, "0x0630");
@@ -319,4 +326,193 @@ fn devices_poll_updated_partial_unplug_keeps_remaining_device_unselected() {
     assert!(adapted.has_devices);
     assert_eq!(adapted.device_count, 1);
     assert_eq!(adapted.device_paths, vec!["/dev/hidraw1"]);
+}
+
+#[test]
+fn version_comparison_catalog_checking_and_local_validation_adapt_cleanly() {
+    let mut state = AppState::new();
+    state.update(AppEvent::DevicesScanned(Ok(vec![sample_hid_device(
+        "/dev/hidraw0",
+        DEFAULT_PID,
+        "SN1",
+    )])));
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(sample_bdm020_inspection(0x0500)),
+    });
+
+    let checking = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(checking.catalog_checking);
+    assert!(
+        checking
+            .version_comparison_text
+            .contains("Checking for updates")
+    );
+
+    state.update(AppEvent::CatalogLoaded(Ok(sample_catalog_for_0004(0x0630))));
+    let update_ready = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!update_ready.catalog_checking);
+    assert!(update_ready.catalog_checked);
+    assert!(update_ready.update_available);
+    assert!(!update_ready.is_up_to_date);
+    assert_eq!(
+        update_ready.version_comparison_text,
+        "Update available: 0x0500 → 0x0630"
+    );
+
+    state.update(AppEvent::ContinueToFirmwareStep);
+    state.update(AppEvent::SelectLocalFile {
+        path: PathBuf::from("/tmp/wrong_target.bin"),
+    });
+    state.update(AppEvent::LocalFileInspected {
+        path: PathBuf::from("/tmp/wrong_target.bin"),
+        result: Ok(LocalFirmwareInfo::official(
+            0x0630,
+            2 * 1024 * 1024,
+            DEFAULT_PID,
+            "000B",
+        )),
+    });
+
+    let incompatible = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!incompatible.local_firmware_compatible);
+    assert!(!incompatible.local_firmware_error.is_empty());
+    assert!(!incompatible.can_review_update);
+
+    // Unsupported board with valid Sony header produces a local firmware warning
+    state.update(AppEvent::GoBack);
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(sample_inspection(
+            "Jan 01 2021",
+            "00:00:00",
+            0x0200,
+            DEFAULT_PID,
+            0x0001,
+            0x0000_0300,
+            None,
+        )),
+    });
+    let warned = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(warned.local_firmware_compatible);
+    assert!(!warned.local_firmware_warning.is_empty());
+    assert_eq!(warned.local_firmware_error, "");
+}
+
+#[test]
+fn is_flashing_verification_and_cached_firmware_adapt_cleanly() {
+    let mut state = AppState::new();
+    state.update(AppEvent::DevicesScanned(Ok(vec![sample_hid_device(
+        "/dev/hidraw0",
+        DEFAULT_PID,
+        "SN1",
+    )])));
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(sample_bdm020_inspection(0x0500)),
+    });
+    state.update(AppEvent::CatalogLoaded(Ok(sample_catalog_for_0004(0x0630))));
+    state.update(AppEvent::ContinueToFirmwareStep);
+    state.update(AppEvent::ContinueToConfirmStep);
+    state.update(AppEvent::SetWarningAcknowledged(true));
+    state.update(AppEvent::StartUpdate);
+
+    let downloading = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(downloading.is_busy);
+    assert!(downloading.can_cancel);
+    assert!(!downloading.is_flashing);
+
+    state.update(AppEvent::OfficialFirmwareCached {
+        target_id: "0004".to_string(),
+        version: 0x0630,
+    });
+    state.update(AppEvent::UpdateProgressUpdated(UpdateProgress {
+        phase: UpdatePhase::Writing,
+        current_bytes: 32768,
+        total_bytes: 65536,
+        current_block: 1,
+        total_blocks: 2,
+        percentage: 50.0,
+    }));
+
+    let flashing = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(flashing.is_busy);
+    assert!(!flashing.can_cancel);
+    assert!(flashing.is_flashing);
+    assert!(flashing.has_cached_firmware);
+    assert_eq!(
+        flashing.cached_firmware_suggested_name,
+        "FWUPDATE0004_0630.bin"
+    );
+    assert!(!flashing.can_save_cached_firmware);
+
+    state.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::verified(
+        0x0630,
+    ))));
+    let verified = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!verified.is_flashing);
+    assert!(verified.post_flash_verified);
+    assert!(verified.completed_verification_note.contains("0x0630"));
+    assert!(verified.can_save_cached_firmware);
+    assert!(verified.is_up_to_date);
+    assert!(!verified.update_available);
+
+    // ResetFlow clears verification note while keeping cached firmware metadata
+    state.update(AppEvent::ResetFlow);
+    let reset = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!reset.post_flash_verified);
+    assert_eq!(reset.completed_verification_note, "");
+    assert!(reset.has_cached_firmware);
+    let mut state2 = AppState::new();
+    state2.update(AppEvent::DevicesScanned(Ok(vec![sample_hid_device(
+        "/dev/hidraw0",
+        DEFAULT_PID,
+        "SN1",
+    )])));
+    state2.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(sample_bdm020_inspection(0x0500)),
+    });
+    state2.update(AppEvent::CatalogLoaded(Ok(sample_catalog_for_0004(0x0630))));
+    state2.update(AppEvent::ContinueToFirmwareStep);
+    state2.update(AppEvent::ContinueToConfirmStep);
+    state2.update(AppEvent::SetWarningAcknowledged(true));
+    state2.update(AppEvent::StartUpdate);
+    state2.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::new(
+        0x0630,
+        PostFlashVerification {
+            status: PostFlashVerificationStatus::Unreachable,
+            expected_version: 0x0630,
+            firmware_info: None,
+            attempts: 8,
+            last_error: Some("re-enumerating".to_string()),
+        },
+    ))));
+    let unverified = AdaptedSnapshot::from_ui_snapshot(&state2.snapshot());
+    assert!(!unverified.post_flash_verified);
+    assert!(!unverified.completed_verification_note.is_empty());
+    assert!(!unverified.no_flash_active);
+}
+
+#[test]
+fn no_flash_active_persists_across_state_transitions_and_reset() {
+    let mut state = AppState::with_no_flash(true);
+    assert!(AdaptedSnapshot::from_ui_snapshot(&state.snapshot()).no_flash_active);
+
+    state.update(AppEvent::DevicesScanned(Ok(vec![sample_hid_device(
+        "/dev/hidraw0",
+        DEFAULT_PID,
+        "SN1",
+    )])));
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(sample_bdm020_inspection(0x0400)),
+    });
+    assert!(AdaptedSnapshot::from_ui_snapshot(&state.snapshot()).no_flash_active);
+
+    state.update(AppEvent::ResetFlow);
+    assert!(AdaptedSnapshot::from_ui_snapshot(&state.snapshot()).no_flash_active);
+
+    state.update(AppEvent::DevicesPollUpdated(Vec::new()));
+    assert!(AdaptedSnapshot::from_ui_snapshot(&state.snapshot()).no_flash_active);
 }

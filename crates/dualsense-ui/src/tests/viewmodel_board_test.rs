@@ -50,7 +50,10 @@ fn bdm050_with_serial_auto_selects_target_and_gates_local_file() {
     assert!(dev.unsupported_board_warning.is_none());
 
     state.update(AppEvent::ContinueToFirmwareStep);
+    assert!(state.snapshot().catalog_checking);
+    state.update(AppEvent::CatalogLoaded(Ok(sample_catalog())));
     let step2 = state.snapshot();
+    assert!(!step2.catalog_checking);
     assert!(step2.can_select_target);
     assert!(step2.can_check_updates);
     assert!(step2.can_select_file);
@@ -127,7 +130,7 @@ fn unsupported_bdm010_and_unknown_boards_disable_target_and_update_check() {
     state.update(AppEvent::CatalogLoaded(Ok(sample_catalog())));
     assert!(!state.snapshot().can_review_update);
 
-    // Local file remains usable on unsupported boards
+    // Local file remains usable on unsupported boards (surfaces Warning, not Incompatible)
     let path = PathBuf::from("/tmp/custom.bin");
     let cmds = state.update(AppEvent::SelectLocalFile { path: path.clone() });
     assert_eq!(
@@ -136,12 +139,16 @@ fn unsupported_bdm010_and_unknown_boards_disable_target_and_update_check() {
     );
     state.update(AppEvent::LocalFileInspected {
         path,
-        result: Ok(LocalFirmwareInfo {
-            version: 0x0250,
-            size_bytes: 65536,
-        }),
+        result: Ok(LocalFirmwareInfo::official(
+            0x0250,
+            262_144,
+            DEFAULT_PID,
+            "0004",
+        )),
     });
     assert!(state.snapshot().can_review_update);
+    assert!(state.snapshot().local_firmware_compatible);
+    assert!(state.snapshot().local_firmware_warning.is_some());
 
     // Case B: Unknown board (zeroed hw_info and fw_series)
     let mut unknown_state = AppState::new();

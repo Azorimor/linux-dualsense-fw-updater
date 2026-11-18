@@ -13,6 +13,9 @@ pub const DEFAULT_PID: u16 = 0x0ce6;
 /// USB product ID for DualSense Edge controllers.
 pub const DUALSENSE_EDGE_PID: u16 = 0x0df2;
 
+/// HID Input Report ID for DualSense USB controller state (including battery status).
+pub const REPORT_ID_INPUT: u8 = 0x01;
+
 /// HID Feature Report ID for reading current controller firmware info.
 pub const REPORT_ID_FIRMWARE_INFO: u8 = 0x20;
 
@@ -27,6 +30,12 @@ pub const REPORT_ID_SERIAL_COMMAND: u8 = 0x80;
 
 /// HID Feature Report ID for reading controller system/serial metadata.
 pub const REPORT_ID_SERIAL_RESPONSE: u8 = 0x81;
+
+/// Expected byte size of the USB `0x01` input report.
+pub const INPUT_REPORT_USB_LEN: usize = 64;
+
+/// Byte offset of the packed battery nibble byte in the USB `0x01` input report.
+pub const INPUT_REPORT_BATTERY_OFFSET: usize = 53;
 
 /// Expected byte size of the `0x20` firmware info feature report.
 pub const FIRMWARE_INFO_REPORT_LEN: usize = 64;
@@ -161,6 +170,110 @@ pub fn decode_ds5_color(serial: &str) -> Option<&'static str> {
         b"ZE" => Some("Genshin Impact Limited Edition"),
         b"ZF" => Some("007 First Light Limited Edition"),
         _ => None,
+    }
+}
+
+/// Charging state decoded from the high nibble of DualSense USB input report `0x01` byte 53.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum BatteryChargingState {
+    /// `0x0` — running on battery (discharging).
+    Discharging,
+    /// `0x1` — actively charging over USB.
+    Charging,
+    /// `0x2` — battery is full.
+    Full,
+    /// `0xA` / `0xB` / `0xF` — charger voltage, temperature, or charging fault.
+    Fault,
+    /// Any other unrecognized high-nibble status code.
+    Unknown(u8),
+}
+
+impl BatteryChargingState {
+    /// Decodes a 4-bit high nibble (`0x0..=0xF`) into [`BatteryChargingState`].
+    pub fn from_nibble(nibble: u8) -> Self {
+        match nibble & 0x0F {
+            0x0 => Self::Discharging,
+            0x1 => Self::Charging,
+            0x2 => Self::Full,
+            0xA | 0xB | 0xF => Self::Fault,
+            other => Self::Unknown(other),
+        }
+    }
+
+    /// Returns a human-readable label for display.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Discharging => "Discharging",
+            Self::Charging => "Charging",
+            Self::Full => "Full",
+            Self::Fault => "Fault",
+            Self::Unknown(_) => "Unknown",
+        }
+    }
+}
+
+impl std::fmt::Display for BatteryChargingState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Battery level and charging state decoded from DualSense USB input report `0x01` (byte 53).
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct BatteryStatus {
+    /// Raw low-nibble battery step (`0..=10`).
+    pub level: u8,
+    /// Estimated battery charge percentage (`0..=100`).
+    pub percentage: u8,
+    /// Charging status decoded from the high nibble.
+    pub charging_state: BatteryChargingState,
+}
+
+impl BatteryStatus {
+    /// Decodes a USB HID input report `0x01` buffer into [`BatteryStatus`].
+    ///
+    /// Returns `None` if the buffer is not report `0x01` or is too short to contain byte 53
+    /// (e.g. a 10-byte Bluetooth `0x01` report).
+    pub fn from_input_report(raw: &[u8]) -> Option<Self> {
+        if raw.len() <= INPUT_REPORT_BATTERY_OFFSET || raw[0] != REPORT_ID_INPUT {
+            return None;
+        }
+        let byte = raw[INPUT_REPORT_BATTERY_OFFSET];
+        let level = (byte & 0x0F).min(10);
+        let charging_state = BatteryChargingState::from_nibble((byte >> 4) & 0x0F);
+        let percentage = if charging_state == BatteryChargingState::Full {
+            100
+        } else {
+            level * 10
+        };
+        Some(Self {
+            level,
+            percentage,
+            charging_state,
+        })
+    }
+
+    /// Returns `true` when the controller is actively charging or already full.
+    pub fn is_charging_or_full(&self) -> bool {
+        matches!(
+            self.charging_state,
+            BatteryChargingState::Charging | BatteryChargingState::Full
+        )
+    }
+
+    /// Returns `true` when the battery is low (`<= 20%`) and not charging/full.
+    pub fn is_low(&self) -> bool {
+        self.percentage <= 20 && !self.is_charging_or_full()
+    }
+
+    /// Returns `true` when the battery is critically low (`<= 10%`) and not charging/full.
+    pub fn is_critically_low(&self) -> bool {
+        self.percentage <= 10 && !self.is_charging_or_full()
+    }
+
+    /// Formats battery status for display (e.g. `"80% (Charging)"`).
+    pub fn formatted_summary(&self) -> String {
+        format!("{}% ({})", self.percentage, self.charging_state)
     }
 }
 

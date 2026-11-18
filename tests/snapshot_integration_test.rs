@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use dualsense_core::{
-    DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID, DownloadProgress, FirmwareCatalog, FirmwareInfo,
-    FirmwareRelease, HidDeviceInfo, REPORT_ID_FIRMWARE_INFO, UpdatePhase, UpdateProgress,
-    decode_ds5_color, resolve_controller_target,
+    BatteryChargingState, BatteryStatus, DEFAULT_PID, DEFAULT_VID, DUALSENSE_EDGE_PID,
+    DownloadProgress, FirmwareCatalog, FirmwareInfo, FirmwareRelease, HidBusType, HidDeviceInfo,
+    REPORT_ID_FIRMWARE_INFO, UpdatePhase, UpdateProgress, decode_ds5_color,
+    resolve_controller_target,
 };
-use dualsense_ui::{AppEvent, AppState, DeviceInspection};
+use dualsense_ui::{AppEvent, AppState, DeviceInspection, LocalFirmwareInfo, UpdateOutcome};
 use dualsense_updater::snapshot_adapter::{AdaptedSnapshot, BANNER_POSITIVE, BANNER_WARNING};
 
 fn hid_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
@@ -24,6 +25,7 @@ fn hid_device(path: &str, pid: u16, serial: &str) -> HidDeviceInfo {
             "DualSense Wireless Controller".to_string()
         },
         serial_number: serial.to_string(),
+        bus_type: HidBusType::Usb,
     }
 }
 
@@ -51,6 +53,7 @@ fn inspect_device(
         hardware,
         serial_number,
         color_name,
+        battery_status: None,
     }
 }
 
@@ -103,6 +106,7 @@ fn bdm050_auto_selection_and_full_catalog_update_flow() {
     });
 
     let step0 = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!step0.no_flash_active);
     assert_eq!(step0.step_index, 0);
     assert_eq!(step0.board_model, "BDM-050");
     assert_eq!(step0.color_name, "Midnight Black");
@@ -157,7 +161,9 @@ fn bdm050_auto_selection_and_full_catalog_update_flow() {
     assert_eq!(flashing.banner_severity, BANNER_WARNING);
     assert!(!flashing.can_cancel);
 
-    state.update(AppEvent::UpdateFinished(Ok(0x0630)));
+    state.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::verified(
+        0x0630,
+    ))));
     let completed = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
     assert_eq!(completed.step_index, 4);
     assert_eq!(completed.completed_version, "0x0630");
@@ -318,4 +324,144 @@ fn mid_flow_disconnect_and_replug_resets_step_banner_and_gating() {
     assert_eq!(reconnected.color_name, "Midnight Black");
     assert_eq!(reconnected.banner_severity, BANNER_POSITIVE);
     assert!(reconnected.can_continue_to_firmware);
+}
+
+#[test]
+fn safety_flow_bluetooth_battery_validation_cache_and_verification() {
+    let mut state = AppState::new();
+
+    // 1. Bluetooth-only controller detected
+    let mut bt = hid_device("/dev/hidraw9", DEFAULT_PID, "BT9");
+    bt.bus_type = HidBusType::Bluetooth;
+    state.update(AppEvent::DevicesScanned(Ok(vec![bt])));
+    let bt_snap = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!bt_snap.has_devices);
+    assert!(bt_snap.bluetooth_only_detected);
+    assert_eq!(bt_snap.bluetooth_device_count, 1);
+
+    // 2. USB plug with low battery triggers auto catalog check and battery warning
+    state.update(AppEvent::DevicesPollUpdated(vec![hid_device(
+        "/dev/hidraw0",
+        DEFAULT_PID,
+        "",
+    )]));
+    let mut inspection = inspect_device(
+        0x0520,
+        DEFAULT_PID,
+        0x000B,
+        0x0000_0811,
+        Some("F55301K0H14359961"),
+    );
+    inspection.battery_status = Some(BatteryStatus {
+        level: 0,
+        percentage: 10,
+        charging_state: BatteryChargingState::Discharging,
+    });
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "/dev/hidraw0".to_string(),
+        result: Ok(inspection),
+    });
+    let step0 = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(step0.has_devices);
+    assert!(!step0.bluetooth_only_detected);
+    assert!(step0.has_battery_summary);
+    assert!(step0.battery_is_critically_low);
+    assert!(step0.catalog_checking);
+    assert!(step0.device_details[0].contains("Battery: "));
+
+    state.update(AppEvent::CatalogLoaded(Ok(sample_catalog())));
+    let step0_checked = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(step0_checked.update_available);
+    assert_eq!(
+        step0_checked.version_comparison_text,
+        "Update available: 0x0520 → 0x0630"
+    );
+
+    // 3. Incompatible local .bin is blocked in Step 1
+    state.update(AppEvent::ContinueToFirmwareStep);
+    state.update(AppEvent::SelectLocalFile {
+        path: std::path::PathBuf::from("/tmp/invalid.bin"),
+    });
+    state.update(AppEvent::LocalFileInspected {
+        path: std::path::PathBuf::from("/tmp/invalid.bin"),
+        result: Ok(LocalFirmwareInfo::invalid_header(
+            0x0630,
+            1024,
+            "Bad header",
+        )),
+    });
+    let invalid_local = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!invalid_local.local_firmware_compatible);
+    assert!(!invalid_local.local_firmware_error.is_empty());
+    assert!(!invalid_local.can_review_update);
+
+    // 4. Switch to official catalog, review low battery warning, flash with close guard, verify & cache
+    state.update(AppEvent::SetFirmwareSourceKind(
+        dualsense_ui::FirmwareSourceKind::OfficialCatalog,
+    ));
+    state.update(AppEvent::ContinueToConfirmStep);
+    let review = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!review.battery_warning.is_empty());
+
+    state.update(AppEvent::SetWarningAcknowledged(true));
+    state.update(AppEvent::StartUpdate);
+    state.update(AppEvent::OfficialFirmwareCached {
+        target_id: "000B".to_string(),
+        version: 0x0630,
+    });
+    state.update(AppEvent::UpdateProgressUpdated(UpdateProgress {
+        phase: UpdatePhase::Writing,
+        current_bytes: 32768,
+        total_bytes: 65536,
+        current_block: 1,
+        total_blocks: 2,
+        percentage: 50.0,
+    }));
+    let flashing = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(flashing.is_flashing);
+    assert!(!flashing.can_save_cached_firmware);
+
+    state.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::verified(
+        0x0630,
+    ))));
+    let done = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(!done.is_flashing);
+    assert!(done.post_flash_verified);
+    assert!(done.completed_verification_note.contains("0x0630"));
+    assert!(done.has_cached_firmware);
+    assert_eq!(done.cached_firmware_suggested_name, "FWUPDATE000B_0630.bin");
+    assert!(done.can_save_cached_firmware);
+}
+
+#[test]
+fn no_flash_simulation_state_propagates_through_adapted_snapshot() {
+    let mut state = AppState::with_no_flash(true);
+    state.update(AppEvent::DevicesScanned(Ok(vec![hid_device(
+        "sim://dualsense/0001",
+        DEFAULT_PID,
+        "SIM001000000001",
+    )])));
+    state.update(AppEvent::DeviceFirmwareInfoLoaded {
+        path: "sim://dualsense/0001".to_string(),
+        result: Ok(inspect_device(
+            0x0400,
+            DEFAULT_PID,
+            0x000B,
+            0x0000_0811,
+            Some("SIM001000000001"),
+        )),
+    });
+    state.update(AppEvent::ContinueToFirmwareStep);
+    state.update(AppEvent::CatalogLoaded(Ok(sample_catalog())));
+    state.update(AppEvent::ContinueToConfirmStep);
+    state.update(AppEvent::SetWarningAcknowledged(true));
+    state.update(AppEvent::StartUpdate);
+    state.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::verified(
+        0x0630,
+    ))));
+
+    let completed = AdaptedSnapshot::from_ui_snapshot(&state.snapshot());
+    assert!(completed.no_flash_active);
+    assert_eq!(completed.step_index, 4);
+    assert_eq!(completed.completed_version, "0x0630");
 }

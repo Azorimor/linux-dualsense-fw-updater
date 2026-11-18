@@ -14,7 +14,9 @@ import dev.dualsense.updater
 Kirigami.ApplicationWindow {
     id: root
 
-    title: "DualSense Firmware Updater"
+    title: updater.noFlashActive
+        ? "DualSense Firmware Updater [Simulation: --no-flash]"
+        : "DualSense Firmware Updater"
     width: 720
     height: 660
     minimumWidth: 580
@@ -142,7 +144,9 @@ Kirigami.ApplicationWindow {
 
     pageStack.initialPage: Kirigami.ScrollablePage {
         id: mainPage
-        title: "DualSense Firmware Updater"
+        title: updater.noFlashActive
+        ? "DualSense Firmware Updater [Simulation: --no-flash]"
+        : "DualSense Firmware Updater"
         padding: Kirigami.Units.largeSpacing
 
         Item {
@@ -153,6 +157,14 @@ Kirigami.ApplicationWindow {
                 width: Math.min(parent.width, 660)
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Kirigami.Units.largeSpacing
+
+                Kirigami.InlineMessage {
+                    id: simulationBanner
+                    Layout.fillWidth: true
+                    visible: updater.noFlashActive
+                    type: Kirigami.MessageType.Information
+                    text: "Simulation mode (--no-flash) is active. No firmware will be flashed to real hardware."
+                }
 
                 StepIndicator {
                     Layout.fillWidth: true

@@ -159,6 +159,8 @@ fn qml_files_exist_and_declare_bound_component_behavior() {
     assert!(main_qml.contains("currentStepIndex: updater.stepIndex"));
     assert!(main_qml.contains("currentIndex: updater.stepIndex"));
     assert!(main_qml.contains("firmwareFileDialog.close()"));
+    assert!(main_qml.contains("updater.noFlashActive"));
+    assert!(main_qml.contains("[Simulation: --no-flash]"));
 
     assert!(detect_qml.contains("required property DualSenseBridge updater"));
     assert!(detect_qml.contains("required property int index"));
@@ -274,6 +276,7 @@ fn main_qml_only_references_declared_bridge_properties_and_invokables() {
         "hasCachedFirmware",
         "cachedFirmwareSuggestedName",
         "canSaveCachedFirmware",
+        "noFlashActive",
     ] {
         assert!(
             declared_props.contains(expected_prop),

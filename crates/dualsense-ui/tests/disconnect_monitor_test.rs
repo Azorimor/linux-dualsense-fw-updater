@@ -299,14 +299,24 @@ fn polling_skips_flashing_and_avoids_redundant_snapshots_when_unchanged() {
     runtime.dispatch(AppEvent::SetWarningAcknowledged(true));
     wait_until(&mut rx, |s| s.can_start_update);
 
-    // Slow down HID responses so flashing lasts ~180ms across several 15ms poll ticks.
-    enum_mock.set_report_delay(Some(Duration::from_micros(40)));
-    enum_mock.reset_list_call_count();
+    // Slow down HID responses so flashing lasts ~275ms across many 15ms poll ticks.
+    enum_mock.set_report_delay(Some(Duration::from_micros(60)));
     runtime.dispatch(AppEvent::StartUpdate);
-    wait_until(&mut rx, |s| s.step == AppStep::Completed);
+    // Wait until flashing is well into WritingFirmware so any pre-StartUpdate poll task has settled.
+    wait_until(&mut rx, |s| {
+        s.step == AppStep::Updating
+            && s.progress.stage == ProgressStage::WritingFirmware
+            && s.progress.percentage.is_some_and(|p| p >= 15)
+            && !s.can_cancel
+    });
+    enum_mock.reset_list_call_count();
 
-    // During FlashingFirmware, list_devices must not be polled at all.
+    // Sleep across several 15ms poll intervals while FlashingFirmware is still active.
+    thread::sleep(Duration::from_millis(80));
+    assert_eq!(runtime.snapshot().step, AppStep::Updating);
     assert_eq!(enum_mock.list_call_count(), 0);
+
+    wait_until(&mut rx, |s| s.step == AppStep::Completed);
 
     let _ = std::fs::remove_file(&temp_path);
     runtime.shutdown();

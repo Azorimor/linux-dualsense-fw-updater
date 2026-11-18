@@ -142,3 +142,22 @@ export function getDocGitHubUrl(repoUrl: string, pagePath: string): string {
   const relative = pagePath.replace(/^\/+/, '');
   return `${base}/blob/main/website/content/docs/${encodeURI(relative)}`;
 }
+
+/**
+ * Build the route segments for a docs page's generated Open Graph PNG
+ * (served at `/og/docs/.../image.png`).
+ */
+export function getDocsOgImageSegments(slugs: readonly string[]): string[] {
+  return [...slugs, 'image.png'];
+}
+
+/**
+ * Build the static-export Open Graph image path for a docs page (including `basePath`).
+ */
+export function getDocsOgImageUrl(
+  slugs: readonly string[],
+  basePath = SITE_BASE_PATH,
+): string {
+  const prefix = basePath.replace(/\/+$/, '');
+  return `${prefix}/og/docs/${getDocsOgImageSegments(slugs).join('/')}`;
+}

@@ -12,6 +12,8 @@ import {
   SITE_ORIGIN,
   buildSitemapEntries,
   getDocGitHubUrl,
+  getDocsOgImageSegments,
+  getDocsOgImageUrl,
   getMarkdownPath,
   getPageActionMarkdownUrl,
   getStaticPageMarkdownUrl,
@@ -103,6 +105,22 @@ test('toCanonicalPageUrl, toSiteAssetUrl, and buildSitemapEntries produce traili
   );
 });
 
+test('getDocsOgImageSegments and getDocsOgImageUrl map doc slugs to static PNG routes', () => {
+  assert.deepEqual(getDocsOgImageSegments([]), ['image.png']);
+  assert.deepEqual(getDocsOgImageSegments(['getting-started']), [
+    'getting-started',
+    'image.png',
+  ]);
+  assert.equal(
+    getDocsOgImageUrl([]),
+    `${SITE_BASE_PATH}/og/docs/image.png`,
+  );
+  assert.equal(
+    getDocsOgImageUrl(['getting-started']),
+    `${SITE_BASE_PATH}/og/docs/getting-started/image.png`,
+  );
+});
+
 test('built static export generates llms.txt, llms-full.txt, and per-page markdown files', (t) => {
   const llmsTxtPath = path.join(OUT_DIR, 'llms.txt');
   if (!fs.existsSync(llmsTxtPath)) {
@@ -112,30 +130,39 @@ test('built static export generates llms.txt, llms-full.txt, and per-page markdo
 
   const llmsTxt = fs.readFileSync(llmsTxtPath, 'utf8');
   const expectedDocs = [
-    { mdRel: 'llms.mdx/docs.md', htmlRel: 'docs/index.html' },
+    {
+      mdRel: 'llms.mdx/docs.md',
+      htmlRel: 'docs/index.html',
+      ogRel: 'og/docs/image.png',
+    },
     {
       mdRel: 'llms.mdx/docs/getting-started.md',
       htmlRel: 'docs/getting-started/index.html',
+      ogRel: 'og/docs/getting-started/image.png',
     },
     {
       mdRel: 'llms.mdx/docs/supported-hardware.md',
       htmlRel: 'docs/supported-hardware/index.html',
+      ogRel: 'og/docs/supported-hardware/image.png',
     },
     {
       mdRel: 'llms.mdx/docs/safety-and-troubleshooting.md',
       htmlRel: 'docs/safety-and-troubleshooting/index.html',
+      ogRel: 'og/docs/safety-and-troubleshooting/image.png',
     },
     {
       mdRel: 'llms.mdx/docs/changelog.md',
       htmlRel: 'docs/changelog/index.html',
+      ogRel: 'og/docs/changelog/image.png',
     },
     {
       mdRel: 'llms.mdx/docs/licenses.md',
       htmlRel: 'docs/licenses/index.html',
+      ogRel: 'og/docs/licenses/image.png',
     },
   ];
 
-  for (const { mdRel, htmlRel } of expectedDocs) {
+  for (const { mdRel, htmlRel, ogRel } of expectedDocs) {
     const prefixedUrl = `${SITE_BASE_PATH}/${mdRel}`;
     assert.ok(
       llmsTxt.includes(`(${prefixedUrl})`),
@@ -166,6 +193,46 @@ test('built static export generates llms.txt, llms-full.txt, and per-page markdo
       html.includes(`${SITE_BASE_PATH}${SITE_BASE_PATH}`),
       false,
       `out/${htmlRel} must not contain doubled BASE_PATH`,
+    );
+
+    const ogFullUrl = `${ORIGIN}${SITE_BASE_PATH}/${ogRel}`;
+    assert.ok(
+      html.includes(`property="og:image" content="${ogFullUrl}"`),
+      `out/${htmlRel} missing og:image ${ogFullUrl}`,
+    );
+    assert.ok(
+      html.includes(`name="twitter:image" content="${ogFullUrl}"`),
+      `out/${htmlRel} missing twitter:image ${ogFullUrl}`,
+    );
+    const ogPngPath = path.join(OUT_DIR, ogRel);
+    assert.equal(fs.existsSync(ogPngPath), true, `Missing out/${ogRel}`);
+    assert.deepEqual(
+      fs.readFileSync(ogPngPath).subarray(0, 4),
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      `out/${ogRel} is not a valid PNG`,
+    );
+  }
+
+  for (const { htmlRel, ogRel } of [
+    { htmlRel: 'index.html', ogRel: 'og/image.png' },
+    { htmlRel: 'download/index.html', ogRel: 'og/download/image.png' },
+  ]) {
+    const html = fs.readFileSync(path.join(OUT_DIR, htmlRel), 'utf8');
+    const ogFullUrl = `${ORIGIN}${SITE_BASE_PATH}/${ogRel}`;
+    assert.ok(
+      html.includes(`property="og:image" content="${ogFullUrl}"`),
+      `out/${htmlRel} missing og:image ${ogFullUrl}`,
+    );
+    assert.ok(
+      html.includes(`name="twitter:image" content="${ogFullUrl}"`),
+      `out/${htmlRel} missing twitter:image ${ogFullUrl}`,
+    );
+    const ogPngPath = path.join(OUT_DIR, ogRel);
+    assert.equal(fs.existsSync(ogPngPath), true, `Missing out/${ogRel}`);
+    assert.deepEqual(
+      fs.readFileSync(ogPngPath).subarray(0, 4),
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      `out/${ogRel} is not a valid PNG`,
     );
   }
 

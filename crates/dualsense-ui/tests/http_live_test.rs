@@ -5,7 +5,7 @@
 mod common;
 
 use std::io::{Read as _, Write as _};
-use std::net::TcpListener;
+use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::thread;
 
@@ -13,8 +13,72 @@ use common::{
     ArcEnumerator, MockEnumerator, NoopSleeper, SAMPLE_CATALOG_JSON, fast_update_config,
     make_device, make_official_firmware_image_bytes, wait_until,
 };
-use dualsense_core::{DEFAULT_PID, FirmwareImage, REPORT_ID_UPDATE_COMMAND, UpdateCommand};
+use dualsense_core::{
+    CancellationToken, CoreError, DEFAULT_PID, DownloadProgress, FirmwareImage, HttpClient,
+    REPORT_ID_UPDATE_COMMAND, Result, SONY_FW_BASE_URL, SONY_INFO_JSON_URL, UpdateCommand,
+};
 use dualsense_ui::{AppEvent, AppRuntime, AppStep, UreqHttpClient};
+
+/// Routes Sony catalog and firmware URLs exclusively to local loopback TCP servers
+/// so `http_live_test` never contacts external hosts while still exercising `UreqHttpClient`.
+struct LoopbackHttpClient {
+    inner: UreqHttpClient,
+    catalog_url: String,
+    firmware_base_url: String,
+}
+
+impl HttpClient for LoopbackHttpClient {
+    fn get_text(&self, url: &str, cancel: &CancellationToken) -> Result<String> {
+        let local_url = if url == SONY_INFO_JSON_URL {
+            self.catalog_url.as_str()
+        } else {
+            return Err(CoreError::CatalogHttp(format!(
+                "Unexpected external get_text URL in offline test: {url}"
+            )));
+        };
+        self.inner.get_text(local_url, cancel)
+    }
+
+    fn download_with_progress(
+        &self,
+        url: &str,
+        cancel: &CancellationToken,
+        on_progress: &mut dyn FnMut(DownloadProgress),
+    ) -> Result<Vec<u8>> {
+        let local_url = if let Some(suffix) = url.strip_prefix(SONY_FW_BASE_URL) {
+            format!("{}{}", self.firmware_base_url, suffix)
+        } else if url.starts_with(&self.firmware_base_url) {
+            url.to_string()
+        } else {
+            return Err(CoreError::CatalogHttp(format!(
+                "Unexpected external download URL in offline test: {url}"
+            )));
+        };
+        self.inner
+            .download_with_progress(&local_url, cancel, on_progress)
+    }
+}
+
+fn spawn_single_response_server(response: Vec<u8>) -> (SocketAddr, thread::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind local server");
+    let addr = listener.local_addr().expect("local addr");
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept request");
+        let mut req_buf = [0u8; 512];
+        let _ = stream.read(&mut req_buf);
+        let _ = stream.write_all(&response);
+    });
+    (addr, handle)
+}
+
+fn sample_catalog_http_response() -> Vec<u8> {
+    format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        SAMPLE_CATALOG_JSON.len(),
+        SAMPLE_CATALOG_JSON
+    )
+    .into_bytes()
+}
 
 #[test]
 fn end_to_end_live_ureq_http_client_against_local_server() {
@@ -25,50 +89,37 @@ fn end_to_end_live_ureq_http_client_against_local_server() {
         0x0630,
     );
     let image_len = image_bytes.len();
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind local server");
-    let addr = listener.local_addr().expect("local addr");
+    let mut fw_response =
+        format!("HTTP/1.1 200 OK\r\nContent-Length: {image_len}\r\nConnection: close\r\n\r\n")
+            .into_bytes();
+    fw_response.extend_from_slice(&image_bytes);
 
-    let server_handle = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("accept download");
-        let mut req_buf = [0u8; 512];
-        let _ = stream.read(&mut req_buf);
-        let headers =
-            format!("HTTP/1.1 200 OK\r\nContent-Length: {image_len}\r\nConnection: close\r\n\r\n");
-        stream.write_all(headers.as_bytes()).expect("write headers");
-        stream.write_all(&image_bytes).expect("write firmware");
-    });
+    let (catalog_addr, catalog_server_handle) =
+        spawn_single_response_server(sample_catalog_http_response());
+    let (fw_addr, fw_server_handle) = spawn_single_response_server(fw_response);
 
     let enum_mock =
         MockEnumerator::with_devices(vec![make_device("/dev/hidraw0", DEFAULT_PID, "STD-01")]);
     enum_mock.push_firmware_info("/dev/hidraw0", 0x0520);
     enum_mock.push_full_update_success("/dev/hidraw0", image_len);
 
-    // Build a catalog pointing at our local TCP HTTP server so real UreqHttpClient downloads it.
-    let mut local_catalog =
-        dualsense_core::FirmwareCatalog::from_json(SAMPLE_CATALOG_JSON).expect("catalog");
-    if let Some(item) = local_catalog
-        .releases
-        .iter_mut()
-        .find(|r| r.target_id == "0004")
-    {
-        item.download_url = format!("http://{addr}/FWUPDATE0004.bin");
-    }
+    let http = LoopbackHttpClient {
+        inner: UreqHttpClient::new(),
+        catalog_url: format!("http://{catalog_addr}/info.json"),
+        firmware_base_url: format!("http://{fw_addr}"),
+    };
 
-    let runtime = AppRuntime::with_backends(
-        enum_mock,
-        UreqHttpClient::new(),
-        NoopSleeper,
-        fast_update_config(),
-        |_| {},
-    )
-    .expect("start runtime");
+    let runtime =
+        AppRuntime::with_backends(enum_mock, http, NoopSleeper, fast_update_config(), |_| {})
+            .expect("start runtime");
 
     let mut rx = runtime.subscribe();
     runtime.dispatch(AppEvent::ScanDevices);
-    wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
+    wait_until(&mut rx, |s| {
+        !s.is_busy && s.can_continue_to_firmware && !s.catalog_checking && s.catalog_checked
+    });
 
     runtime.dispatch(AppEvent::ContinueToFirmwareStep);
-    runtime.dispatch(AppEvent::CatalogLoaded(Ok(local_catalog)));
     wait_until(&mut rx, |s| s.can_review_update);
 
     runtime.dispatch(AppEvent::ContinueToConfirmStep);
@@ -79,7 +130,8 @@ fn end_to_end_live_ureq_http_client_against_local_server() {
     let done = wait_until(&mut rx, |s| s.step == AppStep::Completed);
     assert_eq!(done.completed_version.as_deref(), Some("0x0630"));
 
-    server_handle.join().expect("server thread");
+    catalog_server_handle.join().expect("catalog server thread");
+    fw_server_handle.join().expect("firmware server thread");
     runtime.shutdown();
 }
 
@@ -100,14 +152,9 @@ fn end_to_end_live_http_html_and_truncated_download_abort_before_flashing() {
             ),
         ),
     ] {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind local server");
-        let addr = listener.local_addr().expect("local addr");
-        let server_handle = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().expect("accept download");
-            let mut req_buf = [0u8; 512];
-            let _ = stream.read(&mut req_buf);
-            let _ = stream.write_all(response.as_bytes());
-        });
+        let (catalog_addr, catalog_server_handle) =
+            spawn_single_response_server(sample_catalog_http_response());
+        let (fw_addr, fw_server_handle) = spawn_single_response_server(response.into_bytes());
 
         let enum_mock = Arc::new(MockEnumerator::with_devices(vec![make_device(
             "/dev/hidraw0",
@@ -116,19 +163,15 @@ fn end_to_end_live_http_html_and_truncated_download_abort_before_flashing() {
         )]));
         enum_mock.push_firmware_info("/dev/hidraw0", 0x0520);
 
-        let mut local_catalog =
-            dualsense_core::FirmwareCatalog::from_json(SAMPLE_CATALOG_JSON).expect("catalog");
-        if let Some(item) = local_catalog
-            .releases
-            .iter_mut()
-            .find(|r| r.target_id == "0004")
-        {
-            item.download_url = format!("http://{addr}/FWUPDATE0004.bin");
-        }
+        let http = LoopbackHttpClient {
+            inner: UreqHttpClient::new(),
+            catalog_url: format!("http://{catalog_addr}/info.json"),
+            firmware_base_url: format!("http://{fw_addr}"),
+        };
 
         let runtime = AppRuntime::with_backends(
             ArcEnumerator(Arc::clone(&enum_mock)),
-            UreqHttpClient::new(),
+            http,
             NoopSleeper,
             fast_update_config(),
             |_| {},
@@ -137,10 +180,11 @@ fn end_to_end_live_http_html_and_truncated_download_abort_before_flashing() {
 
         let mut rx = runtime.subscribe();
         runtime.dispatch(AppEvent::ScanDevices);
-        wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
+        wait_until(&mut rx, |s| {
+            !s.is_busy && s.can_continue_to_firmware && !s.catalog_checking && s.catalog_checked
+        });
 
         runtime.dispatch(AppEvent::ContinueToFirmwareStep);
-        runtime.dispatch(AppEvent::CatalogLoaded(Ok(local_catalog)));
         wait_until(&mut rx, |s| s.can_review_update);
 
         runtime.dispatch(AppEvent::ContinueToConfirmStep);
@@ -168,7 +212,8 @@ fn end_to_end_live_http_html_and_truncated_download_abort_before_flashing() {
             "StartUpdate must never be sent for {label}"
         );
 
-        server_handle.join().expect("server thread");
+        catalog_server_handle.join().expect("catalog server thread");
+        fw_server_handle.join().expect("firmware server thread");
         runtime.shutdown();
     }
 }

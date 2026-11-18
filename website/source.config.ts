@@ -8,6 +8,11 @@ import { remarkStripIncludedH1 } from './src/lib/remark-strip-included-h1';
 
 export const docs = defineDocs({
   dir: 'content/docs',
+  docs: {
+    postprocess: {
+      includeProcessedMarkdown: true,
+    },
+  },
 });
 
 export default defineConfig({

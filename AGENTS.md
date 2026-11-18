@@ -156,6 +156,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │       │   ├── lib.rs          # Public crate re-exports
 │       │   ├── viewmodel/      # Modular Elm/TEA ViewModel (mod, types, state, transitions, snapshot, progress)
 │       │   ├── controller.rs   # AppController & AppRuntime (Tokio workers + 800 ms live USB device polling)
+│       │   ├── controller_tasks.rs # HID inspection, local image loading, firmware cache, & post-flash verification tasks
 │       │   ├── http.rs         # UreqHttpClient (ureq + rustls) with streaming progress & cancellation
 │       │   ├── flash_report.rs # Anonymized OS/hardware/flash metrics & prefilled GitHub issue URL builder
 │       │   ├── error_map.rs    # FriendlyError plain-English mapping for CoreError / UpdateFailure
@@ -177,6 +178,9 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 └── qml/                        # Declarative KDE Kirigami QML views (dev.dualsense.updater module)
     ├── Main.qml                # Kirigami.ApplicationWindow + MenuBar + 6-view StackLayout wizard
     ├── StepIndicator.qml       # 4-step progress breadcrumb header
+    ├── DetectControllerStep.qml # Modular Step 0 view: USB/Bluetooth detection, multi-device list, battery & update status
+    ├── SelectFirmwareStep.qml  # Modular Step 1 view: official catalog check/cache save & local .bin validation
+    ├── ConfirmUpdateStep.qml   # Modular Step 2 view: summary, battery/image/target warnings & confirmation
     ├── LicensesWindow.qml      # Third-party open-source licenses viewer window
     ├── AboutWindow.qml         # About dialog with version, disclaimer, and GitHub / Pages links
     └── FlashReportWindow.qml   # Optional post-flash anonymized report preview, copy, & GitHub issue opener
@@ -189,7 +193,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ### Layer Responsibilities
 - **`dualsense-core`:** Zero UI/Qt dependencies. Encapsulates USB HID feature reports (`0x20`, `0xF4`, `0xF5`), `FirmwareImage` (read once into memory), `DualSenseUpdater` (bounded polling via `UpdateConfig` + `Sleeper` + `CancellationToken`), and Sony catalog/download logic behind `HidTransport`, `HidDeviceEnumerator`, and `HttpClient`.
 - **`dualsense-ui`:** Pure Rust Elm/TEA state machine (`AppState::update` -> `Vec<AppCommand>`) and `AppController` / `AppRuntime` executing HID, disk, HTTPS, and live 800 ms USB disconnect/replug polling tasks (`DevicesPollUpdated`, skipped during active flashing) on a Tokio runtime, emitting `UiSnapshot` updates and plain-English `FriendlyError` guidance.
-- **Root `dualsense-updater` (`src/` + `qml/`):** `DualSenseBridge` (`#[cxx_qt::bridge]`) marshals `UiSnapshot` via `AdaptedSnapshot` onto the Qt thread (`cxx_qt::Threading`). QML stays thin and declarative (`pragma ComponentBehavior: Bound`) over `updater` properties and `#[qinvokable]` slots. All unit and integration tests live in `src/tests/` and `tests/` across all three crates.
+- **Root `dualsense-updater` (`src/` + `qml/`):** `DualSenseBridge` (`#[cxx_qt::bridge]`) marshals `UiSnapshot` via `AdaptedSnapshot` onto the Qt thread (`cxx_qt::Threading`). QML stays thin and declarative (`pragma ComponentBehavior: Bound`) with modular step views (`DetectControllerStep.qml`, `SelectFirmwareStep.qml`, `ConfirmUpdateStep.qml`) over `updater` properties and `#[qinvokable]` slots. All unit and integration tests live in `src/tests/` and `tests/` across all three crates.
 
 ---
 
@@ -216,7 +220,7 @@ reuse lint
 cargo deny --locked --all-features check licenses
 ./scripts/coverage.sh  # requires cargo-llvm-cov + llvm-tools; writes target/coverage/{lcov.info,html/index.html}
 cargo check
-/usr/lib/qt6/bin/qmllint -I target/cxxqt/qml_modules -I /usr/lib/qt6/qml qml/StepIndicator.qml qml/Main.qml
+/usr/lib/qt6/bin/qmllint -I target/cxxqt/qml_modules -I /usr/lib/qt6/qml qml/*.qml
 cargo build --release
 QT_QPA_PLATFORM=offscreen timeout 3s ./target/release/dualsense-updater  # expect exit 124 (clean startup)
 ```

@@ -27,15 +27,16 @@ Edge.
 
 Launch `dualsense-updater` and follow the four guided KDE Kirigami wizard steps:
 
-1. **Controller** — Connects over a wired USB data cable (updates cannot run over Bluetooth) and automatically inspects connected DualSense / DualSense Edge controllers, displaying:
+1. **Controller** — Connects over a wired USB data cable (updates cannot run over Bluetooth) and automatically inspects all connected USB DualSense / DualSense Edge controllers, displaying:
    - Board revision (`BDM-020`, `BDM-030`, `BDM-040`, `BDM-050`, `BDM-060`, or `DualSense Edge`) and mapped hardware target (`0004`, `000B`, `000E`, `0044`)
-   - Current firmware version, FW series, build date/time, serial number, and controller shell color
-   - **Live USB unplug/replug detection** (background polling updates the UI automatically if the controller is disconnected or swapped while idle)
+   - Current firmware version, FW series, build date/time, serial number, controller shell color, and **battery level / charging status** (flagging low or critically low discharging batteries)
+   - **Bluetooth-only detection hint**: if controllers are only connected over Bluetooth, displays tailored guidance to plug in a USB data cable
+   - **Automatic background catalog check & live USB polling**: automatically checks Sony's catalog in the background once inspected to show live update availability, while background USB polling updates the UI automatically if controllers are disconnected or swapped while idle
 2. **Firmware** — Choose either:
-   - **Download Official Sony Firmware**: checks Sony's catalog (`info.json`) for your controller target and downloads the latest official image automatically.
-   - **Use a Local Firmware File (`.bin`)**: inspects a local firmware image on disk.
-3. **Review** — Compares current and target firmware versions, warns if the controller is already on the same or newer version or if the target is untested (DualSense Edge), and requires explicit confirmation that firmware updates cannot be reversed.
-4. **Update** — Streams download progress (with safe cancellation before flashing begins), initializes the update, writes firmware blocks, verifies, and finalizes. If an error occurs, plain-English recovery hints and `Scan Controllers` / `Try Again` / `Start Over` actions are shown.
+   - **Download Official Sony Firmware**: shows a clear current-vs-latest version comparison from Sony's catalog (`info.json`), downloads the latest official image automatically, and caches verified official `.bin` downloads in memory for reuse or saving to disk (**Save Firmware Copy…**).
+   - **Use a Local Firmware File (`.bin`)**: validates the local file's Sony firmware header, embedded target ID, and USB PID against the selected controller—blocking incompatible images and warning on unverified headers before proceeding.
+3. **Review** — Summarizes controller details, battery status, current and target firmware versions, and source; surfaces warnings for low/critically low discharging battery, unverified local image headers, same-or-newer firmware versions, or untested targets (DualSense Edge); and requires explicit confirmation that firmware updates cannot be reversed.
+4. **Update** — Streams download progress (with safe cancellation before flashing begins), initializes the update, writes firmware blocks, verifies, and finalizes while blocking accidental window close/quit during active flashing. After flashing finishes, performs **post-flash hardware verification** to confirm the controller reports the expected firmware version and lets you save a cached official `.bin` copy (**Save Firmware Copy…**) for offline reuse. If an error occurs, plain-English recovery hints and `Scan Controllers` / `Try Again` / `Start Over` actions are shown.
 
 - **Built-in About & Licenses Windows**: Open **Help → About Unofficial DualSense Firmware Updater** for version info and project links (GitHub repository, website, issue tracker), or **Help → Licenses** to inspect the bundled third-party crate notices, `GPL-3.0-or-later` license text, and `nchie` MIT attribution.
 - **Optional Flash Run Reporting**: After a firmware update succeeds or fails, use **Flash Run Infos** or **Open GitHub Issue** to inspect or open a prefilled `[Flash Report]` GitHub issue containing anonymized OS, hardware revision, firmware version, and error metrics (never serial numbers or local file paths).

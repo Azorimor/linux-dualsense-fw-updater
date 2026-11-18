@@ -6,6 +6,7 @@
 //! for the DualSense firmware updater GUI.
 
 pub mod controller;
+mod controller_tasks;
 pub mod error_map;
 pub mod flash_report;
 pub mod http;
@@ -27,7 +28,7 @@ pub use flash_report::{
 pub use http::{HttpClientConfig, UreqHttpClient, describe_ureq_error};
 pub use viewmodel::{
     AppCommand, AppEvent, AppState, AppStep, BannerMessage, BannerSeverity, BusyOperation,
-    DeviceInspection, DeviceSummary, DeviceTarget, FirmwareSourceKind, IRREVERSIBLE_UPDATE_WARNING,
-    LocalFirmwareInfo, LocalFirmwareSummary, ProgressSnapshot, ProgressStage, TargetOption,
-    UiSnapshot, UpdateSummary, format_bytes,
+    CachedFirmwareMeta, DeviceInspection, DeviceSummary, DeviceTarget, FirmwareSourceKind,
+    IRREVERSIBLE_UPDATE_WARNING, LocalFirmwareInfo, LocalFirmwareSummary, ProgressSnapshot,
+    ProgressStage, TargetOption, UiSnapshot, UpdateOutcome, UpdateSummary, format_bytes,
 };

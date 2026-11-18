@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use common::{
     ArcEnumerator, MockEnumerator, MockHttp, NoopSleeper, SAMPLE_CATALOG_JSON, fast_update_config,
-    make_device, make_firmware_image_bytes, make_official_firmware_image_bytes, wait_until,
+    make_device, make_official_firmware_image_bytes, wait_until,
 };
 use dualsense_core::{
     CoreError, DEFAULT_PID, DUALSENSE_EDGE_PID, FirmwareImage, REPORT_ID_UPDATE_COMMAND,
@@ -56,8 +56,9 @@ fn end_to_end_scan_catalog_download_and_update_succeeds() {
     assert!(after_scan.can_continue_to_firmware);
 
     runtime.dispatch(AppEvent::ContinueToFirmwareStep);
-    runtime.dispatch(AppEvent::CheckForUpdates);
-    let after_catalog = wait_until(&mut rx, |s| !s.is_busy && s.catalog_checked);
+    let after_catalog = wait_until(&mut rx, |s| {
+        s.step == AppStep::SelectFirmware && !s.is_busy && s.catalog_checked
+    });
     assert!(after_catalog.can_review_update);
 
     runtime.dispatch(AppEvent::ContinueToConfirmStep);
@@ -119,7 +120,12 @@ fn end_to_end_scan_catalog_download_and_update_succeeds() {
 
 #[test]
 fn end_to_end_multi_device_selection_and_local_file_update() {
-    let image_bytes = make_firmware_image_bytes(1024, 0x0650);
+    let image_bytes = make_official_firmware_image_bytes(
+        FirmwareImage::MIN_OFFICIAL_FIRMWARE_BYTES,
+        DUALSENSE_EDGE_PID,
+        0x0044,
+        0x0650,
+    );
     let temp_path = std::env::temp_dir().join(format!(
         "dualsense_ui_test_local_{}.bin",
         std::process::id()
@@ -199,8 +205,9 @@ fn end_to_end_download_cancellation_aborts_before_flashing() {
     wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
 
     runtime.dispatch(AppEvent::ContinueToFirmwareStep);
-    runtime.dispatch(AppEvent::CheckForUpdates);
-    wait_until(&mut rx, |s| !s.is_busy && s.catalog_checked);
+    wait_until(&mut rx, |s| {
+        s.step == AppStep::SelectFirmware && !s.is_busy && s.catalog_checked
+    });
 
     runtime.dispatch(AppEvent::ContinueToConfirmStep);
     runtime.dispatch(AppEvent::SetWarningAcknowledged(true));
@@ -282,8 +289,9 @@ fn end_to_end_failure_paths_surface_plain_english_and_recovery() {
     runtime2.dispatch(AppEvent::ScanDevices);
     wait_until(&mut rx2, |s| !s.is_busy && s.can_continue_to_firmware);
     runtime2.dispatch(AppEvent::ContinueToFirmwareStep);
-    runtime2.dispatch(AppEvent::CheckForUpdates);
-    wait_until(&mut rx2, |s| !s.is_busy && s.catalog_checked);
+    wait_until(&mut rx2, |s| {
+        s.step == AppStep::SelectFirmware && !s.is_busy && s.catalog_checked
+    });
     runtime2.dispatch(AppEvent::ContinueToConfirmStep);
     runtime2.dispatch(AppEvent::SetWarningAcknowledged(true));
     wait_until(&mut rx2, |s| s.can_start_update);
@@ -339,12 +347,11 @@ fn end_to_end_bdm050_board_and_midnight_black_color_auto_selects_target() {
     assert!(after_scan.can_select_target);
 
     runtime.dispatch(AppEvent::ContinueToFirmwareStep);
-    let step2 = wait_until(&mut rx, |s| s.step == AppStep::SelectFirmware);
-    assert!(step2.can_select_target);
-    assert!(step2.can_check_updates);
-
-    runtime.dispatch(AppEvent::CheckForUpdates);
-    let after_catalog = wait_until(&mut rx, |s| !s.is_busy && s.catalog_checked);
+    let after_catalog = wait_until(&mut rx, |s| {
+        s.step == AppStep::SelectFirmware && !s.is_busy && s.catalog_checked
+    });
+    assert!(after_catalog.can_select_target);
+    assert!(after_catalog.can_check_updates);
     assert!(after_catalog.can_review_update);
 
     runtime.dispatch(AppEvent::ContinueToConfirmStep);
@@ -474,8 +481,9 @@ fn end_to_end_corrupt_or_mismatched_download_fails_with_friendly_error_before_st
         wait_until(&mut rx, |s| !s.is_busy && s.can_continue_to_firmware);
 
         runtime.dispatch(AppEvent::ContinueToFirmwareStep);
-        runtime.dispatch(AppEvent::CheckForUpdates);
-        wait_until(&mut rx, |s| !s.is_busy && s.catalog_checked);
+        wait_until(&mut rx, |s| {
+            s.step == AppStep::SelectFirmware && !s.is_busy && s.catalog_checked
+        });
 
         runtime.dispatch(AppEvent::ContinueToConfirmStep);
         runtime.dispatch(AppEvent::SetWarningAcknowledged(true));

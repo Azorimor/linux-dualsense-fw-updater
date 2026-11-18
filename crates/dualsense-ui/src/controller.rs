@@ -2,21 +2,23 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use dualsense_core::{
-    CancellationToken, CoreError, DownloadProgress, DualSenseUpdater, FirmwareCatalogClient,
-    FirmwareImage, FirmwareRelease, HidApiBackend, HidDeviceEnumerator, HidDeviceInfo, HttpClient,
-    Sleeper, StdSleeper, UpdateConfig, decode_ds5_color, resolve_controller_target,
+    CancellationToken, CoreError, FirmwareCatalogClient, FirmwareImage, HidApiBackend,
+    HidDeviceEnumerator, HidDeviceInfo, HttpClient, Sleeper, StdSleeper, UpdateConfig,
 };
 use tokio::runtime::{Builder, Handle, Runtime};
 use tokio::sync::{mpsc, watch};
 
-use crate::http::UreqHttpClient;
-use crate::viewmodel::{
-    AppCommand, AppEvent, AppState, DeviceInspection, DeviceTarget, LocalFirmwareInfo, UiSnapshot,
+use crate::controller_tasks::{
+    FirmwareCache, SharedHttpClient, flash_firmware_image, inspect_local_file,
+    read_device_inspection, run_download_and_install, save_cached_firmware_to_path,
 };
+use crate::http::UreqHttpClient;
+use crate::viewmodel::{AppCommand, AppEvent, AppState, UiSnapshot};
 
 /// Default interval between background USB HID device polls in desktop usage.
 pub const DEFAULT_DEVICE_POLL_INTERVAL: Duration = Duration::from_millis(800);
@@ -26,24 +28,6 @@ pub type DefaultAppController = AppController<HidApiBackend, UreqHttpClient, Std
 
 /// Default concrete runtime owning a background Tokio runtime and [`DefaultAppController`].
 pub type DefaultAppRuntime = AppRuntime<HidApiBackend, UreqHttpClient, StdSleeper>;
-
-#[derive(Clone)]
-struct SharedHttpClient<H>(Arc<H>);
-
-impl<H: HttpClient> HttpClient for SharedHttpClient<H> {
-    fn get_text(&self, url: &str, cancel: &CancellationToken) -> dualsense_core::Result<String> {
-        self.0.get_text(url, cancel)
-    }
-
-    fn download_with_progress(
-        &self,
-        url: &str,
-        cancel: &CancellationToken,
-        on_progress: &mut dyn FnMut(DownloadProgress),
-    ) -> dualsense_core::Result<Vec<u8>> {
-        self.0.download_with_progress(url, cancel, on_progress)
-    }
-}
 
 /// Async application controller running HID, network, and file I/O off the UI thread.
 pub struct AppController<E, H, S> {
@@ -141,6 +125,7 @@ where
             handle: handle.clone(),
             enumerator: Arc::new(enumerator),
             http: Arc::new(http),
+            firmware_cache: Arc::new(Mutex::new(FirmwareCache::default())),
             sleeper,
             update_config,
             event_tx: actor_tx,
@@ -302,11 +287,30 @@ struct ActorContext<E, H, S> {
     handle: Handle,
     enumerator: Arc<E>,
     http: Arc<H>,
+    firmware_cache: Arc<Mutex<FirmwareCache>>,
     sleeper: S,
     update_config: UpdateConfig,
     event_tx: mpsc::UnboundedSender<AppEvent>,
     snapshot_tx: watch::Sender<UiSnapshot>,
     on_snapshot: Arc<dyn Fn(UiSnapshot) + Send + Sync>,
+}
+
+#[derive(Default)]
+struct CancelTokens {
+    operation: CancellationToken,
+    catalog: CancellationToken,
+    inspections: HashMap<String, CancellationToken>,
+}
+
+impl CancelTokens {
+    fn cancel_all(&mut self) {
+        self.operation.cancel();
+        self.catalog.cancel();
+        for token in self.inspections.values() {
+            token.cancel();
+        }
+        self.inspections.clear();
+    }
 }
 
 async fn run_actor_loop<E, H, S>(
@@ -319,7 +323,7 @@ async fn run_actor_loop<E, H, S>(
     H: HttpClient + Send + Sync + 'static,
     S: Sleeper + Clone + Send + Sync + 'static,
 {
-    let mut active_cancel = CancellationToken::new();
+    let mut tokens = CancelTokens::default();
     let (poll_tx, mut poll_rx) = mpsc::unbounded_channel::<Option<Vec<HidDeviceInfo>>>();
     let mut poll_in_flight = false;
     let mut poll_timer = device_poll_interval.filter(|d| !d.is_zero()).map(|period| {
@@ -334,7 +338,7 @@ async fn run_actor_loop<E, H, S>(
                 let Some(event) = maybe_event else {
                     break;
                 };
-                apply_event_and_commands(event, &mut state, &mut active_cancel, &ctx);
+                apply_event_and_commands(event, &mut state, &mut tokens, &ctx);
             }
             Some(poll_result) = poll_rx.recv() => {
                 poll_in_flight = false;
@@ -345,7 +349,7 @@ async fn run_actor_loop<E, H, S>(
                     apply_event_and_commands(
                         AppEvent::DevicesPollUpdated(polled_devices),
                         &mut state,
-                        &mut active_cancel,
+                        &mut tokens,
                         &ctx,
                     );
                 }
@@ -391,7 +395,7 @@ async fn wait_poll_tick(timer: Option<&mut tokio::time::Interval>) {
 fn apply_event_and_commands<E, H, S>(
     event: AppEvent,
     state: &mut AppState,
-    active_cancel: &mut CancellationToken,
+    tokens: &mut CancelTokens,
     ctx: &ActorContext<E, H, S>,
 ) where
     E: HidDeviceEnumerator + Send + Sync + 'static,
@@ -404,13 +408,13 @@ fn apply_event_and_commands<E, H, S>(
     (ctx.on_snapshot)(snapshot);
 
     for command in commands {
-        execute_command(command, active_cancel, ctx);
+        execute_command(command, tokens, ctx);
     }
 }
 
 fn execute_command<E, H, S>(
     command: AppCommand,
-    active_cancel: &mut CancellationToken,
+    tokens: &mut CancelTokens,
     ctx: &ActorContext<E, H, S>,
 ) where
     E: HidDeviceEnumerator + Send + Sync + 'static,
@@ -419,10 +423,10 @@ fn execute_command<E, H, S>(
 {
     match command {
         AppCommand::CancelActiveOperation => {
-            active_cancel.cancel();
+            tokens.cancel_all();
         }
         AppCommand::ScanDevices => {
-            let cancel = fresh_token(active_cancel);
+            let cancel = fresh_token(&mut tokens.operation);
             let enumerator = Arc::clone(&ctx.enumerator);
             let tx = ctx.event_tx.clone();
             ctx.handle.spawn(async move {
@@ -442,34 +446,16 @@ fn execute_command<E, H, S>(
             });
         }
         AppCommand::ReadDeviceFirmwareInfo { device } => {
-            let cancel = fresh_token(active_cancel);
+            let cancel = CancellationToken::new();
+            tokens
+                .inspections
+                .insert(device.path.clone(), cancel.clone());
             let enumerator = Arc::clone(&ctx.enumerator);
             let tx = ctx.event_tx.clone();
             let path = device.path.clone();
             ctx.handle.spawn(async move {
                 let res = tokio::task::spawn_blocking(move || {
-                    if cancel.is_cancelled() {
-                        return Err(CoreError::Cancelled);
-                    }
-                    let transport =
-                        enumerator.open(device.vendor_id, device.product_id, Some(&device.path))?;
-                    if cancel.is_cancelled() {
-                        return Err(CoreError::Cancelled);
-                    }
-                    let updater = DualSenseUpdater::new(transport);
-                    let firmware_info = updater.read_firmware_info()?;
-                    let hardware = resolve_controller_target(&firmware_info, device.product_id);
-                    let serial_number = updater.try_read_serial_number();
-                    let color_name = serial_number
-                        .as_deref()
-                        .and_then(decode_ds5_color)
-                        .map(ToString::to_string);
-                    Ok(DeviceInspection {
-                        firmware_info,
-                        hardware,
-                        serial_number,
-                        color_name,
-                    })
+                    read_device_inspection(&*enumerator, &device, &cancel)
                 })
                 .await
                 .unwrap_or_else(|_| {
@@ -479,7 +465,7 @@ fn execute_command<E, H, S>(
             });
         }
         AppCommand::FetchCatalog => {
-            let cancel = fresh_token(active_cancel);
+            let cancel = fresh_token(&mut tokens.catalog);
             let http = Arc::clone(&ctx.http);
             let tx = ctx.event_tx.clone();
             ctx.handle.spawn(async move {
@@ -497,25 +483,15 @@ fn execute_command<E, H, S>(
             });
         }
         AppCommand::InspectLocalFile { path } => {
-            let cancel = fresh_token(active_cancel);
+            let cancel = fresh_token(&mut tokens.operation);
             let tx = ctx.event_tx.clone();
             let inspected_path = path.clone();
             ctx.handle.spawn(async move {
-                let res = tokio::task::spawn_blocking(move || {
-                    if cancel.is_cancelled() {
-                        return Err(CoreError::Cancelled);
-                    }
-                    let image = FirmwareImage::from_file(&path)?;
-                    if cancel.is_cancelled() {
-                        return Err(CoreError::Cancelled);
-                    }
-                    Ok(LocalFirmwareInfo {
-                        version: image.version(),
-                        size_bytes: image.len(),
-                    })
-                })
-                .await
-                .unwrap_or_else(|_| Err(CoreError::Io("File inspection task failed.".to_string())));
+                let res = tokio::task::spawn_blocking(move || inspect_local_file(&path, &cancel))
+                    .await
+                    .unwrap_or_else(|_| {
+                        Err(CoreError::Io("File inspection task failed.".to_string()))
+                    });
                 let _ = tx.send(AppEvent::LocalFileInspected {
                     path: inspected_path,
                     result: res,
@@ -523,9 +499,10 @@ fn execute_command<E, H, S>(
             });
         }
         AppCommand::DownloadAndInstall { device, release } => {
-            let cancel = fresh_token(active_cancel);
+            let cancel = fresh_token(&mut tokens.operation);
             let enumerator = Arc::clone(&ctx.enumerator);
             let http = Arc::clone(&ctx.http);
+            let firmware_cache = Arc::clone(&ctx.firmware_cache);
             let sleeper = ctx.sleeper.clone();
             let config = ctx.update_config.clone();
             let tx = ctx.event_tx.clone();
@@ -536,6 +513,7 @@ fn execute_command<E, H, S>(
                     run_download_and_install(
                         &*enumerator,
                         http,
+                        &firmware_cache,
                         sleeper,
                         config,
                         &device,
@@ -554,7 +532,7 @@ fn execute_command<E, H, S>(
             });
         }
         AppCommand::InstallLocalFirmware { device, path } => {
-            let cancel = fresh_token(active_cancel);
+            let cancel = fresh_token(&mut tokens.operation);
             let enumerator = Arc::clone(&ctx.enumerator);
             let sleeper = ctx.sleeper.clone();
             let config = ctx.update_config.clone();
@@ -583,6 +561,30 @@ fn execute_command<E, H, S>(
                 let _ = tx.send(AppEvent::UpdateFinished(res));
             });
         }
+        AppCommand::SaveCachedFirmware {
+            target_id,
+            version,
+            path,
+        } => {
+            let firmware_cache = Arc::clone(&ctx.firmware_cache);
+            let tx = ctx.event_tx.clone();
+            let save_path = path.clone();
+            ctx.handle.spawn(async move {
+                let res = tokio::task::spawn_blocking(move || {
+                    save_cached_firmware_to_path(&firmware_cache, &target_id, version, &path)
+                })
+                .await
+                .unwrap_or_else(|_| {
+                    Err(CoreError::Io(
+                        "Save firmware task stopped unexpectedly.".to_string(),
+                    ))
+                });
+                let _ = tx.send(AppEvent::CachedFirmwareSaved {
+                    path: save_path,
+                    result: res,
+                });
+            });
+        }
     }
 }
 
@@ -590,48 +592,4 @@ fn fresh_token(slot: &mut CancellationToken) -> CancellationToken {
     let token = CancellationToken::new();
     *slot = token.clone();
     token
-}
-
-#[allow(clippy::too_many_arguments)]
-fn run_download_and_install<E, H, S>(
-    enumerator: &E,
-    http: Arc<H>,
-    sleeper: S,
-    config: UpdateConfig,
-    device: &DeviceTarget,
-    release: &FirmwareRelease,
-    cancel: &CancellationToken,
-    tx: &mpsc::UnboundedSender<AppEvent>,
-) -> dualsense_core::Result<u16>
-where
-    E: HidDeviceEnumerator + ?Sized,
-    H: HttpClient,
-    S: Sleeper,
-{
-    let client = FirmwareCatalogClient::new(SharedHttpClient(http));
-    let image = client.download_firmware(release, cancel, &mut |progress| {
-        let _ = tx.send(AppEvent::DownloadProgressUpdated(progress));
-    })?;
-    flash_firmware_image(enumerator, sleeper, config, device, &image, cancel, tx)
-}
-
-fn flash_firmware_image<E, S>(
-    enumerator: &E,
-    sleeper: S,
-    config: UpdateConfig,
-    device: &DeviceTarget,
-    image: &FirmwareImage,
-    cancel: &CancellationToken,
-    tx: &mpsc::UnboundedSender<AppEvent>,
-) -> dualsense_core::Result<u16>
-where
-    E: HidDeviceEnumerator + ?Sized,
-    S: Sleeper,
-{
-    let transport = enumerator.open(device.vendor_id, device.product_id, Some(&device.path))?;
-    let updater = DualSenseUpdater::with_sleeper_and_config(transport, sleeper, config);
-    updater.run_full_update(image, cancel, |progress| {
-        let _ = tx.send(AppEvent::UpdateProgressUpdated(progress));
-    })?;
-    Ok(image.version())
 }

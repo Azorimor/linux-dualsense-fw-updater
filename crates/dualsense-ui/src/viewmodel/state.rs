@@ -2,15 +2,20 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use dualsense_core::{FirmwareRelease, KNOWN_TARGETS};
+use std::collections::BTreeSet;
+
+use dualsense_core::{
+    FirmwareRelease, HidDeviceInfo, KNOWN_TARGETS, LocalImageCompatibility,
+    filter_bluetooth_devices, filter_usb_devices,
+};
 
 use crate::error_map::{FriendlyError, map_core_error};
 use crate::flash_report::{FlashReport, PendingFlashAttempt, SystemEnvironmentInfo};
 
 use super::progress::ProgressSnapshot;
 use super::types::{
-    AppCommand, AppEvent, AppStep, BannerMessage, BusyOperation, DeviceSummary, FirmwareSourceKind,
-    LocalFirmwareSummary, TargetOption,
+    AppCommand, AppEvent, AppStep, BannerMessage, BusyOperation, CachedFirmwareMeta, DeviceSummary,
+    FirmwareSourceKind, LocalFirmwareInfo, LocalFirmwareSummary, TargetOption,
 };
 
 /// Pure, deterministic Elm-style state machine for the DualSense firmware updater UI.
@@ -19,15 +24,22 @@ pub struct AppState {
     pub(super) step: AppStep,
     pub(super) previous_step: AppStep,
     pub(super) devices: Vec<DeviceSummary>,
+    pub(super) bluetooth_devices: Vec<HidDeviceInfo>,
+    pub(super) pending_device_inspections: BTreeSet<String>,
     pub(super) selected_device_path: Option<String>,
     pub(super) source_kind: FirmwareSourceKind,
     pub(super) targets: Vec<TargetOption>,
     pub(super) selected_target_id: String,
     pub(super) catalog_releases: Vec<FirmwareRelease>,
     pub(super) catalog_checked: bool,
+    pub(super) catalog_checking: bool,
+    pub(super) local_firmware_info: Option<LocalFirmwareInfo>,
     pub(super) local_firmware: Option<LocalFirmwareSummary>,
     pub(super) warning_acknowledged: bool,
     pub(super) completed_version: Option<u16>,
+    pub(super) post_flash_verified: bool,
+    pub(super) completed_verification_note: Option<String>,
+    pub(super) cached_firmware: Option<CachedFirmwareMeta>,
     pub(super) banner: Option<BannerMessage>,
     pub(super) progress: ProgressSnapshot,
     pub(super) error: Option<FriendlyError>,
@@ -62,15 +74,22 @@ impl AppState {
             step: AppStep::DetectController,
             previous_step: AppStep::DetectController,
             devices: Vec::new(),
+            bluetooth_devices: Vec::new(),
+            pending_device_inspections: BTreeSet::new(),
             selected_device_path: None,
             source_kind: FirmwareSourceKind::OfficialCatalog,
             targets,
             selected_target_id: "0004".to_string(),
             catalog_releases: Vec::new(),
             catalog_checked: false,
+            catalog_checking: false,
+            local_firmware_info: None,
             local_firmware: None,
             warning_acknowledged: false,
             completed_version: None,
+            post_flash_verified: false,
+            completed_verification_note: None,
+            cached_firmware: None,
             banner: Some(BannerMessage::info(
                 "Connect your DualSense controller",
                 "Plug your controller into your PC with a USB cable, then click Scan for Controllers.",
@@ -96,6 +115,11 @@ impl AppState {
                 }
                 self.source_kind = kind;
                 self.warning_acknowledged = false;
+                if kind == FirmwareSourceKind::LocalFile {
+                    self.refresh_local_firmware_banner();
+                } else {
+                    self.refresh_catalog_banner();
+                }
                 Vec::new()
             }
             AppEvent::SelectTarget { target_id } => {
@@ -132,17 +156,7 @@ impl AppState {
                 }
                 Vec::new()
             }
-            AppEvent::ContinueToConfirmStep => {
-                if self.busy.is_none()
-                    && self.step == AppStep::SelectFirmware
-                    && self.selected_device().is_some()
-                    && self.has_ready_firmware()
-                {
-                    self.step = AppStep::ConfirmUpdate;
-                    self.warning_acknowledged = false;
-                }
-                Vec::new()
-            }
+            AppEvent::ContinueToConfirmStep => self.handle_continue_to_confirm(),
             AppEvent::GoBack => {
                 if self.busy.is_some() {
                     return Vec::new();
@@ -164,6 +178,7 @@ impl AppState {
                 Vec::new()
             }
             AppEvent::StartUpdate => self.handle_start_update(),
+            AppEvent::SaveCachedFirmware { path } => self.handle_save_cached_firmware(path),
             AppEvent::RequestCancel => self.handle_request_cancel(),
             AppEvent::DismissError => {
                 if self.step == AppStep::Error && self.busy.is_none() {
@@ -184,6 +199,8 @@ impl AppState {
                 self.previous_step = AppStep::DetectController;
                 self.error = None;
                 self.completed_version = None;
+                self.post_flash_verified = false;
+                self.completed_verification_note = None;
                 self.pending_flash_attempt = None;
                 self.flash_report = None;
                 self.warning_acknowledged = false;
@@ -199,6 +216,13 @@ impl AppState {
             AppEvent::CatalogLoaded(result) => self.handle_catalog_loaded(result),
             AppEvent::LocalFileInspected { path, result } => {
                 self.handle_local_file_inspected(path, result)
+            }
+            AppEvent::OfficialFirmwareCached { target_id, version } => {
+                self.cached_firmware = Some(CachedFirmwareMeta { target_id, version });
+                Vec::new()
+            }
+            AppEvent::CachedFirmwareSaved { path, result } => {
+                self.handle_cached_firmware_saved(path, result)
             }
             AppEvent::DownloadProgressUpdated(progress) => {
                 if self.step == AppStep::Updating {
@@ -226,30 +250,50 @@ impl AppState {
         matches!(self.busy, Some(BusyOperation::FlashingFirmware))
     }
 
-    /// Returns `true` if a background poll differs from known devices or the active device vanished.
-    pub(crate) fn poll_devices_changed(&self, polled: &[dualsense_core::HidDeviceInfo]) -> bool {
+    /// Returns `true` if a background poll differs from known USB/Bluetooth devices or the active device vanished.
+    pub(crate) fn poll_devices_changed(&self, polled: &[HidDeviceInfo]) -> bool {
+        let usb_polled = filter_usb_devices(polled);
+        let bt_polled = filter_bluetooth_devices(polled);
+
         if self
             .selected_device_path
             .as_deref()
-            .is_some_and(|sel| !polled.iter().any(|d| d.path == sel))
+            .is_some_and(|sel| !usb_polled.iter().any(|d| d.path == sel))
         {
             return true;
         }
 
-        let mut current: Vec<(&str, u16, u16)> = self
+        let mut current_usb: Vec<(&str, u16, u16)> = self
             .devices
             .iter()
             .map(|d| (d.path.as_str(), d.vendor_id, d.product_id))
             .collect();
-        current.sort_unstable();
+        current_usb.sort_unstable();
 
-        let mut next: Vec<(&str, u16, u16)> = polled
+        let mut next_usb: Vec<(&str, u16, u16)> = usb_polled
             .iter()
             .map(|d| (d.path.as_str(), d.vendor_id, d.product_id))
             .collect();
-        next.sort_unstable();
+        next_usb.sort_unstable();
 
-        current != next
+        if current_usb != next_usb {
+            return true;
+        }
+
+        let mut current_bt: Vec<(&str, u16, u16)> = self
+            .bluetooth_devices
+            .iter()
+            .map(|d| (d.path.as_str(), d.vendor_id, d.product_id))
+            .collect();
+        current_bt.sort_unstable();
+
+        let mut next_bt: Vec<(&str, u16, u16)> = bt_polled
+            .iter()
+            .map(|d| (d.path.as_str(), d.vendor_id, d.product_id))
+            .collect();
+        next_bt.sort_unstable();
+
+        current_bt != next_bt
     }
 
     pub(super) fn enter_error(&mut self, err: dualsense_core::CoreError, return_step: AppStep) {
@@ -289,7 +333,10 @@ impl AppState {
             FirmwareSourceKind::OfficialCatalog => {
                 self.selected_device_board_supported() && self.selected_release().is_some()
             }
-            FirmwareSourceKind::LocalFile => self.local_firmware.is_some(),
+            FirmwareSourceKind::LocalFile => self
+                .local_firmware
+                .as_ref()
+                .is_some_and(|local| local.compatibility != LocalImageCompatibility::Incompatible),
         }
     }
 
@@ -307,6 +354,37 @@ impl AppState {
         let current_version = self.selected_device().and_then(|d| d.firmware_version);
         for target in &mut self.targets {
             target.update_comparison(current_version);
+        }
+    }
+
+    pub(super) fn revalidate_local_firmware(&mut self) {
+        let Some(info) = self.local_firmware_info.as_ref() else {
+            return;
+        };
+        let selected = self.selected_device();
+        let (compatibility, warning, error) =
+            LocalFirmwareSummary::evaluate_for_device(info, selected);
+        if let Some(summary) = &mut self.local_firmware {
+            summary.compatibility = compatibility;
+            summary.warning = warning;
+            summary.error = error;
+        }
+    }
+
+    pub(super) fn selected_device_battery_warning(&self) -> Option<String> {
+        let status = self.selected_device()?.battery_status?;
+        if status.is_critically_low() {
+            Some(format!(
+                "Controller battery is critically low ({}) and not charging. Charge it or use a powered USB port before flashing.",
+                status.formatted_summary()
+            ))
+        } else if status.is_low() {
+            Some(format!(
+                "Controller battery is low ({}) and not charging. Keep the USB cable firmly connected during the update.",
+                status.formatted_summary()
+            ))
+        } else {
+            None
         }
     }
 
@@ -334,5 +412,33 @@ impl AppState {
                 ),
             ));
         }
+    }
+
+    pub(super) fn refresh_local_firmware_banner(&mut self) {
+        let Some(summary) = &self.local_firmware else {
+            return;
+        };
+        self.banner = Some(match summary.compatibility {
+            LocalImageCompatibility::Compatible => BannerMessage::positive(
+                "Firmware file ready",
+                format!(
+                    "Loaded {} (version {}, {}).",
+                    summary.file_name, summary.formatted_version, summary.size_label
+                ),
+            ),
+            LocalImageCompatibility::Warning => BannerMessage::warning(
+                "Firmware file loaded with warning",
+                summary
+                    .warning
+                    .clone()
+                    .unwrap_or_else(|| "Target verification warning.".to_string()),
+            ),
+            LocalImageCompatibility::Incompatible => BannerMessage::error(
+                "Incompatible firmware file",
+                summary.error.clone().unwrap_or_else(|| {
+                    "This firmware file is not compatible with the selected controller.".to_string()
+                }),
+            ),
+        });
     }
 }

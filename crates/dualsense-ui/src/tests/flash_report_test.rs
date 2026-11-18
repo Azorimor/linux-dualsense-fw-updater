@@ -14,7 +14,9 @@ use crate::flash_report::{
     SystemEnvironmentInfo, build_flash_report_issue_url, parse_os_release,
     percent_encode_component,
 };
-use crate::viewmodel::{AppEvent, AppState, AppStep, FirmwareSourceKind, LocalFirmwareInfo};
+use crate::viewmodel::{
+    AppEvent, AppState, AppStep, FirmwareSourceKind, LocalFirmwareInfo, UpdateOutcome,
+};
 
 fn fixture_sys_info() -> SystemEnvironmentInfo {
     SystemEnvironmentInfo {
@@ -91,7 +93,9 @@ fn flash_report_generated_on_success_and_excludes_serial_and_paths() {
     state.update(AppEvent::SetWarningAcknowledged(true));
     state.update(AppEvent::StartUpdate);
 
-    state.update(AppEvent::UpdateFinished(Ok(0x0630)));
+    state.update(AppEvent::UpdateFinished(Ok(UpdateOutcome::verified(
+        0x0630,
+    ))));
     let snap = state.snapshot();
     assert_eq!(snap.step, AppStep::Completed);
 
@@ -168,10 +172,12 @@ fn flash_report_generated_on_update_error_and_local_path_stays_private() {
     ));
     state.update(AppEvent::LocalFileInspected {
         path: PathBuf::from("/home/alice/private/edge_fw_secret.bin"),
-        result: Ok(LocalFirmwareInfo {
-            version: 0x0250,
-            size_bytes: 950_272,
-        }),
+        result: Ok(LocalFirmwareInfo::official(
+            0x0250,
+            950_272,
+            DUALSENSE_EDGE_PID,
+            "0044",
+        )),
     });
     state.update(AppEvent::ContinueToConfirmStep);
     state.update(AppEvent::SetWarningAcknowledged(true));

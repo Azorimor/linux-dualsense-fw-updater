@@ -5,8 +5,11 @@
 use std::path::PathBuf;
 
 use dualsense_core::{
-    ControllerHardwareInfo, CoreError, DUALSENSE_EDGE_PID, DownloadProgress, FirmwareCatalog,
-    FirmwareInfo, FirmwareRelease, HidDeviceInfo, UpdateProgress, resolve_controller_target,
+    BatteryStatus, ControllerHardwareInfo, CoreError, DUALSENSE_EDGE_PID, DownloadProgress,
+    FIRMWARE_PID_OFFSET, FIRMWARE_TARGET_OFFSET, FIRMWARE_VERSION_OFFSET, FirmwareCatalog,
+    FirmwareImage, FirmwareInfo, FirmwareRelease, HidDeviceInfo, LocalImageCompatibility,
+    LocalImageValidation, MIN_OFFICIAL_FIRMWARE_BYTES, PostFlashVerification,
+    PostFlashVerificationStatus, SONY_HEADER_SIGNATURE, UpdateProgress, resolve_controller_target,
 };
 
 use super::progress::ProgressSnapshot;
@@ -102,13 +105,14 @@ impl BannerMessage {
     }
 }
 
-/// Complete hardware, firmware, and optional serial/color inspection result for a controller.
+/// Complete hardware, firmware, battery, and optional serial/color inspection result for a controller.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceInspection {
     pub firmware_info: FirmwareInfo,
     pub hardware: ControllerHardwareInfo,
     pub serial_number: Option<String>,
     pub color_name: Option<String>,
+    pub battery_status: Option<BatteryStatus>,
 }
 
 impl DeviceInspection {
@@ -120,6 +124,7 @@ impl DeviceInspection {
             hardware,
             serial_number: None,
             color_name: None,
+            battery_status: None,
         }
     }
 }
@@ -144,6 +149,9 @@ pub struct DeviceSummary {
     pub formatted_firmware_version: String,
     pub build_date: Option<String>,
     pub build_time: Option<String>,
+    pub battery_status: Option<BatteryStatus>,
+    pub battery_summary: Option<String>,
+    pub hardware: Option<ControllerHardwareInfo>,
 }
 
 impl DeviceSummary {
@@ -167,10 +175,13 @@ impl DeviceSummary {
             formatted_firmware_version: "Not read yet".to_string(),
             build_date: None,
             build_time: None,
+            battery_status: None,
+            battery_summary: None,
+            hardware: None,
         }
     }
 
-    /// Updates firmware, board, target, serial, and color fields from controller inspection.
+    /// Updates firmware, board, target, serial, color, and battery fields from controller inspection.
     pub fn apply_inspection(&mut self, inspection: &DeviceInspection) {
         self.firmware_version = Some(inspection.firmware_info.firmware_version);
         self.formatted_firmware_version = inspection.firmware_info.formatted_version();
@@ -178,6 +189,7 @@ impl DeviceSummary {
         self.build_time = non_empty(&inspection.firmware_info.build_time);
 
         let hw = &inspection.hardware;
+        self.hardware = Some(hw.clone());
         self.board_model = hw.board_name.clone();
         self.fw_series_text = hw.fw_series_hex.clone();
         self.hw_model_text = format!("0x{:08X}", hw.hw_info);
@@ -198,6 +210,11 @@ impl DeviceSummary {
             self.serial_number = Some(serial);
         }
         self.color_name = inspection.color_name.as_deref().and_then(non_empty);
+        self.battery_status = inspection.battery_status;
+        self.battery_summary = inspection
+            .battery_status
+            .as_ref()
+            .map(BatteryStatus::formatted_summary);
     }
 
     /// Updates firmware metadata fields from Feature Report `0x20`.
@@ -206,6 +223,19 @@ impl DeviceSummary {
             info.clone(),
             self.product_id,
         ));
+    }
+
+    /// Updates version and build timestamp fields from post-flash verification without clearing
+    /// cached serial, color, or battery details.
+    pub fn apply_verified_firmware_info(&mut self, info: &FirmwareInfo) {
+        self.firmware_version = Some(info.firmware_version);
+        self.formatted_firmware_version = info.formatted_version();
+        if let Some(date) = non_empty(&info.build_date) {
+            self.build_date = Some(date);
+        }
+        if let Some(time) = non_empty(&info.build_time) {
+            self.build_time = Some(time);
+        }
     }
 
     /// Returns a [`DeviceTarget`] descriptor for background HID operations.
@@ -291,9 +321,160 @@ pub enum FirmwareSourceKind {
 pub struct LocalFirmwareInfo {
     pub version: u16,
     pub size_bytes: usize,
+    pub sony_header_valid: bool,
+    pub sony_header_error: Option<String>,
+    pub embedded_pid: Option<u16>,
+    pub embedded_target_id: Option<String>,
 }
 
-/// Formatted summary of a validated local `.bin` firmware file.
+impl LocalFirmwareInfo {
+    /// Extracts firmware version, size, Sony header validity, embedded PID, and target ID from a [`FirmwareImage`].
+    pub fn from_image(image: &FirmwareImage) -> Self {
+        match image.validate_sony_header() {
+            Ok(()) => Self {
+                version: image.version(),
+                size_bytes: image.len(),
+                sony_header_valid: true,
+                sony_header_error: None,
+                embedded_pid: Some(image.embedded_pid()),
+                embedded_target_id: Some(format!("{:04X}", image.embedded_target_id())),
+            },
+            Err(CoreError::InvalidDownloadedFirmware(issue)) => Self {
+                version: image.version(),
+                size_bytes: image.len(),
+                sony_header_valid: false,
+                sony_header_error: Some(issue),
+                embedded_pid: None,
+                embedded_target_id: None,
+            },
+            Err(err) => Self {
+                version: image.version(),
+                size_bytes: image.len(),
+                sony_header_valid: false,
+                sony_header_error: Some(err.technical_detail()),
+                embedded_pid: None,
+                embedded_target_id: None,
+            },
+        }
+    }
+
+    /// Constructs a [`LocalFirmwareInfo`] representing a valid Sony firmware image (helpful in tests).
+    pub fn official(
+        version: u16,
+        size_bytes: usize,
+        embedded_pid: u16,
+        embedded_target_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            version,
+            size_bytes,
+            sony_header_valid: true,
+            sony_header_error: None,
+            embedded_pid: Some(embedded_pid),
+            embedded_target_id: Some(embedded_target_id.into()),
+        }
+    }
+
+    /// Constructs a [`LocalFirmwareInfo`] representing a file lacking a valid Sony header (helpful in tests).
+    pub fn invalid_header(version: u16, size_bytes: usize, error: impl Into<String>) -> Self {
+        Self {
+            version,
+            size_bytes,
+            sony_header_valid: false,
+            sony_header_error: Some(error.into()),
+            embedded_pid: None,
+            embedded_target_id: None,
+        }
+    }
+
+    /// Evaluates compatibility of this inspected local `.bin` against a controller's hardware info and USB PID.
+    pub fn validate_for_controller(
+        &self,
+        hardware: &ControllerHardwareInfo,
+        product_id: u16,
+    ) -> LocalImageValidation {
+        let expected_target_id = hardware.supported_target_id.map(ToString::to_string);
+        if !self.sony_header_valid {
+            return LocalImageValidation {
+                compatibility: LocalImageCompatibility::Incompatible,
+                sony_header_valid: false,
+                image_version: self.version,
+                embedded_pid: None,
+                embedded_target_id: None,
+                expected_pid: product_id,
+                expected_target_id,
+                mismatches: vec![
+                    self.sony_header_error
+                        .clone()
+                        .unwrap_or_else(|| "Missing valid Sony firmware header.".to_string()),
+                ],
+                warnings: Vec::new(),
+            };
+        }
+
+        let Some(pid) = self.embedded_pid else {
+            return LocalImageValidation {
+                compatibility: LocalImageCompatibility::Incompatible,
+                sony_header_valid: false,
+                image_version: self.version,
+                embedded_pid: None,
+                embedded_target_id: None,
+                expected_pid: product_id,
+                expected_target_id,
+                mismatches: vec!["Missing embedded USB PID in Sony firmware header.".to_string()],
+                warnings: Vec::new(),
+            };
+        };
+
+        let Some(target_hex) = self.embedded_target_id.as_deref() else {
+            return LocalImageValidation {
+                compatibility: LocalImageCompatibility::Incompatible,
+                sony_header_valid: false,
+                image_version: self.version,
+                embedded_pid: Some(pid),
+                embedded_target_id: None,
+                expected_pid: product_id,
+                expected_target_id,
+                mismatches: vec!["Missing embedded target ID in Sony firmware header.".to_string()],
+                warnings: Vec::new(),
+            };
+        };
+
+        let Ok(target_val) = u16::from_str_radix(
+            target_hex
+                .trim()
+                .strip_prefix("0x")
+                .or_else(|| target_hex.trim().strip_prefix("0X"))
+                .unwrap_or(target_hex.trim()),
+            16,
+        ) else {
+            return LocalImageValidation {
+                compatibility: LocalImageCompatibility::Incompatible,
+                sony_header_valid: false,
+                image_version: self.version,
+                embedded_pid: Some(pid),
+                embedded_target_id: Some(target_hex.to_string()),
+                expected_pid: product_id,
+                expected_target_id,
+                mismatches: vec![format!("Invalid embedded target ID '{target_hex}'.")],
+                warnings: Vec::new(),
+            };
+        };
+
+        let mut buf = vec![0u8; MIN_OFFICIAL_FIRMWARE_BYTES];
+        buf[..SONY_HEADER_SIGNATURE.len()].copy_from_slice(SONY_HEADER_SIGNATURE);
+        buf[FIRMWARE_PID_OFFSET..FIRMWARE_PID_OFFSET + 2].copy_from_slice(&pid.to_le_bytes());
+        buf[FIRMWARE_TARGET_OFFSET..FIRMWARE_TARGET_OFFSET + 2]
+            .copy_from_slice(&target_val.to_le_bytes());
+        buf[FIRMWARE_VERSION_OFFSET..FIRMWARE_VERSION_OFFSET + 2]
+            .copy_from_slice(&self.version.to_le_bytes());
+        FirmwareImage::from_bytes(buf)
+            .expect("synthetic Sony header meets header length")
+            .validate_for_controller(hardware, product_id)
+    }
+}
+
+/// Formatted summary and controller compatibility status of a local `.bin` firmware file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalFirmwareSummary {
     pub path: PathBuf,
@@ -302,15 +483,26 @@ pub struct LocalFirmwareSummary {
     pub formatted_version: String,
     pub size_bytes: usize,
     pub size_label: String,
+    pub sony_header_valid: bool,
+    pub embedded_pid: Option<u16>,
+    pub embedded_target_id: Option<String>,
+    pub compatibility: LocalImageCompatibility,
+    pub warning: Option<String>,
+    pub error: Option<String>,
 }
 
 impl LocalFirmwareSummary {
-    pub(super) fn from_info(path: PathBuf, info: LocalFirmwareInfo) -> Self {
+    pub(super) fn from_info(
+        path: PathBuf,
+        info: &LocalFirmwareInfo,
+        device: Option<&DeviceSummary>,
+    ) -> Self {
         let file_name = path
             .file_name()
             .and_then(|n| n.to_str())
             .map(ToString::to_string)
             .unwrap_or_else(|| path.display().to_string());
+        let (compatibility, warning, error) = Self::evaluate_for_device(info, device);
         Self {
             path,
             file_name,
@@ -318,6 +510,50 @@ impl LocalFirmwareSummary {
             formatted_version: format!("0x{:04x}", info.version),
             size_bytes: info.size_bytes,
             size_label: super::progress::format_bytes(info.size_bytes),
+            sony_header_valid: info.sony_header_valid,
+            embedded_pid: info.embedded_pid,
+            embedded_target_id: info.embedded_target_id.clone(),
+            compatibility,
+            warning,
+            error,
+        }
+    }
+
+    pub(super) fn evaluate_for_device(
+        info: &LocalFirmwareInfo,
+        device: Option<&DeviceSummary>,
+    ) -> (LocalImageCompatibility, Option<String>, Option<String>) {
+        let Some(dev) = device else {
+            return (
+                LocalImageCompatibility::Incompatible,
+                None,
+                Some(
+                    "Connect a DualSense controller over USB to validate this firmware file."
+                        .to_string(),
+                ),
+            );
+        };
+        let Some(hardware) = dev.hardware.as_ref() else {
+            return (
+                LocalImageCompatibility::Incompatible,
+                None,
+                Some("Controller hardware details have not been read yet.".to_string()),
+            );
+        };
+
+        let validation = info.validate_for_controller(hardware, dev.product_id);
+        match validation.compatibility {
+            LocalImageCompatibility::Compatible => {
+                (LocalImageCompatibility::Compatible, None, None)
+            }
+            LocalImageCompatibility::Warning => {
+                (LocalImageCompatibility::Warning, validation.summary(), None)
+            }
+            LocalImageCompatibility::Incompatible => (
+                LocalImageCompatibility::Incompatible,
+                None,
+                validation.summary(),
+            ),
         }
     }
 }
@@ -331,6 +567,55 @@ pub struct UpdateSummary {
     pub source_description: String,
     pub is_untested_hardware: bool,
     pub is_same_or_older_version: bool,
+}
+
+/// Outcome of a firmware update execution, including bounded post-flash hardware verification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateOutcome {
+    pub target_version: u16,
+    pub verification: PostFlashVerification,
+}
+
+impl UpdateOutcome {
+    /// Creates an [`UpdateOutcome`] from the flashed version and post-flash verification result.
+    pub fn new(target_version: u16, verification: PostFlashVerification) -> Self {
+        Self {
+            target_version,
+            verification,
+        }
+    }
+
+    /// Creates a verified [`UpdateOutcome`] (helpful in headless unit tests).
+    pub fn verified(version: u16) -> Self {
+        Self {
+            target_version: version,
+            verification: PostFlashVerification {
+                status: PostFlashVerificationStatus::Verified,
+                expected_version: version,
+                firmware_info: None,
+                attempts: 1,
+                last_error: None,
+            },
+        }
+    }
+}
+
+/// Metadata identifying an official Sony `.bin` firmware cached in memory for the current session.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CachedFirmwareMeta {
+    pub target_id: String,
+    pub version: u16,
+}
+
+impl CachedFirmwareMeta {
+    /// Suggested filename when saving a copy of the cached firmware binary.
+    pub fn suggested_file_name(&self) -> String {
+        format!(
+            "FWUPDATE{}_{:04X}.bin",
+            self.target_id.to_ascii_uppercase(),
+            self.version
+        )
+    }
 }
 
 /// Active background operation tracked by [`super::AppState`].
@@ -370,6 +655,11 @@ pub enum AppCommand {
         device: DeviceTarget,
         path: PathBuf,
     },
+    SaveCachedFirmware {
+        target_id: String,
+        version: u16,
+        path: PathBuf,
+    },
     CancelActiveOperation,
 }
 
@@ -395,6 +685,9 @@ pub enum AppEvent {
     GoBack,
     SetWarningAcknowledged(bool),
     StartUpdate,
+    SaveCachedFirmware {
+        path: PathBuf,
+    },
     RequestCancel,
     DismissError,
     ResetFlow,
@@ -410,9 +703,17 @@ pub enum AppEvent {
         path: PathBuf,
         result: std::result::Result<LocalFirmwareInfo, CoreError>,
     },
+    OfficialFirmwareCached {
+        target_id: String,
+        version: u16,
+    },
+    CachedFirmwareSaved {
+        path: PathBuf,
+        result: std::result::Result<(), CoreError>,
+    },
     DownloadProgressUpdated(DownloadProgress),
     UpdateProgressUpdated(UpdateProgress),
-    UpdateFinished(std::result::Result<u16, CoreError>),
+    UpdateFinished(std::result::Result<UpdateOutcome, CoreError>),
 }
 
 pub(super) fn non_empty(value: &str) -> Option<String> {

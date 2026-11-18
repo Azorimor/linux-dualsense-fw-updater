@@ -65,6 +65,7 @@ pub(super) fn sample_inspection(
         hardware,
         serial_number,
         color_name,
+        battery_status: None,
     }
 }
 

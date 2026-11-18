@@ -195,6 +195,12 @@ Kirigami.ApplicationWindow {
                     Layout.fillWidth: true
                     visible: updater.hasBanner && updater.stepIndex !== 5
                     text: updater.bannerDisplayText
+                    // Kirigami's BasicTheme fallback binds activeTextColor to highlightedText (#ffffff in Fusion).
+                    Kirigami.Theme.activeTextColor: Qt.colorEqual(
+                            root.Kirigami.Theme.activeTextColor,
+                            root.Kirigami.Theme.highlightedTextColor)
+                        ? root.Kirigami.Theme.highlightColor
+                        : root.Kirigami.Theme.activeTextColor
                     type: {
                         switch (updater.bannerSeverity) {
                         case 1:

@@ -373,6 +373,7 @@ if [[ -d "${WAYLAND_GFX_SRC}" ]]; then
     WAYLAND_GFX_SOS=("${WAYLAND_GFX_SRC}"/*.so)
     shopt -u nullglob
 fi
+XDG_PORTAL_THEME_SO="${EFFECTIVE_QT_PLUGINS}/platformthemes/libqxdgdesktopportal.so"
 
 collect_appdir_library_notices() {
     local appdir="$1"
@@ -459,13 +460,13 @@ collect_appdir_library_notices() {
 }
 
 pushd "${STAGE_ROOT}" >/dev/null
-if [[ "${#WAYLAND_GFX_SOS[@]}" -gt 0 ]]; then
-    "${LINUXDEPLOY_BIN}" \
-        --appdir "${APPDIR}" \
-        --desktop-file "${APPDIR}/usr/share/applications/${APP_ID}.desktop" \
-        --icon-file "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png" \
-        --plugin qt
+"${LINUXDEPLOY_BIN}" \
+    --appdir "${APPDIR}" \
+    --desktop-file "${APPDIR}/usr/share/applications/${APP_ID}.desktop" \
+    --icon-file "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png" \
+    --plugin qt
 
+if [[ "${#WAYLAND_GFX_SOS[@]}" -gt 0 ]]; then
     mkdir -p "${APPDIR}/usr/plugins/wayland-graphics-integration-client"
     cp -L "${WAYLAND_GFX_SOS[@]}" "${APPDIR}/usr/plugins/wayland-graphics-integration-client/"
 
@@ -475,12 +476,18 @@ if [[ "${#WAYLAND_GFX_SOS[@]}" -gt 0 ]]; then
         --desktop-file "${APPDIR}/usr/share/applications/${APP_ID}.desktop" \
         --icon-file "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png" \
         --deploy-deps-only "${APPDIR}/usr/plugins/wayland-graphics-integration-client"
-else
-    "${LINUXDEPLOY_BIN}" \
+fi
+
+if [[ -f "${XDG_PORTAL_THEME_SO}" ]]; then
+    mkdir -p "${APPDIR}/usr/plugins/platformthemes"
+    cp -L "${XDG_PORTAL_THEME_SO}" "${APPDIR}/usr/plugins/platformthemes/"
+
+    LD_LIBRARY_PATH="${DEPLOY_LD_LIBRARY_PATH}" \
+        "${LINUXDEPLOY_BIN}" \
         --appdir "${APPDIR}" \
         --desktop-file "${APPDIR}/usr/share/applications/${APP_ID}.desktop" \
         --icon-file "${APPDIR}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png" \
-        --plugin qt
+        --deploy-deps-only "${APPDIR}/usr/plugins/platformthemes/libqxdgdesktopportal.so"
 fi
 
 collect_appdir_library_notices "${APPDIR}" "${APPDIR_LICENSES_DIR}"

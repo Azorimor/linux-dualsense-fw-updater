@@ -10,19 +10,17 @@ const MAIN_QML_URL: &str = "qrc:/qt/qml/dev/dualsense/updater/qml/Main.qml";
 fn main() {
     init_logging();
 
-    let mut app = QGuiApplication::new();
-    configure_quick_style();
-    if let Some(mut app_pin) = app.as_mut() {
-        app_pin
-            .as_mut()
-            .set_application_name(&QString::from("dualsense-updater"));
-        app_pin
-            .as_mut()
-            .set_application_display_name(&QString::from("DualSense Firmware Updater"));
-        app_pin
-            .as_mut()
-            .set_application_version(&QString::from(env!("CARGO_PKG_VERSION")));
+    // SAFETY: Executed at single-threaded startup before creating QApplication or any threads.
+    unsafe {
+        dualsense_updater::native_app::configure_appimage_platform_theme();
     }
+
+    let args = dualsense_updater::native_app::collect_cli_args(std::env::args_os());
+    let mut app = dualsense_updater::native_app::NativeApplication::new(args);
+    configure_quick_style();
+    app.set_application_name("dualsense-updater");
+    app.set_application_display_name("DualSense Firmware Updater");
+    app.set_application_version(env!("CARGO_PKG_VERSION"));
     QGuiApplication::set_desktop_file_name(&QString::from(
         dualsense_updater::app_icon::DESKTOP_FILE_ID,
     ));
@@ -40,7 +38,7 @@ fn main() {
         engine_pin.load(&QUrl::from(MAIN_QML_URL));
     }
 
-    let exit_code = app.as_mut().map(|app_pin| app_pin.exec()).unwrap_or(1);
+    let exit_code = app.exec();
     std::process::exit(exit_code);
 }
 

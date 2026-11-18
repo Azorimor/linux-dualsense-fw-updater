@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod licenses_test;
+mod native_app_test;
 mod quick_style_test;
 mod snapshot_adapter_test;
 mod snapshot_state_test;

@@ -32,6 +32,7 @@ fn main() {
     configure_qmake6();
     generate_bundled_licenses();
     println!("cargo::rerun-if-changed=src/app_icon.h");
+    println!("cargo::rerun-if-changed=src/native_app.h");
 
     let builder =
         CxxQtBuilder::new_qml_module(QmlModule::new("dev.dualsense.updater").qml_files([
@@ -46,10 +47,13 @@ fn main() {
         ]))
         .qt_module("Quick")
         .qt_module("QuickControls2")
+        .qt_module("Widgets")
         .qrc_resources(desktop_icon_resources())
         .file("src/qt_bridge.rs")
         .file("src/app_icon.rs")
-        .cpp_file("src/app_icon.cpp");
+        .file("src/native_app.rs")
+        .cpp_file("src/app_icon.cpp")
+        .cpp_file("src/native_app.cpp");
 
     // SAFETY: `cc_builder` is marked unsafe because it exposes cxx-qt-build's internal
     // `cc::Build` without minor-version stability guarantees; we only append a supported

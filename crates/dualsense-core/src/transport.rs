@@ -15,7 +15,46 @@ use crate::protocol::{
     encode_update_command_chunks,
 };
 
-/// Metadata describing an enumerated USB HID DualSense candidate device.
+/// Underlying HID transport bus type for an enumerated DualSense device.
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash)]
+pub enum HidBusType {
+    /// Connected over USB (supports firmware inspection and updates).
+    Usb,
+    /// Connected over Bluetooth (firmware updates require a USB cable).
+    Bluetooth,
+    /// Bus type could not be determined by the HID backend.
+    #[default]
+    Unknown,
+}
+
+impl HidBusType {
+    /// Maps a [`hidapi::BusType`] with an `interface_number >= 0` fallback into [`HidBusType`].
+    pub fn from_hidapi(bus: hidapi::BusType, interface_number: i32) -> Self {
+        match bus {
+            hidapi::BusType::Usb => Self::Usb,
+            hidapi::BusType::Bluetooth => Self::Bluetooth,
+            _ if interface_number >= 0 => Self::Usb,
+            _ => Self::Unknown,
+        }
+    }
+
+    /// Returns a human-readable label (`"USB"`, `"Bluetooth"`, or `"Unknown"`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Usb => "USB",
+            Self::Bluetooth => "Bluetooth",
+            Self::Unknown => "Unknown",
+        }
+    }
+}
+
+impl std::fmt::Display for HidBusType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Metadata describing an enumerated HID DualSense candidate device.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HidDeviceInfo {
     pub path: String,
@@ -26,9 +65,20 @@ pub struct HidDeviceInfo {
     pub usage: u16,
     pub product_string: String,
     pub serial_number: String,
+    pub bus_type: HidBusType,
 }
 
 impl HidDeviceInfo {
+    /// Returns `true` if this device is connected over Bluetooth.
+    pub fn is_bluetooth(&self) -> bool {
+        self.bus_type == HidBusType::Bluetooth
+    }
+
+    /// Returns `true` if this device is connected over USB.
+    pub fn is_usb(&self) -> bool {
+        self.bus_type == HidBusType::Usb
+    }
+
     /// Returns a concise human-readable label for device selection lists.
     pub fn display_label(&self) -> String {
         let name = if self.product_string.is_empty() {
@@ -42,6 +92,29 @@ impl HidDeviceInfo {
             format!("{name} — {}", self.serial_number)
         }
     }
+}
+
+/// Returns only devices that are not connected over Bluetooth (USB or unknown bus).
+pub fn filter_usb_devices(devices: &[HidDeviceInfo]) -> Vec<HidDeviceInfo> {
+    devices
+        .iter()
+        .filter(|d| !d.is_bluetooth())
+        .cloned()
+        .collect()
+}
+
+/// Returns only devices connected over Bluetooth.
+pub fn filter_bluetooth_devices(devices: &[HidDeviceInfo]) -> Vec<HidDeviceInfo> {
+    devices
+        .iter()
+        .filter(|d| d.is_bluetooth())
+        .cloned()
+        .collect()
+}
+
+/// Returns `true` when at least one device is present and every enumerated device is Bluetooth.
+pub fn has_only_bluetooth_devices(devices: &[HidDeviceInfo]) -> bool {
+    !devices.is_empty() && devices.iter().all(HidDeviceInfo::is_bluetooth)
 }
 
 /// Low-level USB HID feature-report transport abstraction for deterministic testing.
@@ -86,6 +159,11 @@ pub trait HidDeviceEnumerator {
         let mut devices = self.list_devices(DEFAULT_VID, DEFAULT_PID)?;
         devices.extend(self.list_devices(DEFAULT_VID, DUALSENSE_EDGE_PID)?);
         Ok(devices)
+    }
+
+    /// Lists non-Bluetooth DualSense devices suitable for USB firmware inspection and updates.
+    fn list_usb_dualsense_devices(&self) -> Result<Vec<HidDeviceInfo>> {
+        Ok(filter_usb_devices(&self.list_dualsense_devices()?))
     }
 }
 
@@ -261,15 +339,19 @@ impl HidDeviceEnumerator for HidApiBackend {
         let devices = api
             .device_list()
             .filter(|d| d.vendor_id() == vid && d.product_id() == pid)
-            .map(|d| HidDeviceInfo {
-                path: d.path().to_string_lossy().to_string(),
-                vendor_id: d.vendor_id(),
-                product_id: d.product_id(),
-                interface_number: d.interface_number(),
-                usage_page: d.usage_page(),
-                usage: d.usage(),
-                product_string: d.product_string().unwrap_or("").to_string(),
-                serial_number: d.serial_number().unwrap_or("").to_string(),
+            .map(|d| {
+                let interface_number = d.interface_number();
+                HidDeviceInfo {
+                    path: d.path().to_string_lossy().to_string(),
+                    vendor_id: d.vendor_id(),
+                    product_id: d.product_id(),
+                    interface_number,
+                    usage_page: d.usage_page(),
+                    usage: d.usage(),
+                    product_string: d.product_string().unwrap_or("").to_string(),
+                    serial_number: d.serial_number().unwrap_or("").to_string(),
+                    bus_type: HidBusType::from_hidapi(d.bus_type(), interface_number),
+                }
             })
             .collect();
         Ok(devices)

@@ -62,8 +62,11 @@ fn device_info_display_label_handles_missing_and_present_metadata() {
         usage: 0x0005,
         product_string: String::new(),
         serial_number: String::new(),
+        bus_type: HidBusType::Usb,
     };
     assert_eq!(plain.display_label(), "DualSense Controller (054c:0ce6)");
+    assert!(plain.is_usb());
+    assert!(!plain.is_bluetooth());
 
     let named = HidDeviceInfo {
         product_string: "DualSense Wireless Controller".into(),
@@ -139,6 +142,11 @@ impl HidDeviceEnumerator for StubEnumerator {
             usage: 5,
             product_string: "Stub".into(),
             serial_number: "123".into(),
+            bus_type: if pid == DUALSENSE_EDGE_PID {
+                HidBusType::Bluetooth
+            } else {
+                HidBusType::Usb
+            },
         }])
     }
 
@@ -153,7 +161,76 @@ fn list_dualsense_devices_queries_standard_and_edge_pids() {
     let all = enumerator.list_dualsense_devices().expect("list");
     assert_eq!(all.len(), 2);
     assert_eq!(all[0].product_id, DEFAULT_PID);
+    assert!(all[0].is_usb());
     assert_eq!(all[1].product_id, DUALSENSE_EDGE_PID);
+    assert!(all[1].is_bluetooth());
+
+    let usb_only = enumerator.list_usb_dualsense_devices().expect("usb list");
+    assert_eq!(usb_only.len(), 1);
+    assert_eq!(usb_only[0].product_id, DEFAULT_PID);
+}
+
+#[test]
+fn hid_bus_type_mapping_and_bluetooth_filters() {
+    assert_eq!(
+        HidBusType::from_hidapi(hidapi::BusType::Usb, -1),
+        HidBusType::Usb
+    );
+    assert_eq!(
+        HidBusType::from_hidapi(hidapi::BusType::Bluetooth, -1),
+        HidBusType::Bluetooth
+    );
+    assert_eq!(
+        HidBusType::from_hidapi(hidapi::BusType::Unknown, 3),
+        HidBusType::Usb
+    );
+    assert_eq!(
+        HidBusType::from_hidapi(hidapi::BusType::Unknown, -1),
+        HidBusType::Unknown
+    );
+    assert_eq!(HidBusType::Usb.to_string(), "USB");
+    assert_eq!(HidBusType::Bluetooth.to_string(), "Bluetooth");
+    assert_eq!(HidBusType::Unknown.to_string(), "Unknown");
+
+    let usb_dev = HidDeviceInfo {
+        path: "/dev/hidraw0".into(),
+        vendor_id: DEFAULT_VID,
+        product_id: DEFAULT_PID,
+        interface_number: 3,
+        usage_page: 1,
+        usage: 5,
+        product_string: "DualSense".into(),
+        serial_number: "111".into(),
+        bus_type: HidBusType::Usb,
+    };
+    let bt_dev = HidDeviceInfo {
+        path: "/dev/hidraw1".into(),
+        interface_number: -1,
+        serial_number: "222".into(),
+        bus_type: HidBusType::Bluetooth,
+        ..usb_dev.clone()
+    };
+    let unknown_dev = HidDeviceInfo {
+        path: "/dev/hidraw2".into(),
+        interface_number: -1,
+        serial_number: "333".into(),
+        bus_type: HidBusType::Unknown,
+        ..usb_dev.clone()
+    };
+
+    assert!(!has_only_bluetooth_devices(&[]));
+    assert!(has_only_bluetooth_devices(std::slice::from_ref(&bt_dev)));
+    assert!(!has_only_bluetooth_devices(&[
+        usb_dev.clone(),
+        bt_dev.clone()
+    ]));
+    assert!(!has_only_bluetooth_devices(std::slice::from_ref(
+        &unknown_dev
+    )));
+
+    let mixed = vec![usb_dev.clone(), bt_dev.clone(), unknown_dev.clone()];
+    assert_eq!(filter_usb_devices(&mixed), vec![usb_dev, unknown_dev]);
+    assert_eq!(filter_bluetooth_devices(&mixed), vec![bt_dev]);
 }
 
 #[test]

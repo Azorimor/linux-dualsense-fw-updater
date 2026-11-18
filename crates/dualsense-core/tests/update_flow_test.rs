@@ -10,10 +10,10 @@ use common::{
 };
 use dualsense_core::{
     CancellationToken, CoreError, DEFAULT_PID, DEFAULT_VID, DualSenseUpdater,
-    FirmwareCatalogClient, FirmwareImage, HidDeviceEnumerator, HidDeviceInfo, HidTransport,
-    StartUpdateError, StartUpdateStatusCode, UpdateConfig, UpdateFailure, UpdatePhase,
-    UpdateProgress, VerifyUpdateImageError, VerifyUpdateStatusCode, WriteUpdateImageError,
-    WriteUpdateStatusCode,
+    FirmwareCatalogClient, FirmwareImage, HidBusType, HidDeviceEnumerator, HidDeviceInfo,
+    HidTransport, StartUpdateError, StartUpdateStatusCode, UpdateConfig, UpdateFailure,
+    UpdatePhase, UpdateProgress, VerifyUpdateImageError, VerifyUpdateStatusCode,
+    WriteUpdateImageError, WriteUpdateStatusCode,
 };
 
 struct MockEnumerator;
@@ -30,6 +30,7 @@ impl HidDeviceEnumerator for MockEnumerator {
                 usage: 0x0005,
                 product_string: "DualSense Wireless Controller".to_string(),
                 serial_number: "00:11:22:33:44:55".to_string(),
+                bus_type: HidBusType::Usb,
             }])
         } else {
             Ok(Vec::new())

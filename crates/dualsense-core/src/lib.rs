@@ -40,7 +40,8 @@ pub use protocol::{
     decode_ascii, decode_ds5_color, encode_update_command_chunks, encode_update_report,
 };
 pub use transport::{
-    DualSenseDevice, HidApiBackend, HidApiTransport, HidDeviceEnumerator, HidDeviceInfo,
-    HidTransport, Sleeper, StdSleeper,
+    DualSenseDevice, HidApiBackend, HidApiTransport, HidBusType, HidDeviceEnumerator,
+    HidDeviceInfo, HidTransport, Sleeper, StdSleeper, filter_bluetooth_devices, filter_usb_devices,
+    has_only_bluetooth_devices,
 };
 pub use updater::{DualSenseUpdater, UpdateConfig, UpdateProgress};

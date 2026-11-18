@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod cli_test;
 mod licenses_test;
 mod native_app_test;
 mod quick_style_test;

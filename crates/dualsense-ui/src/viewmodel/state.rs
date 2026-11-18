@@ -47,6 +47,7 @@ pub struct AppState {
     pub(super) system_info: SystemEnvironmentInfo,
     pub(super) pending_flash_attempt: Option<PendingFlashAttempt>,
     pub(super) flash_report: Option<FlashReport>,
+    pub(super) no_flash_active: bool,
 }
 
 impl Default for AppState {
@@ -58,17 +59,42 @@ impl Default for AppState {
 impl AppState {
     /// Creates the initial application state with known DualSense hardware targets pre-populated.
     pub fn new() -> Self {
-        Self::with_system_info(SystemEnvironmentInfo::detect())
+        Self::with_system_info_and_no_flash(SystemEnvironmentInfo::detect(), false)
+    }
+
+    /// Creates initial application state with `--no-flash` simulation mode enabled or disabled.
+    pub fn with_no_flash(no_flash_active: bool) -> Self {
+        Self::with_system_info_and_no_flash(SystemEnvironmentInfo::detect(), no_flash_active)
     }
 
     /// Creates initial application state with an explicit [`SystemEnvironmentInfo`] (useful for deterministic tests).
     pub fn with_system_info(system_info: SystemEnvironmentInfo) -> Self {
+        Self::with_system_info_and_no_flash(system_info, false)
+    }
+
+    /// Creates initial application state with explicit [`SystemEnvironmentInfo`] and `--no-flash` flag.
+    pub fn with_system_info_and_no_flash(
+        system_info: SystemEnvironmentInfo,
+        no_flash_active: bool,
+    ) -> Self {
         let targets = KNOWN_TARGETS
             .iter()
             .map(|t| {
                 TargetOption::from_known(t.target_id, t.model_name, t.board_revisions, t.tested)
             })
             .collect();
+
+        let banner = if no_flash_active {
+            Some(BannerMessage::info(
+                "Simulation mode (--no-flash)",
+                "Hardware firmware writes are disabled. Firmware updates will be simulated without modifying any controller.",
+            ))
+        } else {
+            Some(BannerMessage::info(
+                "Connect your DualSense controller",
+                "Plug your controller into your PC with a USB cable, then click Scan for Controllers.",
+            ))
+        };
 
         Self {
             step: AppStep::DetectController,
@@ -90,16 +116,14 @@ impl AppState {
             post_flash_verified: false,
             completed_verification_note: None,
             cached_firmware: None,
-            banner: Some(BannerMessage::info(
-                "Connect your DualSense controller",
-                "Plug your controller into your PC with a USB cable, then click Scan for Controllers.",
-            )),
+            banner,
             progress: ProgressSnapshot::idle(),
             error: None,
             busy: None,
             system_info,
             pending_flash_attempt: None,
             flash_report: None,
+            no_flash_active,
         }
     }
 

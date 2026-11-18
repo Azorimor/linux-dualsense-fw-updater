@@ -78,6 +78,7 @@ pub struct UiSnapshot {
     pub can_cancel: bool,
     pub can_go_back: bool,
     pub flash_report: Option<FlashReport>,
+    pub no_flash_active: bool,
 }
 
 impl AppState {
@@ -261,6 +262,7 @@ impl AppState {
             can_cancel,
             can_go_back,
             flash_report,
+            no_flash_active: self.no_flash_active,
         }
     }
 

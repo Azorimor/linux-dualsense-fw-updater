@@ -4,7 +4,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { generateOGImage } from 'fumadocs-ui/og';
+import { ImageResponse } from 'next/og';
 
 export const OG_SITE_NAME = 'Unofficial Linux DualSense Firmware Updater';
 export const OG_SIZE = {
@@ -19,8 +19,8 @@ const iconBase64Promise = readFile(
 );
 
 /**
- * Render a 1200x630 PNG Open Graph card using `fumadocs-ui/og` and the existing
- * project icon from `website/public/icon-192x192.png`.
+ * Render a 1200x630 PNG Open Graph card using `next/og` `ImageResponse` and the
+ * existing project icon from `website/public/icon-192x192.png`.
  */
 export async function createOgImageResponse({
   title,
@@ -32,21 +32,98 @@ export async function createOgImageResponse({
   const iconBase64 = await iconBase64Promise;
   const iconSrc = `data:image/png;base64,${iconBase64}`;
 
-  return generateOGImage({
-    title,
-    description,
-    site: OG_SITE_NAME,
-    primaryColor: 'rgba(59, 130, 246, 0.35)',
-    primaryTextColor: 'rgb(96, 165, 250)',
-    icon: (
-      <img
-        src={iconSrc}
-        width={56}
-        height={56}
-        alt=""
-        style={{ borderRadius: '12px' }}
-      />
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          width: '100%',
+          height: '100%',
+          padding: '56px 64px',
+          background:
+            'linear-gradient(135deg, #090d16 0%, #111827 58%, #0f172a 100%)',
+          color: '#f8fafc',
+          borderBottom: '12px solid #3b82f6',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: '18px',
+          }}
+        >
+          <img
+            src={iconSrc}
+            width={56}
+            height={56}
+            alt=""
+            style={{ borderRadius: '12px' }}
+          />
+          <div
+            style={{
+              fontSize: '26px',
+              fontWeight: 600,
+              color: '#93c5fd',
+            }}
+          >
+            {OG_SITE_NAME}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '54px',
+              fontWeight: 800,
+              lineHeight: 1.15,
+              color: '#f8fafc',
+            }}
+          >
+            {title}
+          </div>
+          {description ? (
+            <div
+              style={{
+                fontSize: '28px',
+                lineHeight: 1.4,
+                color: '#cbd5e1',
+              }}
+            >
+              {description}
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderTop: '1px solid rgba(148, 163, 184, 0.28)',
+            paddingTop: '20px',
+            fontSize: '22px',
+          }}
+        >
+          <div style={{ color: '#94a3b8' }}>
+            Linux • KDE Kirigami + Rust • USB HID
+          </div>
+          <div style={{ color: '#60a5fa' }}>
+            azorimor.github.io/linux-dualsense-fw-updater
+          </div>
+        </div>
+      </div>
     ),
-    ...OG_SIZE,
-  });
+    OG_SIZE,
+  );
 }

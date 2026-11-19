@@ -99,6 +99,7 @@ test('toCanonicalPageUrl, toSiteAssetUrl, and buildSitemapEntries produce traili
     [
       [`${SITE_ORIGIN}${SITE_BASE_PATH}/`, 1],
       [`${SITE_ORIGIN}${SITE_BASE_PATH}/download/`, 0.9],
+      [`${SITE_ORIGIN}${SITE_BASE_PATH}/supported-hardware/`, 0.9],
       [`${SITE_ORIGIN}${SITE_BASE_PATH}/docs/`, 0.9],
       [`${SITE_ORIGIN}${SITE_BASE_PATH}/docs/getting-started/`, 0.8],
     ],
@@ -139,11 +140,6 @@ test('built static export generates llms.txt, llms-full.txt, and per-page markdo
       mdRel: 'llms.mdx/docs/getting-started.md',
       htmlRel: 'docs/getting-started/index.html',
       ogRel: 'og/docs/getting-started/image.png',
-    },
-    {
-      mdRel: 'llms.mdx/docs/supported-hardware.md',
-      htmlRel: 'docs/supported-hardware/index.html',
-      ogRel: 'og/docs/supported-hardware/image.png',
     },
     {
       mdRel: 'llms.mdx/docs/safety-and-troubleshooting.md',
@@ -216,6 +212,10 @@ test('built static export generates llms.txt, llms-full.txt, and per-page markdo
   for (const { htmlRel, ogRel } of [
     { htmlRel: 'index.html', ogRel: 'og/image.png' },
     { htmlRel: 'download/index.html', ogRel: 'og/download/image.png' },
+    {
+      htmlRel: 'supported-hardware/index.html',
+      ogRel: 'og/supported-hardware/image.png',
+    },
   ]) {
     const html = fs.readFileSync(path.join(OUT_DIR, htmlRel), 'utf8');
     const ogFullUrl = `${ORIGIN}${SITE_BASE_PATH}/${ogRel}`;
@@ -276,9 +276,9 @@ test('built static export generates llms.txt, llms-full.txt, and per-page markdo
   for (const routePath of [
     '/',
     '/download/',
+    '/supported-hardware/',
     '/docs/',
     '/docs/getting-started/',
-    '/docs/supported-hardware/',
     '/docs/safety-and-troubleshooting/',
     '/docs/changelog/',
     '/docs/licenses/',

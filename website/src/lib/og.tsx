@@ -119,7 +119,7 @@ export async function createOgImageResponse({
           }}
         >
           <div style={{ color: '#999999' }}>
-            Linux • KDE Kirigami + Rust • USB HID
+            Linux • Open Source • Wired USB
           </div>
           <div style={{ color: '#d4d4d4' }}>
             azorimor.github.io/linux-dualsense-fw-updater

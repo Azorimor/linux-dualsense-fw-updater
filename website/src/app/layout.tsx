@@ -6,41 +6,65 @@ import type { Metadata } from 'next';
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import type { ReactNode } from 'react';
 import { BASE_PATH } from '@/lib/layout.shared';
+import { toCanonicalPageUrl } from '@/lib/llms-urls';
+import { SITE_NAME } from '@/lib/seo';
 import './global.css';
+
+const ROOT_DESCRIPTION =
+  'Unofficial open-source Linux app to check and update PlayStation DualSense and DualSense Edge controller firmware over USB. Not affiliated with Sony.';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://azorimor.github.io'),
   title: {
-    template: '%s | Unofficial Linux DualSense Firmware Updater',
-    default: 'Unofficial Linux DualSense Firmware Updater',
+    template: `%s | ${SITE_NAME}`,
+    default: SITE_NAME,
   },
-  description:
-    'Unofficial, community-maintained Linux KDE Kirigami desktop utility for inspecting and updating PlayStation DualSense controller firmware over USB HID. Not affiliated with Sony Interactive Entertainment or PlayStation.',
+  description: ROOT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  category: 'utilities',
+  authors: [{ name: 'Azorimor', url: 'https://github.com/Azorimor' }],
+  creator: 'Azorimor',
+  keywords: [
+    'DualSense firmware updater Linux',
+    'PlayStation 5 controller firmware Linux',
+    'DualSense Edge firmware Linux',
+    'PS5 controller update Linux',
+    'DualSense USB update',
+  ],
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
   openGraph: {
     type: 'website',
-    siteName: 'Unofficial Linux DualSense Firmware Updater',
+    siteName: SITE_NAME,
     locale: 'en_US',
-    title: 'Unofficial Linux DualSense Firmware Updater',
-    description:
-      'Unofficial, community-maintained Linux KDE Kirigami desktop utility for inspecting and updating PlayStation DualSense controller firmware over USB HID. Not affiliated with Sony Interactive Entertainment or PlayStation.',
+    url: toCanonicalPageUrl('/'),
+    title: SITE_NAME,
+    description: ROOT_DESCRIPTION,
     images: [
       {
         url: `${BASE_PATH}/og/image.png`,
         width: 1200,
         height: 630,
-        alt: 'Unofficial Linux DualSense Firmware Updater',
+        alt: SITE_NAME,
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Unofficial Linux DualSense Firmware Updater',
-    description:
-      'Unofficial, community-maintained Linux KDE Kirigami desktop utility for inspecting and updating PlayStation DualSense controller firmware over USB HID. Not affiliated with Sony Interactive Entertainment or PlayStation.',
+    title: SITE_NAME,
+    description: ROOT_DESCRIPTION,
     images: [
       {
         url: `${BASE_PATH}/og/image.png`,
-        alt: 'Unofficial Linux DualSense Firmware Updater',
+        alt: SITE_NAME,
       },
     ],
   },

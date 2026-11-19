@@ -35,8 +35,8 @@ export interface PartitionedReleaseAssets {
 }
 
 const ASSET_ORDER: Record<ReleaseAssetKind, number> = {
-  appimage: 0,
-  tarball: 1,
+  tarball: 0,
+  appimage: 1,
   checksums: 2,
 };
 

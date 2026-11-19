@@ -32,7 +32,7 @@ export function baseOptions(): BaseLayoutProps {
       },
       {
         text: 'Supported Hardware',
-        url: '/docs/supported-hardware',
+        url: '/supported-hardware',
       },
       {
         text: 'Download',

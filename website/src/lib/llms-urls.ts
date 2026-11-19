@@ -44,8 +44,8 @@ export interface SitemapEntry {
 }
 
 /**
- * Build deterministic sitemap entries for the home page, download page, and all
- * Fumadocs documentation pages.
+ * Build deterministic sitemap entries for the home page, download page,
+ * supported hardware page, and all Fumadocs documentation pages.
  */
 export function buildSitemapEntries(
   docUrls: readonly string[],
@@ -60,6 +60,11 @@ export function buildSitemapEntries(
     },
     {
       url: toCanonicalPageUrl('/download', origin, basePath),
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    {
+      url: toCanonicalPageUrl('/supported-hardware', origin, basePath),
       changeFrequency: 'weekly',
       priority: 0.9,
     },

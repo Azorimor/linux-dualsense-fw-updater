@@ -15,11 +15,20 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { REPO_URL } from '@/lib/layout.shared';
 import {
+  SITE_ORIGIN,
   getDocGitHubUrl,
   getDocsOgImageUrl,
   getPageActionMarkdownUrl,
   getStaticPageMarkdownUrl,
+  toCanonicalPageUrl,
 } from '@/lib/llms-urls';
+import {
+  SITE_NAME,
+  buildBreadcrumbJsonLd,
+  buildJsonLdGraph,
+  buildTechArticleJsonLd,
+  serializeJsonLd,
+} from '@/lib/seo';
 import { getMDXComponents } from '@/mdx-components';
 
 export default async function Page(props: {
@@ -32,9 +41,33 @@ export default async function Page(props: {
   const MDX = page.data.body;
   const markdownUrl = getPageActionMarkdownUrl(page.url);
   const githubUrl = getDocGitHubUrl(REPO_URL, page.path);
+  const canonicalUrl = toCanonicalPageUrl(page.url);
+  const ogImageUrl = `${SITE_ORIGIN}${getDocsOgImageUrl(page.slugs)}`;
+
+  const breadcrumbItems = [
+    { name: 'Home', url: toCanonicalPageUrl('/') },
+    { name: 'Documentation', url: toCanonicalPageUrl('/docs') },
+  ];
+  if (page.slugs.length > 0) {
+    breadcrumbItems.push({ name: page.data.title, url: canonicalUrl });
+  }
+
+  const jsonLd = buildJsonLdGraph([
+    buildTechArticleJsonLd({
+      title: page.data.title,
+      description: page.data.description ?? '',
+      url: canonicalUrl,
+      imageUrl: ogImageUrl,
+    }),
+    buildBreadcrumbJsonLd(breadcrumbItems),
+  ]);
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
+      />
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <div className="flex flex-row gap-2 items-center border-b pt-2 pb-6">
@@ -59,12 +92,14 @@ export async function generateMetadata(props: {
   const page = source.getPage(params.slug);
   if (!page) notFound();
 
+  const canonicalUrl = toCanonicalPageUrl(page.url);
   const ogImageUrl = getDocsOgImageUrl(page.slugs);
 
   return {
     title: page.data.title,
     description: page.data.description,
     alternates: {
+      canonical: canonicalUrl,
       types: {
         'text/markdown': getStaticPageMarkdownUrl(page.url),
       },
@@ -73,6 +108,9 @@ export async function generateMetadata(props: {
       title: page.data.title,
       description: page.data.description,
       type: 'article',
+      siteName: SITE_NAME,
+      locale: 'en_US',
+      url: canonicalUrl,
       images: [
         {
           url: ogImageUrl,

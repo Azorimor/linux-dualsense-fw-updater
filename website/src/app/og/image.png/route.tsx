@@ -11,6 +11,6 @@ export async function GET() {
   return createOgImageResponse({
     title: OG_SITE_NAME,
     description:
-      'Unofficial, community-maintained Linux KDE Kirigami desktop utility for inspecting and updating PlayStation DualSense firmware over USB HID.',
+      'Unofficial open-source Linux app to check and update PlayStation DualSense and DualSense Edge controller firmware over USB.',
   });
 }

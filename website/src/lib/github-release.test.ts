@@ -101,11 +101,16 @@ test('parseGitHubRelease extracts sorted matching assets and skips drafts/non-ma
   assert.equal(parsed.assets.length, 3);
   assert.deepEqual(
     parsed.assets.map((a) => a.kind),
-    ['appimage', 'tarball', 'checksums'],
+    ['tarball', 'appimage', 'checksums'],
   );
-  assert.equal(parsed.assets[0].formattedSize, '25.0 MiB');
+  assert.equal(parsed.assets[0].formattedSize, '10.0 MiB');
   assert.equal(
     parsed.assets[0].sha256,
+    '141365fb377eb6b1e183514bd6493b8b78246e2bf32eb0bb4654f170ba226f08',
+  );
+  assert.equal(parsed.assets[1].formattedSize, '25.0 MiB');
+  assert.equal(
+    parsed.assets[1].sha256,
     '24e3b06957841ae1ccf9c303b49dedc16df572b64ab5dd7840f2b45beec5ce94',
   );
 

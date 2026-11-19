@@ -11,6 +11,6 @@ export async function GET() {
   return createOgImageResponse({
     title: 'Download',
     description:
-      'Download pre-built Linux AppImage and tarball releases after reviewing the safety disclaimer.',
+      'Download the recommended portable Linux archive (.tar.gz) or AppImage after reviewing the safety disclaimer.',
   });
 }

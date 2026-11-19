@@ -7,18 +7,28 @@ import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import { DownloadPanel } from '@/components/DownloadPanel';
 import { fetchLatestRelease } from '@/lib/github-release';
 import { BASE_PATH, baseOptions } from '@/lib/layout.shared';
+import { toCanonicalPageUrl } from '@/lib/llms-urls';
 
 export const dynamic = 'force-static';
 
+const DOWNLOAD_TITLE = 'Download';
+const DOWNLOAD_DESCRIPTION =
+  'Download the recommended portable Linux archive (.tar.gz) or AppImage for the Unofficial Linux DualSense Firmware Updater.';
+const DOWNLOAD_CANONICAL_URL = toCanonicalPageUrl('/download');
+
 export const metadata: Metadata = {
-  title: 'Download',
-  description:
-    'Download pre-built Linux AppImage and tarball releases for the Unofficial Linux DualSense Firmware Updater after reviewing the safety disclaimer.',
+  title: DOWNLOAD_TITLE,
+  description: DOWNLOAD_DESCRIPTION,
+  alternates: {
+    canonical: DOWNLOAD_CANONICAL_URL,
+  },
   openGraph: {
-    title: 'Download',
-    description:
-      'Download pre-built Linux AppImage and tarball releases for the Unofficial Linux DualSense Firmware Updater after reviewing the safety disclaimer.',
+    title: DOWNLOAD_TITLE,
+    description: DOWNLOAD_DESCRIPTION,
     type: 'website',
+    siteName: 'Unofficial Linux DualSense Firmware Updater',
+    locale: 'en_US',
+    url: DOWNLOAD_CANONICAL_URL,
     images: [
       {
         url: `${BASE_PATH}/og/download/image.png`,
@@ -30,9 +40,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Download',
-    description:
-      'Download pre-built Linux AppImage and tarball releases for the Unofficial Linux DualSense Firmware Updater after reviewing the safety disclaimer.',
+    title: DOWNLOAD_TITLE,
+    description: DOWNLOAD_DESCRIPTION,
     images: [
       {
         url: `${BASE_PATH}/og/download/image.png`,
@@ -42,12 +51,52 @@ export const metadata: Metadata = {
   },
 };
 
+const downloadJsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebPage',
+      name: 'Download Unofficial Linux DualSense Firmware Updater',
+      description: DOWNLOAD_DESCRIPTION,
+      url: DOWNLOAD_CANONICAL_URL,
+      isPartOf: {
+        '@type': 'WebSite',
+        name: 'Unofficial Linux DualSense Firmware Updater',
+        url: toCanonicalPageUrl('/'),
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: toCanonicalPageUrl('/'),
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Download',
+          item: DOWNLOAD_CANONICAL_URL,
+        },
+      ],
+    },
+  ],
+};
+
 export default async function DownloadPage() {
   const release = await fetchLatestRelease();
 
   return (
     <HomeLayout {...baseOptions()}>
       <main className="flex-1">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(downloadJsonLd).replace(/</g, '\\u003c'),
+          }}
+        />
         <DownloadPanel release={release} />
       </main>
     </HomeLayout>

@@ -1,6 +1,6 @@
 ---
 title: Getting Started & Installation
-description: Download the Linux AppImage or build dualsense-updater from source with Rust, Qt 6, and KDE Kirigami.
+description: Install the Unofficial Linux DualSense Firmware Updater using the recommended portable .tar.gz archive, AppImage, or by building from source.
 ---
 
 {/*
@@ -9,13 +9,24 @@ SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
 SPDX-License-Identifier: GPL-3.0-or-later
 */}
 
-## Option 1: AppImage (Recommended for Linux Users)
+## Option 1: Portable Archive (`.tar.gz`) — Recommended
 
-Pre-built x86_64 AppImage releases and `.tar.gz` archives are available via the [Download](/download) page (requiring safety acknowledgment) and on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases).
+Pre-built x86_64 portable `.tar.gz` archives (recommended) and AppImage releases are available via the [Download](/download) page (requiring safety acknowledgment) and on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases).
+
+Extract the archive and run the application directly:
 
 ```sh
-chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
-./linux-dualsense-fw-updater-*-x86_64.AppImage
+tar -xzf linux-dualsense-fw-updater-*-x86_64.tar.gz
+cd linux-dualsense-fw-updater-*-x86_64
+./dualsense-updater
+```
+
+Optionally install the desktop menu entry and application icons for your user account (or system-wide / uninstall later):
+
+```sh
+./install-desktop.sh           # Install for current user (~/.local/share)
+sudo ./install-desktop.sh --system  # Optional: install system-wide (/usr/local/share)
+./install-desktop.sh --uninstall    # Remove installed desktop entry and icons
 ```
 
 <Callout type="info" title="Wired USB Connection Required">
@@ -24,11 +35,22 @@ chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
 
 ### Desktop Runtime Requirements
 
-If your desktop environment does not already include KDE Frameworks 6 QML modules, install your distribution&apos;s Qt 6 Kirigami runtime package (for example `kirigami` / `qml6-module-org-kde-kirigami` and `qqc2-desktop-style`). When `org.kde.desktop` is unavailable, the application automatically falls back to Qt&apos;s `Fusion` style (or respects `QT_QUICK_CONTROLS_STYLE`).
+The portable `.tar.gz` binary uses your system&apos;s Qt 6 libraries. If your desktop environment does not already include KDE Frameworks 6 QML modules, install your distribution&apos;s Qt 6 Kirigami runtime package (for example `kirigami` / `qml6-module-org-kde-kirigami` and `qqc2-desktop-style`). When `org.kde.desktop` is unavailable, the application automatically falls back to Qt&apos;s `Fusion` style (or respects `QT_QUICK_CONTROLS_STYLE`).
 
 ---
 
-## Option 2: Build from Source
+## Option 2: AppImage (Alternative)
+
+If you prefer a single self-contained executable with a bundled Qt 6 + Kirigami runtime, download the `.AppImage` release instead:
+
+```sh
+chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
+./linux-dualsense-fw-updater-*-x86_64.AppImage
+```
+
+---
+
+## Option 3: Build from Source
 
 ### Prerequisites
 

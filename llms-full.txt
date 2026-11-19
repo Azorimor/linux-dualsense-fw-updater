@@ -329,13 +329,24 @@ All notable changes to this project will be documented in this file.
 
 # Getting Started & Installation (/docs/getting-started)
 
-## Option 1: AppImage (Recommended for Linux Users) [#option-1-appimage-recommended-for-linux-users]
+## Option 1: Portable Archive (`.tar.gz`) — Recommended [#option-1-portable-archive-targz--recommended]
 
-Pre-built x86_64 AppImage releases and `.tar.gz` archives are available via the [Download](/download) page (requiring safety acknowledgment) and on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases).
+Pre-built x86_64 portable `.tar.gz` archives (recommended) and AppImage releases are available via the [Download](/download) page (requiring safety acknowledgment) and on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases).
+
+Extract the archive and run the application directly:
 
 ```sh
-chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
-./linux-dualsense-fw-updater-*-x86_64.AppImage
+tar -xzf linux-dualsense-fw-updater-*-x86_64.tar.gz
+cd linux-dualsense-fw-updater-*-x86_64
+./dualsense-updater
+```
+
+Optionally install the desktop menu entry and application icons for your user account (or system-wide / uninstall later):
+
+```sh
+./install-desktop.sh           # Install for current user (~/.local/share)
+sudo ./install-desktop.sh --system  # Optional: install system-wide (/usr/local/share)
+./install-desktop.sh --uninstall    # Remove installed desktop entry and icons
 ```
 
 > [!INFO] Wired USB Connection Required
@@ -344,11 +355,57 @@ chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
 
 ### Desktop Runtime Requirements [#desktop-runtime-requirements]
 
-If your desktop environment does not already include KDE Frameworks 6 QML modules, install your distribution&apos;s Qt 6 Kirigami runtime package (for example `kirigami` / `qml6-module-org-kde-kirigami` and `qqc2-desktop-style`). When `org.kde.desktop` is unavailable, the application automatically falls back to Qt&apos;s `Fusion` style (or respects `QT_QUICK_CONTROLS_STYLE`).
+The portable `.tar.gz` release relies on the **Qt 6** and **KDE Frameworks 6 (Kirigami)** libraries installed on your Linux system rather than bundling them.
+
+* **If you use KDE Plasma 6:** These packages are usually already installed, and the app should launch right away.
+* **If you use another desktop environment (such as GNOME, Cinnamon, XFCE, or MATE):** You will likely need to install the required Qt 6 Kirigami runtime packages manually before running the app.
+
+> [!WARNING] Maybe out of date
+>
+> Package names and installation commands vary across Linux distributions and change over time. Because we do not regularly test or maintain instructions for every distro, the commands below may become outdated. If a package name is not found, search your distribution's package manager for `kirigami` and `qqc2-desktop-style` (Qt 6 / KF6 versions).
+
+#### Installing Required Packages [#installing-required-packages]
+
+Open your **Terminal** application and run the command that matches your Linux distribution:
+
+* **Ubuntu, Debian, Linux Mint, Pop!_OS:**
+```bash
+sudo apt update && sudo apt install qml6-module-org-kde-kirigami qml6-module-org-kde-desktop
+```
+
+* **Fedora:**
+```bash
+sudo dnf install kf6-kirigami kf6-qqc2-desktop-style
+```
+
+* **Arch Linux, Manjaro, EndeavourOS:**
+```bash
+sudo pacman -S kirigami qqc2-desktop-style
+```
+
+* **openSUSE (Tumbleweed / Leap):**
+```bash
+sudo zypper install kf6-kirigami kf6-qqc2-desktop-style
+```
+
+#### Theme & Styling Behavior [#theme--styling-behavior]
+
+If the native KDE desktop style (`org.kde.desktop`) is not installed or unavailable on your system, the application will still run by automatically falling back to Qt's built-in `Fusion` theme. You can also force a specific Qt Quick Controls style by setting the `QT_QUICK_CONTROLS_STYLE` environment variable before launching the app (for example: `QT_QUICK_CONTROLS_STYLE=Fusion ./your-app`).
 
 ---
 
-## Option 2: Build from Source [#option-2-build-from-source]
+## Option 2: AppImage (Alternative) [#option-2-appimage-alternative]
+
+If you prefer a single self-contained executable with a bundled Qt 6 + Kirigami runtime, download the `.AppImage` release instead:
+
+```sh
+chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
+./linux-dualsense-fw-updater-*-x86_64.AppImage
+```
+
+---
+
+## Option 3: Build from Source [#option-3-build-from-source]
 
 ### Prerequisites [#prerequisites]
 
@@ -376,17 +433,9 @@ Enable verbose HID and update diagnostics via `RUST_LOG`:
 RUST_LOG=debug ./target/release/dualsense-updater
 ```
 
-### Headless Workspace Tests [#headless-workspace-tests]
-
-All unit and integration tests across the 3-crate workspace (`dualsense-core`, `dualsense-ui`, and `dualsense-updater`) run headlessly without a display server or physical controller:
-
-```sh
-cargo test --workspace
-```
-
 # Overview (/docs)
 
-**Unofficial Linux DualSense Firmware Updater** (`Azorimor/linux-dualsense-fw-updater`) is an unofficial, community-maintained Linux desktop utility built with Rust and KDE Kirigami (Qt 6) for inspecting DualSense controller hardware and flashing firmware updates over a wired USB connection. It has **no affiliation, endorsement, or relation to Sony Interactive Entertainment or PlayStation**.
+**Unofficial Linux DualSense Firmware Updater** (`Azorimor/linux-dualsense-fw-updater`) is an unofficial, community-maintained Linux desktop utility built with Rust and KDE Kirigami (Qt 6) for inspecting DualSense controller hardware and flashing firmware updates over a wired USB connection. It has **no affiliation, endorsement, or relation to Sony Interactive Entertainment or PlayStation**. See [Supported Hardware](/supported-hardware) for compatible controller models and an interactive browser USB checker.
 
 > [!WARNING] Unofficial Project & Safety Disclaimer
 >
@@ -484,58 +533,3 @@ sudo udevadm trigger
 
 ### Missing Kirigami QML style at launch [#missing-kirigami-qml-style-at-launch]
 - If the app launches with minimal styling or logs QML module warnings, confirm `org.kde.kirigami` (KF6) is installed on your system. You can also test with `QT_QUICK_CONTROLS_STYLE=Fusion`.
-
-# Supported Hardware & Board Revisions (/docs/supported-hardware)
-
-The updater inspects Feature Report `0x20` (`hw_info` and `fw_series`) along with the USB Product ID to determine your controller&apos;s mainboard revision and matching Sony firmware target.
-
-## USB Hardware Identifiers [#usb-hardware-identifiers]
-
-| Device | USB Vendor ID | USB Product ID | Testing Status |
-| :--- | :--- | :--- | :--- |
-| Sony DualSense | `0x054c` | `0x0ce6` | Tested on standard DualSense |
-| Sony DualSense Edge | `0x054c` | `0x0df2` | **Untested** (flagged before flashing) |
-
-## Board Revision to Sony Target Mapping [#board-revision-to-sony-target-mapping]
-
-Board revision is decoded from `(hw_info >> 8) & 0xff` in Feature Report `0x20`:
-
-| Hardware Byte | Board Revision | Sony Target ID | Official Catalog Support |
-| :--- | :--- | :--- | :--- |
-| `0x03` | `BDM-010` | &mdash; | **Unsupported** (not in Sony&apos;s PC update catalog) |
-| `0x04` | `BDM-020` | `0004` | Supported |
-| `0x05` | `BDM-030` | `0004` | Supported |
-| `0x06` | `BDM-040` | `0004` | Supported |
-| `0x07` / `0x08` | `BDM-050` | `000B` | Supported |
-| `0x09` | `BDM-060R` | `000E` | Supported |
-| `0x11` | `BDM-060M` | `000E` | Supported |
-| `0x13` | `BDM-060X` | `000E` | Supported |
-| PID `0x0df2` | `DualSense Edge` | `0044` | Supported in catalog (**Untested**) |
-
-> [!WARNING] BDM-010 Launch Controllers
->
-> Launch-era `BDM-010` DualSense controllers are not supported by Sony&apos;s official PC firmware catalog (`info.json`). The application detects `BDM-010` and disables official catalog flashing for safety.
-
-## Sony Firmware Sources [#sony-firmware-sources]
-
-Version metadata is fetched from:
-
-```text
-https://fwupdater.dl.playstation.net/fwupdater/info.json
-```
-
-Firmware binary images are downloaded from:
-
-```text
-https://fwupdater.dl.playstation.net/fwupdater/fwupdate<target>/<version>/FWUPDATE<target>.bin
-```
-
-For example, version `0x0630` for a `BDM-050` controller (`000B`) resolves to:
-
-```text
-https://fwupdater.dl.playstation.net/fwupdater/fwupdate000B/0x0630/FWUPDATE000B.bin
-```
-
-## Serial Number & Colorway Detection [#serial-number--colorway-detection]
-
-When the controller responds to Feature Report `0x80` / `0x81`, the updater reads the controller serial number (when permissions allow) and performs best-effort colorway identification from serial characters `[4..6]` (covering standard finishes such as White, Midnight Black, Cosmic Red, Nova Pink, Galactic Purple, Starlight Blue, Chroma variants, and limited editions).

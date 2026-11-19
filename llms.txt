@@ -1,8 +1,7 @@
 # Documentation
 
-- [Overview](/linux-dualsense-fw-updater/llms.mdx/docs.md): Unofficial, community-maintained Linux KDE Kirigami desktop application for inspecting and updating PlayStation DualSense firmware over USB HID.
-- [Getting Started & Installation](/linux-dualsense-fw-updater/llms.mdx/docs/getting-started.md): Download the Linux AppImage or build dualsense-updater from source with Rust, Qt 6, and KDE Kirigami.
-- [Supported Hardware & Board Revisions](/linux-dualsense-fw-updater/llms.mdx/docs/supported-hardware.md): DualSense and DualSense Edge USB IDs, BDM board revision decoding, Sony firmware targets, and colorway detection.
-- [Safety, USB Permissions & Troubleshooting](/linux-dualsense-fw-updater/llms.mdx/docs/safety-and-troubleshooting.md): Firmware update irreversibility, Linux udev rules for /dev/hidraw access, and common recovery guidance.
-- [Changelog](/linux-dualsense-fw-updater/llms.mdx/docs/changelog.md): Release history and notable changes for Unofficial Linux DualSense Firmware Updater.
-- [Licenses & Acknowledgments](/linux-dualsense-fw-updater/llms.mdx/docs/licenses.md): GPL-3.0-or-later license, original author attribution to nchie (MIT), and third-party open-source software credits.
+- [Overview](/linux-dualsense-fw-updater/llms.mdx/docs.md): Documentation for the Unofficial Linux DualSense Firmware Updater, covering the 4-step update workflow, USB requirements, and key features.
+- [Getting Started & Installation](/linux-dualsense-fw-updater/llms.mdx/docs/getting-started.md): Install the Unofficial Linux DualSense Firmware Updater using the recommended portable .tar.gz archive, AppImage, or by building from source.
+- [Safety, USB Permissions & Troubleshooting](/linux-dualsense-fw-updater/llms.mdx/docs/safety-and-troubleshooting.md): Firmware safety precautions, Linux udev rules for DualSense USB permissions, and troubleshooting tips for common update issues.
+- [Changelog](/linux-dualsense-fw-updater/llms.mdx/docs/changelog.md): Release history, version notes, and notable changes for the Unofficial Linux DualSense Firmware Updater on Linux.
+- [Licenses & Acknowledgments](/linux-dualsense-fw-updater/llms.mdx/docs/licenses.md): GPL-3.0-or-later project license, original MIT attribution to nchie, and third-party open-source credits for DualSense Firmware Updater.

@@ -1,6 +1,6 @@
 # Overview (/docs)
 
-**Unofficial Linux DualSense Firmware Updater** (`Azorimor/linux-dualsense-fw-updater`) is an unofficial, community-maintained Linux desktop utility built with Rust and KDE Kirigami (Qt 6) for inspecting DualSense controller hardware and flashing firmware updates over a wired USB connection. It has **no affiliation, endorsement, or relation to Sony Interactive Entertainment or PlayStation**.
+**Unofficial Linux DualSense Firmware Updater** (`Azorimor/linux-dualsense-fw-updater`) is an unofficial, community-maintained Linux desktop utility built with Rust and KDE Kirigami (Qt 6) for inspecting DualSense controller hardware and flashing firmware updates over a wired USB connection. It has **no affiliation, endorsement, or relation to Sony Interactive Entertainment or PlayStation**. See [Supported Hardware](/supported-hardware) for compatible controller models and an interactive browser USB checker.
 
 > [!WARNING] Unofficial Project & Safety Disclaimer
 >

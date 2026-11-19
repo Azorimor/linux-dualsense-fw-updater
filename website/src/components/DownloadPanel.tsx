@@ -28,6 +28,8 @@ interface DownloadPanelProps {
 
 interface BuildVariantMeta {
   title: string;
+  badge: string;
+  isRecommended: boolean;
   subtitle: string;
   buttonLabel: string;
 }
@@ -36,15 +38,19 @@ function describeBuildVariant(asset: ReleaseAsset): BuildVariantMeta {
   if (asset.kind === 'tarball') {
     return {
       title: 'Portable Archive (.tar.gz)',
+      badge: 'Recommended',
+      isRecommended: true,
       subtitle:
-        'Extract and run directly, or install icons & desktop menu entry with install-desktop.sh (x86_64).',
+        'Extract and run right away on x86_64 Linux, or optionally add an app menu entry and icon with ./install-desktop.sh.',
       buttonLabel: 'Download .tar.gz',
     };
   }
   return {
     title: 'Linux AppImage (x86_64)',
+    badge: 'Alternative',
+    isRecommended: false,
     subtitle:
-      'Single self-contained executable with bundled Qt 6 runtime, desktop entry, and icons (chmod +x).',
+      'All-in-one executable file bundling its own graphics runtime and desktop icon (mark executable with chmod +x).',
     buttonLabel: 'Download AppImage',
   };
 }
@@ -60,12 +66,29 @@ function BuildDownloadCard({
   const Icon = asset.kind === 'tarball' ? Package : Download;
 
   return (
-    <div className="flex flex-col justify-between gap-4 rounded-xl border border-fd-border bg-fd-background p-5">
+    <div
+      className={
+        meta.isRecommended
+          ? 'flex flex-col justify-between gap-4 rounded-xl border border-fd-primary/50 bg-fd-background p-5'
+          : 'flex flex-col justify-between gap-4 rounded-xl border border-fd-border bg-fd-background p-5'
+      }
+    >
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 font-semibold text-fd-foreground">
-            <Icon className="size-4 shrink-0" />
-            <h3>{meta.title}</h3>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 font-semibold text-fd-foreground">
+              <Icon className="size-4 shrink-0" aria-hidden="true" />
+              <h3>{meta.title}</h3>
+            </div>
+            <span
+              className={
+                meta.isRecommended
+                  ? 'inline-flex items-center rounded-md border border-fd-primary/30 bg-fd-primary/15 px-2 py-0.5 text-xs font-semibold text-fd-foreground'
+                  : 'inline-flex items-center rounded-md border border-fd-border bg-fd-secondary px-2 py-0.5 text-xs font-medium text-fd-muted-foreground'
+              }
+            >
+              {meta.badge}
+            </span>
           </div>
           <span className="shrink-0 rounded-md border border-fd-border bg-fd-secondary px-2 py-0.5 text-xs font-medium text-fd-secondary-foreground">
             {asset.formattedSize}
@@ -92,9 +115,13 @@ function BuildDownloadCard({
         <a
           href={asset.downloadUrl}
           rel="noreferrer"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-primary px-4 py-2.5 text-sm font-medium text-fd-primary-foreground transition-opacity hover:opacity-90"
+          className={
+            meta.isRecommended
+              ? 'inline-flex w-full items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-primary px-4 py-2.5 text-sm font-medium text-fd-primary-foreground transition-opacity hover:opacity-90'
+              : 'inline-flex w-full items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-secondary px-4 py-2.5 text-sm font-medium text-fd-secondary-foreground transition-colors hover:bg-fd-accent'
+          }
         >
-          <Icon className="size-4 shrink-0" />
+          <Icon className="size-4 shrink-0" aria-hidden="true" />
           <span>{meta.buttonLabel}</span>
         </a>
       ) : (
@@ -104,7 +131,7 @@ function BuildDownloadCard({
           aria-disabled="true"
           className="inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-muted px-4 py-2.5 text-sm font-medium text-fd-muted-foreground opacity-55"
         >
-          <Icon className="size-4 shrink-0" />
+          <Icon className="size-4 shrink-0" aria-hidden="true" />
           <span>{meta.buttonLabel}</span>
         </button>
       )}
@@ -118,8 +145,8 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
   const partitioned = release ? partitionReleaseAssets(release.assets) : null;
   const buildAssets = partitioned
     ? [
-        ...(partitioned.appimage ? [partitioned.appimage] : []),
         ...(partitioned.tarball ? [partitioned.tarball] : []),
+        ...(partitioned.appimage ? [partitioned.appimage] : []),
         ...partitioned.otherBuilds,
       ]
     : [];
@@ -128,16 +155,13 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-12 md:py-16">
       <header className="space-y-3">
-        <span className="inline-flex items-center rounded-full border border-fd-border bg-fd-secondary px-3 py-1 text-xs font-medium text-fd-secondary-foreground">
-          Unofficial Community Release Downloads
-        </span>
         <h1 className="text-3xl font-bold tracking-tight text-fd-foreground sm:text-4xl">
           Download Unofficial Linux DualSense Firmware Updater
         </h1>
         <p className="text-base text-fd-muted-foreground">
-          An unofficial, community-maintained desktop utility with no
-          affiliation, endorsement, or relation to Sony Interactive
-          Entertainment or PlayStation.
+          An unofficial, community-maintained Linux app with no affiliation,
+          endorsement, or relation to Sony Interactive Entertainment or
+          PlayStation.
         </p>
       </header>
 
@@ -146,10 +170,13 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
         className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-6 text-sm text-fd-foreground"
       >
         <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
+          <AlertTriangle
+            className="mt-0.5 size-5 shrink-0 text-amber-500"
+            aria-hidden="true"
+          />
           <div className="space-y-3">
             <h2 className="text-base font-semibold">
-              Read Before Downloading &amp; Flashing
+              Read Before Downloading &amp; Updating
             </h2>
             <ul className="list-disc space-y-2 pl-5 leading-relaxed text-fd-muted-foreground">
               <li>
@@ -163,9 +190,9 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                 <strong className="text-fd-foreground">
                   Risk of permanent controller damage:
                 </strong>{' '}
-                Flashing firmware can permanently damage or brick your
-                controller. Upgrades are auto-committed by the controller even
-                if verify and finalize steps do not run.
+                Updating firmware can permanently damage your controller. Once
+                an update starts, the controller saves it permanently and it
+                cannot be undone.
               </li>
               <li>
                 <strong className="text-fd-foreground">
@@ -193,9 +220,9 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
           />
           <span>
             I understand that this is an unofficial community tool with no
-            relation to Sony, that flashing firmware can break my controller,
-            and that I have no access to an official Windows PC updater or a
-            PlayStation 5 console.
+            relation to Sony, that updating firmware can permanently damage my
+            controller, and that I have no access to an official Windows PC
+            updater or a PlayStation 5 console.
           </span>
         </label>
       </section>
@@ -224,7 +251,7 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-fd-muted-foreground hover:text-fd-foreground"
               >
                 GitHub Release Page
-                <ExternalLink className="size-3.5" />
+                <ExternalLink className="size-3.5" aria-hidden="true" />
               </a>
             </div>
 
@@ -232,7 +259,7 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
               <div className="space-y-5">
                 <p className="text-sm text-fd-muted-foreground">
                   {acknowledged
-                    ? 'Acknowledgment confirmed. Choose either the AppImage or the portable archive below:'
+                    ? 'Acknowledgment confirmed. Choose the recommended portable archive or the alternative AppImage below:'
                     : 'Check the acknowledgment box above to unlock both download buttons.'}
                 </p>
 
@@ -250,14 +277,17 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                   <div className="flex flex-col justify-between gap-4 rounded-xl border border-fd-border bg-fd-background p-4 sm:flex-row sm:items-center">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm font-medium text-fd-foreground">
-                        <FileCheck2 className="size-4 shrink-0" />
+                        <FileCheck2
+                          className="size-4 shrink-0"
+                          aria-hidden="true"
+                        />
                         <span>SHA-256 Checksums ({checksumsAsset.name})</span>
                         <span className="text-xs font-normal text-fd-muted-foreground">
                           ({checksumsAsset.formattedSize})
                         </span>
                       </div>
                       <p className="text-xs text-fd-muted-foreground">
-                        Verify downloaded files locally with{' '}
+                        Optional: check your downloaded file integrity with{' '}
                         <code className="rounded bg-fd-muted px-1.5 py-0.5 font-mono text-[11px] text-fd-foreground">
                           sha256sum -c {checksumsAsset.name}
                         </code>
@@ -274,9 +304,15 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                       rel="noreferrer"
                       className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-secondary px-4 py-2 text-sm font-medium text-fd-secondary-foreground transition-colors hover:bg-fd-accent"
                     >
-                      <FileCheck2 className="size-4 shrink-0" />
+                      <FileCheck2
+                        className="size-4 shrink-0"
+                        aria-hidden="true"
+                      />
                       <span>Download {checksumsAsset.name}</span>
-                      <ExternalLink className="size-3.5 shrink-0 opacity-75" />
+                      <ExternalLink
+                        className="size-3.5 shrink-0 opacity-75"
+                        aria-hidden="true"
+                      />
                     </a>
                   </div>
                 ) : null}
@@ -285,8 +321,9 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
               <div className="space-y-3 text-sm text-fd-muted-foreground">
                 <p>
                   Release <code>{release.tagName}</code> exists, but no
-                  pre-built <code>.AppImage</code>, <code>.tar.gz</code>, or{' '}
-                  <code>SHA256SUMS.txt</code> assets were found on it.
+                  pre-built Portable Archive (<code>.tar.gz</code>,{' '}
+                  Recommended), <code>.AppImage</code>, or{' '}
+                  <code>SHA256SUMS.txt</code> files were found on it.
                 </p>
                 <button
                   type="button"
@@ -294,7 +331,7 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                   aria-disabled="true"
                   className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-fd-border bg-fd-muted px-4 py-2.5 text-sm font-medium text-fd-muted-foreground opacity-55"
                 >
-                  <Download className="size-4" />
+                  <Download className="size-4" aria-hidden="true" />
                   No Release Binaries Attached
                 </button>
               </div>
@@ -308,10 +345,10 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
               </h2>
               <p className="mt-1 text-sm text-fd-muted-foreground">
                 No tagged release is currently available for download. Once a
-                version tag is published, this page will list the latest{' '}
-                <code>.AppImage</code>, <code>.tar.gz</code>, and{' '}
-                <code>SHA256SUMS.txt</code> artifacts automatically at build
-                time.
+                version tag is published, this page will list the Portable
+                Archive (<code>.tar.gz</code>, Recommended),{' '}
+                <code>.AppImage</code>, and <code>SHA256SUMS.txt</code> files
+                automatically.
               </p>
             </div>
 
@@ -322,7 +359,7 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                 aria-disabled="true"
                 className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-fd-border bg-fd-muted px-4 py-2.5 text-sm font-medium text-fd-muted-foreground opacity-55"
               >
-                <Download className="size-4" />
+                <Download className="size-4" aria-hidden="true" />
                 {acknowledged
                   ? 'No Release Published Yet'
                   : 'Acknowledge Warning to Download (No Release Yet)'}
@@ -332,7 +369,7 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                 href="/docs/getting-started"
                 className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-secondary px-4 py-2.5 text-sm font-medium text-fd-secondary-foreground transition-colors hover:bg-fd-accent"
               >
-                <Terminal className="size-4" />
+                <Terminal className="size-4" aria-hidden="true" />
                 Build from Source
               </Link>
 
@@ -343,7 +380,7 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-fd-muted-foreground hover:text-fd-foreground"
               >
                 GitHub Releases
-                <ExternalLink className="size-3.5" />
+                <ExternalLink className="size-3.5" aria-hidden="true" />
               </a>
             </div>
           </div>

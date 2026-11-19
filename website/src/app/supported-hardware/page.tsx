@@ -180,15 +180,12 @@ export default function SupportedHardwarePage() {
 
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-6 py-12 md:py-16">
           <header className="space-y-3">
-            <span className="inline-flex items-center rounded-full border border-fd-border bg-fd-secondary px-3 py-1 text-xs font-medium text-fd-secondary-foreground">
-              Controller Compatibility &amp; Browser Checker
-            </span>
             <h1 className="text-3xl font-bold tracking-tight text-fd-foreground sm:text-4xl">
-              Supported Controllers &amp; Hardware
+              Supported Controller Hardware
             </h1>
             <p className="max-w-3xl text-base leading-relaxed text-fd-muted-foreground">
               Most Sony PlayStation DualSense controllers released after the
-              2020 launch work with the Linux firmware updater. Use the instant
+              2020 launch work with this unofficial Linux firmware updater. Use the instant
               USB checker below to see right away whether your controller is
               supported.
             </p>
@@ -213,7 +210,7 @@ export default function SupportedHardwarePage() {
                       className="size-3.5 shrink-0"
                       aria-hidden="true"
                     />
-                    <span>Supported &amp; Tested</span>
+                    <span>Supported, Tested</span>
                   </span>
                 </div>
                 <h3 className="text-lg font-semibold text-fd-card-foreground">
@@ -240,7 +237,7 @@ export default function SupportedHardwarePage() {
                   DualSense Edge
                 </h3>
                 <p className="text-sm leading-relaxed text-fd-muted-foreground">
-                  DualSense Edge firmware exists in Sony&apos;s official catalog,
+                  DualSense Edge firmware exists in the official Sony catalog,
                   but flashing has not yet been tested on real DualSense Edge
                   hardware. The app flags this clearly before flashing.
                 </p>
@@ -261,9 +258,8 @@ export default function SupportedHardwarePage() {
                 </h3>
                 <p className="text-sm leading-relaxed text-fd-muted-foreground">
                   Earliest 2020 launch DualSense controllers (BDM-010) are not
-                  part of Sony&apos;s PC update catalog. The app detects them
-                  and blocks updates &mdash; update these on a PlayStation 5
-                  console instead.
+                  part of the official Sony PC update catalog. The app detects them
+                  and blocks updates.
                 </p>
               </div>
             </div>
@@ -400,7 +396,7 @@ export default function SupportedHardwarePage() {
               className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-5 py-2.5 text-sm font-medium text-fd-card-foreground transition-colors hover:bg-fd-accent"
             >
               <BookOpen className="size-4 shrink-0" aria-hidden="true" />
-              <span>Safety &amp; Troubleshooting Guide</span>
+              <span>Safety and Troubleshooting Guide</span>
             </Link>
           </section>
         </div>

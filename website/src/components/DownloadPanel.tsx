@@ -176,7 +176,7 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
           />
           <div className="space-y-3">
             <h2 className="text-base font-semibold">
-              Read Before Downloading &amp; Updating
+              Read Before Downloading and Updating
             </h2>
             <ul className="list-disc space-y-2 pl-5 leading-relaxed text-fd-muted-foreground">
               <li>
@@ -202,8 +202,9 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                 <strong className="text-fd-foreground">
                   absolutely no access
                 </strong>{' '}
-                to Sony&apos;s official Windows firmware updater or a
-                PlayStation 5 console (neither your own nor a friend&apos;s).
+                to Sony's official Windows firmware updater or a
+                PlayStation 5 console (neither your own nor a friend's).
+                This project is not responsible for bricked controllers.
               </li>
             </ul>
           </div>
@@ -222,7 +223,7 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
             I understand that this is an unofficial community tool with no
             relation to Sony, that updating firmware can permanently damage my
             controller, and that I have no access to an official Windows PC
-            updater or a PlayStation 5 console.
+            updater or a PlayStation 5 console to update the firmware.
           </span>
         </label>
       </section>
@@ -261,6 +262,9 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
                   {acknowledged
                     ? 'Acknowledgment confirmed. Choose the recommended portable archive or the alternative AppImage below:'
                     : 'Check the acknowledgment box above to unlock both download buttons.'}
+                </p>
+                <p className="text-sm">
+                  Downloads are served directly from GitHub.
                 </p>
 
                 <div className="grid gap-4 sm:grid-cols-2">

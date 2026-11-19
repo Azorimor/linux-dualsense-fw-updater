@@ -242,7 +242,7 @@ export function ControllerChecker() {
               aria-hidden="true"
             />
             <span>
-              Runs 100% locally in your browser &mdash; read-only check, nothing
+              Runs 100% locally in your browser: read-only check, nothing
               is sent to any server and nothing on your controller is changed.
             </span>
           </p>
@@ -272,7 +272,7 @@ export function ControllerChecker() {
             <p className="leading-relaxed">
               Your current browser (such as Firefox, Safari, or a mobile
               browser) does not support WebHID. Try opening this page in desktop
-              Chrome, Chromium, Edge, or Brave &mdash; or simply use the{' '}
+              Chrome, Chromium, Edge, or Brave or simply use the{' '}
               <Link
                 href="/download"
                 className="font-medium text-fd-foreground underline underline-offset-4"
@@ -396,7 +396,7 @@ export function ControllerChecker() {
                   href="/docs/safety-and-troubleshooting"
                   className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-4 py-2 text-sm font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
                 >
-                  <span>Read Safety &amp; Troubleshooting</span>
+                  <span>Read Safety and Troubleshooting</span>
                 </Link>
               )}
             </div>

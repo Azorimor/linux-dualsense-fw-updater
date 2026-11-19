@@ -35,7 +35,42 @@ sudo ./install-desktop.sh --system  # Optional: install system-wide (/usr/local/
 
 ### Desktop Runtime Requirements
 
-The portable `.tar.gz` binary uses your system&apos;s Qt 6 libraries. If your desktop environment does not already include KDE Frameworks 6 QML modules, install your distribution&apos;s Qt 6 Kirigami runtime package (for example `kirigami` / `qml6-module-org-kde-kirigami` and `qqc2-desktop-style`). When `org.kde.desktop` is unavailable, the application automatically falls back to Qt&apos;s `Fusion` style (or respects `QT_QUICK_CONTROLS_STYLE`).
+The portable `.tar.gz` release relies on the **Qt 6** and **KDE Frameworks 6 (Kirigami)** libraries installed on your Linux system rather than bundling them.
+
+* **If you use KDE Plasma 6:** These packages are usually already installed, and the app should launch right away.
+* **If you use another desktop environment (such as GNOME, Cinnamon, XFCE, or MATE):** You will likely need to install the required Qt 6 Kirigami runtime packages manually before running the app.
+
+<Callout type="warning" title="Maybe out of date">
+Package names and installation commands vary across Linux distributions and change over time. Because we do not regularly test or maintain instructions for every distro, the commands below may become outdated. If a package name is not found, search your distribution's package manager for `kirigami` and `qqc2-desktop-style` (Qt 6 / KF6 versions).
+</Callout>
+
+#### Installing Required Packages
+
+Open your **Terminal** application and run the command that matches your Linux distribution:
+
+* **Ubuntu, Debian, Linux Mint, Pop!_OS:**
+```bash
+sudo apt update && sudo apt install qml6-module-org-kde-kirigami qml6-module-org-kde-desktop
+```
+
+* **Fedora:**
+```bash
+sudo dnf install kf6-kirigami kf6-qqc2-desktop-style
+```
+
+* **Arch Linux, Manjaro, EndeavourOS:**
+```bash
+sudo pacman -S kirigami qqc2-desktop-style
+```
+
+* **openSUSE (Tumbleweed / Leap):**
+```bash
+sudo zypper install kf6-kirigami kf6-qqc2-desktop-style
+```
+
+#### Theme & Styling Behavior
+
+If the native KDE desktop style (`org.kde.desktop`) is not installed or unavailable on your system, the application will still run by automatically falling back to Qt's built-in `Fusion` theme. You can also force a specific Qt Quick Controls style by setting the `QT_QUICK_CONTROLS_STYLE` environment variable before launching the app (for example: `QT_QUICK_CONTROLS_STYLE=Fusion ./your-app`).
 
 ---
 
@@ -78,10 +113,3 @@ Enable verbose HID and update diagnostics via `RUST_LOG`:
 RUST_LOG=debug ./target/release/dualsense-updater
 ```
 
-### Headless Workspace Tests
-
-All unit and integration tests across the 3-crate workspace (`dualsense-core`, `dualsense-ui`, and `dualsense-updater`) run headlessly without a display server or physical controller:
-
-```sh
-cargo test --workspace
-```

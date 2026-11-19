@@ -117,7 +117,7 @@ const features = [
 
 const screenshots = [
   {
-    step: 'Step 1 — Initial Scan',
+    step: 'Step 1: Initial Scan',
     title: 'Waiting for a Wired USB Connection',
     caption:
       'Prompts you to connect your DualSense controller directly over a USB data cable and warns that updates cannot run over Bluetooth.',
@@ -125,7 +125,7 @@ const screenshots = [
     alt: 'Unofficial Linux DualSense Firmware Updater initial screen waiting for a wired USB controller connection',
   },
   {
-    step: 'Step 1 — Controller Detected',
+    step: 'Step 1: Controller Detected',
     title: 'Controller Model & Firmware Check',
     caption:
       'Displays the detected controller model, shell color, current firmware version, and firmware build details once plugged in over USB.',
@@ -133,7 +133,7 @@ const screenshots = [
     alt: 'Unofficial Linux DualSense Firmware Updater displaying a detected Midnight Black DualSense controller over USB',
   },
   {
-    step: 'Step 2 — Firmware Source',
+    step: 'Step 2: Firmware Source',
     title: 'Official Sony Update or Local Firmware File',
     caption:
       "Checks Sony's server for the official firmware update matching your controller, or lets you pick a firmware file saved on your computer.",
@@ -141,7 +141,7 @@ const screenshots = [
     alt: 'Unofficial Linux DualSense Firmware Updater firmware selection step with official Sony download and local file options',
   },
   {
-    step: 'Step 3 — Review & Consent',
+    step: 'Step 3: Review & Consent',
     title: 'Version Comparison & Safety Confirmation',
     caption:
       'Compares your current and new firmware versions, warns if you already have the latest version or an untested DualSense Edge controller, and asks you to confirm before updating.',
@@ -262,14 +262,14 @@ export default function HomePage() {
           />
           <div className="space-y-2">
             <p className="font-semibold">
-              Unofficial Community Project &mdash; No Sony Affiliation
+              Unofficial Community Project with No Sony Affiliation
             </p>
             <p className="leading-relaxed text-fd-muted-foreground">
               This app is an unofficial, community-maintained tool with no
               affiliation, endorsement, or relation to Sony Interactive
               Entertainment or PlayStation. Updating firmware can permanently
               damage your controller, and once an update starts it cannot be
-              undone. Only use this tool if you have no access to Sony&apos;s
+              undone. Only use this tool if you have no access to Sony's
               official Windows updater or a PlayStation 5 console. Standard
               DualSense controllers are tested; DualSense Edge remains untested
               and is clearly flagged before updating.

@@ -395,6 +395,20 @@ test('built static export satisfies SEO metadata, JSON-LD, verification, and cop
       true,
       `out/${relPath} JSON-LD must declare "@context": "https://schema.org"`,
     );
+
+    assert.match(
+      htmlNoScripts,
+      /<footer\b[^>]*aria-label="Site footer"[^>]*>[\s\S]*?href="\/linux-dualsense-fw-updater\/privacy\/"[\s\S]*?Privacy Policy[\s\S]*?<\/footer>/i,
+      `out/${relPath} must render SiteFooter with a Privacy Policy link`,
+    );
+
+    if (relPath.startsWith('docs/')) {
+      assert.match(
+        htmlNoScripts,
+        /<article\b[^>]*>[\s\S]*?<footer\b[^>]*aria-label="Site footer"[\s\S]*?<\/footer>[\s\S]*?<\/article>/i,
+        `out/${relPath} must place SiteFooter inside the documentation <article> column`,
+      );
+    }
   }
 
   const homeHtml = fs
@@ -463,5 +477,17 @@ test('built static export satisfies SEO metadata, JSON-LD, verification, and cop
   assert.ok(
     licensesHtml.includes('THIRD_PARTY_NOTICES.txt'),
     'out/docs/licenses/index.html must link to THIRD_PARTY_NOTICES.txt',
+  );
+
+  const privacyHtml = fs
+    .readFileSync(path.join(OUT_DIR, 'privacy/index.html'), 'utf8')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  assert.ok(
+    privacyHtml.includes('Privacy Policy'),
+    'out/privacy/index.html must render Privacy Policy content',
+  );
+  assert.ok(
+    privacyHtml.includes('GitHub Pages'),
+    'out/privacy/index.html must include hosting privacy notice',
   );
 });

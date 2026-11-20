@@ -190,8 +190,13 @@ fn qml_files_exist_and_declare_bound_component_behavior() {
     assert!(about_qml.contains("required property string appVersion"));
     assert!(about_qml.contains("required property string githubUrl"));
     assert!(about_qml.contains("required property string githubPagesUrl"));
+    assert!(about_qml.contains("signal openLicensesRequested()"));
+    assert!(about_qml.contains("Copyright (C) 2026 Azorimor"));
+    assert!(about_qml.contains("ABSOLUTELY NO WARRANTY"));
+    assert!(about_qml.contains("text: \"View Licenses\""));
     assert!(about_qml.contains("title: \"About Unofficial DualSense Firmware Updater\""));
     assert!(about_qml.contains(dualsense_updater::app_icon::EMBEDDED_APP_ICON_URL));
+    assert!(main_qml.contains("onOpenLicensesRequested:"));
 
     assert!(flash_report_qml.contains("required property string reportTitle"));
     assert!(flash_report_qml.contains("required property string reportMarkdown"));

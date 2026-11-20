@@ -223,4 +223,3 @@ Full license texts (`GPL-3.0-or-later.txt`, `MIT.txt`, `Apache-2.0.txt`, `LGPL-3
 - **Qt 6 (`LGPL-3.0-only` / `GPL-3.0-only`)**: https://code.qt.io/cgit/qt/
 - **KDE Frameworks Kirigami (`LGPL-2.0-or-later` / `LGPL-2.1-or-later` / `LGPL-3.0-only` / `BSD-3-Clause`)**: https://invent.kde.org/frameworks/kirigami
 - **hidapi (`BSD-3-Clause` / `GPL-3.0-only` / HIDAPI)**: https://github.com/libusb/hidapi
-- **Written source offer**: Complete Corresponding Source code is available via the repository above or upon written request (valid for at least 3 years) to `azorimor@gmail.com`. (If you build a local AppImage yourself via `scripts/package-appimage.sh`, bundled `.so` libraries can be inspected or relinked via `--appimage-extract`.)

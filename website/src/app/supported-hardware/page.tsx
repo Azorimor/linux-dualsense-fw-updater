@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { ControllerChecker } from '@/components/ControllerChecker';
+import { SiteFooter } from '@/components/SiteFooter';
 import { BASE_PATH, baseOptions } from '@/lib/layout.shared';
 import { toCanonicalPageUrl } from '@/lib/llms-urls';
 
@@ -401,6 +402,7 @@ export default function SupportedHardwarePage() {
           </section>
         </div>
       </main>
+      <SiteFooter />
     </HomeLayout>
   );
 }

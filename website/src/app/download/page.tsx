@@ -5,6 +5,7 @@
 import type { Metadata } from 'next';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import { DownloadPanel } from '@/components/DownloadPanel';
+import { SiteFooter } from '@/components/SiteFooter';
 import { fetchLatestRelease } from '@/lib/github-release';
 import { BASE_PATH, baseOptions } from '@/lib/layout.shared';
 import { toCanonicalPageUrl } from '@/lib/llms-urls';
@@ -99,6 +100,7 @@ export default async function DownloadPage() {
         />
         <DownloadPanel release={release} />
       </main>
+      <SiteFooter />
     </HomeLayout>
   );
 }

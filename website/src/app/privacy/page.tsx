@@ -6,6 +6,7 @@ import { pages } from 'fumadocs-mdx:collections/server';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { SiteFooter } from '@/components/SiteFooter';
 import { BASE_PATH, baseOptions } from '@/lib/layout.shared';
 import { toCanonicalPageUrl } from '@/lib/llms-urls';
 import {
@@ -121,6 +122,7 @@ export default function PrivacyPage() {
           </div>
         </article>
       </main>
+      <SiteFooter />
     </HomeLayout>
   );
 }

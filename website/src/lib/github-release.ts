@@ -8,7 +8,9 @@ export const GITHUB_RELEASE_API_URL =
 export const GITHUB_RELEASES_LIST_API_URL =
   'https://api.github.com/repos/Azorimor/linux-dualsense-fw-updater/releases?per_page=10';
 
-export type ReleaseAssetKind = 'appimage' | 'tarball' | 'checksums';
+export type ReleaseAssetKind = 'tarball' | 'checksums';
+
+export type ReleaseAssetArch = 'x86_64' | 'aarch64';
 
 export interface ReleaseAsset {
   name: string;
@@ -17,6 +19,7 @@ export interface ReleaseAsset {
   downloadUrl: string;
   sha256?: string;
   kind: ReleaseAssetKind;
+  arch?: ReleaseAssetArch;
 }
 
 export interface GitHubRelease {
@@ -28,23 +31,14 @@ export interface GitHubRelease {
 }
 
 export interface PartitionedReleaseAssets {
-  appimage: ReleaseAsset | null;
-  tarball: ReleaseAsset | null;
+  x86_64: ReleaseAsset | null;
+  aarch64: ReleaseAsset | null;
   checksums: ReleaseAsset | null;
   otherBuilds: ReleaseAsset[];
 }
 
-const ASSET_ORDER: Record<ReleaseAssetKind, number> = {
-  tarball: 0,
-  appimage: 1,
-  checksums: 2,
-};
-
 export function classifyReleaseAsset(name: string): ReleaseAssetKind | null {
   const lower = name.toLowerCase();
-  if (lower.endsWith('.appimage')) {
-    return 'appimage';
-  }
   if (lower.endsWith('.tar.gz')) {
     return 'tarball';
   }
@@ -52,6 +46,32 @@ export function classifyReleaseAsset(name: string): ReleaseAssetKind | null {
     return 'checksums';
   }
   return null;
+}
+
+export function detectReleaseAssetArch(
+  name: string,
+): ReleaseAssetArch | undefined {
+  const lower = name.toLowerCase();
+  if (/(?:^|[-_.])(x86_64|amd64)(?:[-_.]|$)/.test(lower)) {
+    return 'x86_64';
+  }
+  if (/(?:^|[-_.])(aarch64|arm64)(?:[-_.]|$)/.test(lower)) {
+    return 'aarch64';
+  }
+  return undefined;
+}
+
+function assetSortRank(asset: ReleaseAsset): number {
+  if (asset.kind === 'checksums') {
+    return 10;
+  }
+  if (asset.arch === 'x86_64') {
+    return 0;
+  }
+  if (asset.arch === 'aarch64') {
+    return 1;
+  }
+  return 2;
 }
 
 export function formatBytes(bytes: number): string {
@@ -112,21 +132,17 @@ export function parseSha256Digest(rawDigest: unknown): string | undefined {
 export function partitionReleaseAssets(
   assets: ReleaseAsset[],
 ): PartitionedReleaseAssets {
-  let appimage: ReleaseAsset | null = null;
-  let tarball: ReleaseAsset | null = null;
+  let x86_64: ReleaseAsset | null = null;
+  let aarch64: ReleaseAsset | null = null;
   let checksums: ReleaseAsset | null = null;
   const otherBuilds: ReleaseAsset[] = [];
 
   for (const asset of assets) {
-    if (asset.kind === 'appimage') {
-      if (!appimage) {
-        appimage = asset;
-      } else {
-        otherBuilds.push(asset);
-      }
-    } else if (asset.kind === 'tarball') {
-      if (!tarball) {
-        tarball = asset;
+    if (asset.kind === 'tarball') {
+      if (asset.arch === 'x86_64' && !x86_64) {
+        x86_64 = asset;
+      } else if (asset.arch === 'aarch64' && !aarch64) {
+        aarch64 = asset;
       } else {
         otherBuilds.push(asset);
       }
@@ -135,7 +151,7 @@ export function partitionReleaseAssets(
     }
   }
 
-  return { appimage, tarball, checksums, otherBuilds };
+  return { x86_64, aarch64, checksums, otherBuilds };
 }
 
 function isHttpsUrl(value: unknown): value is string {
@@ -192,6 +208,8 @@ export function parseGitHubRelease(payload: unknown): GitHubRelease | null {
       continue;
     }
 
+    const arch = kind === 'tarball' ? detectReleaseAssetArch(assetName) : undefined;
+
     assets.push({
       name: assetName,
       size,
@@ -199,10 +217,11 @@ export function parseGitHubRelease(payload: unknown): GitHubRelease | null {
       downloadUrl,
       ...(sha256 ? { sha256 } : {}),
       kind,
+      ...(arch ? { arch } : {}),
     });
   }
 
-  assets.sort((a, b) => ASSET_ORDER[a.kind] - ASSET_ORDER[b.kind]);
+  assets.sort((a, b) => assetSortRank(a) - assetSortRank(b));
 
   return {
     tagName,

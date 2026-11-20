@@ -7,6 +7,7 @@ import test from 'node:test';
 import {
   buildGitHubHeaders,
   classifyReleaseAsset,
+  detectReleaseAssetArch,
   fetchLatestRelease,
   formatBytes,
   formatPublishedDate,
@@ -16,17 +17,44 @@ import {
   partitionReleaseAssets,
 } from './github-release.ts';
 
-test('classifyReleaseAsset identifies AppImage, tarball, and checksums', () => {
-  assert.equal(
-    classifyReleaseAsset('linux-dualsense-fw-updater-v0.1.0-x86_64.AppImage'),
-    'appimage',
-  );
+test('classifyReleaseAsset identifies portable tarballs and checksums while ignoring AppImage', () => {
   assert.equal(
     classifyReleaseAsset('linux-dualsense-fw-updater-v0.1.0-x86_64.tar.gz'),
     'tarball',
   );
+  assert.equal(
+    classifyReleaseAsset('linux-dualsense-fw-updater-v0.1.0-aarch64.tar.gz'),
+    'tarball',
+  );
   assert.equal(classifyReleaseAsset('SHA256SUMS.txt'), 'checksums');
+  assert.equal(
+    classifyReleaseAsset('linux-dualsense-fw-updater-v0.1.0-x86_64.AppImage'),
+    null,
+  );
   assert.equal(classifyReleaseAsset('source.zip'), null);
+});
+
+test('detectReleaseAssetArch identifies x86_64 and aarch64 architectures', () => {
+  assert.equal(
+    detectReleaseAssetArch('linux-dualsense-fw-updater-v0.1.0-x86_64.tar.gz'),
+    'x86_64',
+  );
+  assert.equal(
+    detectReleaseAssetArch('linux-dualsense-fw-updater-v0.1.0-amd64.tar.gz'),
+    'x86_64',
+  );
+  assert.equal(
+    detectReleaseAssetArch('linux-dualsense-fw-updater-v0.1.0-aarch64.tar.gz'),
+    'aarch64',
+  );
+  assert.equal(
+    detectReleaseAssetArch('linux-dualsense-fw-updater-v0.1.0-arm64.tar.gz'),
+    'aarch64',
+  );
+  assert.equal(
+    detectReleaseAssetArch('linux-dualsense-fw-updater-v0.1.0.tar.gz'),
+    undefined,
+  );
 });
 
 test('formatBytes formats binary sizes cleanly', () => {
@@ -54,7 +82,7 @@ test('buildGitHubHeaders attaches Bearer token only when non-empty', () => {
   assert.equal(withToken.Authorization, 'Bearer ghp_example123');
 });
 
-test('parseGitHubRelease extracts sorted matching assets and skips drafts/non-matching', () => {
+test('parseGitHubRelease extracts sorted x86_64, aarch64, and checksums assets while skipping drafts and AppImage', () => {
   const parsed = parseGitHubRelease({
     tag_name: 'v0.1.0',
     name: 'v0.1.0 Initial Release',
@@ -77,20 +105,26 @@ test('parseGitHubRelease extracts sorted matching assets and skips drafts/non-ma
         browser_download_url: 'https://example.com/notes.pdf',
       },
       {
-        name: 'dualsense-updater-0.1.0-x86_64.tar.gz',
+        name: 'linux-dualsense-fw-updater-v0.1.0-aarch64.tar.gz',
+        size: 9 * 1024 * 1024,
+        digest:
+          'sha256:24e3b06957841ae1ccf9c303b49dedc16df572b64ab5dd7840f2b45beec5ce94',
+        browser_download_url:
+          'https://github.com/Azorimor/linux-dualsense-fw-updater/releases/download/v0.1.0/linux-dualsense-fw-updater-v0.1.0-aarch64.tar.gz',
+      },
+      {
+        name: 'linux-dualsense-fw-updater-v0.1.0-x86_64.tar.gz',
         size: 10 * 1024 * 1024,
         digest:
           'sha256:141365fb377eb6b1e183514bd6493b8b78246e2bf32eb0bb4654f170ba226f08',
         browser_download_url:
-          'https://github.com/Azorimor/linux-dualsense-fw-updater/releases/download/v0.1.0/dualsense-updater-0.1.0-x86_64.tar.gz',
+          'https://github.com/Azorimor/linux-dualsense-fw-updater/releases/download/v0.1.0/linux-dualsense-fw-updater-v0.1.0-x86_64.tar.gz',
       },
       {
-        name: 'dualsense-updater-0.1.0-x86_64.AppImage',
-        size: 25 * 1024 * 1024,
-        digest:
-          'sha256:24e3b06957841ae1ccf9c303b49dedc16df572b64ab5dd7840f2b45beec5ce94',
+        name: 'linux-dualsense-fw-updater-v0.1.0-x86_64.AppImage',
+        size: 45 * 1024 * 1024,
         browser_download_url:
-          'https://github.com/Azorimor/linux-dualsense-fw-updater/releases/download/v0.1.0/dualsense-updater-0.1.0-x86_64.AppImage',
+          'https://github.com/Azorimor/linux-dualsense-fw-updater/releases/download/v0.1.0/linux-dualsense-fw-updater-v0.1.0-x86_64.AppImage',
       },
     ],
   });
@@ -100,23 +134,27 @@ test('parseGitHubRelease extracts sorted matching assets and skips drafts/non-ma
   assert.equal(parsed.name, 'v0.1.0 Initial Release');
   assert.equal(parsed.assets.length, 3);
   assert.deepEqual(
-    parsed.assets.map((a) => a.kind),
-    ['tarball', 'appimage', 'checksums'],
+    parsed.assets.map((a) => [a.kind, a.arch]),
+    [
+      ['tarball', 'x86_64'],
+      ['tarball', 'aarch64'],
+      ['checksums', undefined],
+    ],
   );
   assert.equal(parsed.assets[0].formattedSize, '10.0 MiB');
   assert.equal(
     parsed.assets[0].sha256,
     '141365fb377eb6b1e183514bd6493b8b78246e2bf32eb0bb4654f170ba226f08',
   );
-  assert.equal(parsed.assets[1].formattedSize, '25.0 MiB');
+  assert.equal(parsed.assets[1].formattedSize, '9.0 MiB');
   assert.equal(
     parsed.assets[1].sha256,
     '24e3b06957841ae1ccf9c303b49dedc16df572b64ab5dd7840f2b45beec5ce94',
   );
 
   const partitioned = partitionReleaseAssets(parsed.assets);
-  assert.equal(partitioned.appimage?.kind, 'appimage');
-  assert.equal(partitioned.tarball?.kind, 'tarball');
+  assert.equal(partitioned.x86_64?.arch, 'x86_64');
+  assert.equal(partitioned.aarch64?.arch, 'aarch64');
   assert.equal(partitioned.checksums?.kind, 'checksums');
   assert.equal(partitioned.otherBuilds.length, 0);
 

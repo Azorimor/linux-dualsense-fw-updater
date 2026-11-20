@@ -5,6 +5,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use cxx_qt_build::{CxxQtBuilder, QResources, QmlModule};
 
@@ -12,8 +13,10 @@ use cxx_qt_build::{CxxQtBuilder, QResources, QmlModule};
 mod license_report;
 
 use license_report::{
-    CrateMetadata, CrateNotice, format_application_license, format_license_bundle,
-    parse_cargo_lock_packages, parse_crate_package_metadata,
+    CrateMetadata, CrateNotice, FallbackLicenseTemplates, extract_spdx_copyright_holders,
+    format_application_license, format_license_bundle, is_excluded_fixture_dir,
+    is_license_filename, parse_cargo_lock_packages, parse_cargo_tree_packages,
+    parse_crate_package_metadata, synthesize_fallback_license_texts, validate_release_notices,
 };
 
 const EMBEDDED_DESKTOP_ICONS: &[&str] = &[
@@ -87,10 +90,14 @@ fn desktop_icon_resources() -> QResources {
 }
 
 fn generate_bundled_licenses() {
+    println!("cargo::rerun-if-changed=Cargo.toml");
     println!("cargo::rerun-if-changed=Cargo.lock");
     println!("cargo::rerun-if-changed=LICENSES/GPL-3.0-or-later.txt");
     println!("cargo::rerun-if-changed=LICENSES/MIT.txt");
+    println!("cargo::rerun-if-changed=LICENSES/Apache-2.0.txt");
+    println!("cargo::rerun-if-changed=LICENSES/BSD-3-Clause.txt");
     println!("cargo::rerun-if-env-changed=PROFILE");
+    println!("cargo::rerun-if-env-changed=TARGET");
     println!("cargo::rerun-if-env-changed=CARGO_HOME");
 
     let manifest_dir = PathBuf::from(
@@ -106,19 +113,43 @@ fn generate_bundled_licenses() {
         });
     let mit_license = fs::read_to_string(manifest_dir.join("LICENSES/MIT.txt"))
         .unwrap_or_else(|_| "MIT License (see LICENSES/MIT.txt)".to_string());
-    let root_license = format_application_license(&gpl_license, &mit_license);
-    let lock_contents = fs::read_to_string(manifest_dir.join("Cargo.lock")).unwrap_or_default();
+    let apache2_license = fs::read_to_string(manifest_dir.join("LICENSES/Apache-2.0.txt"))
+        .unwrap_or_else(|_| {
+            "Apache License, Version 2.0 (see LICENSES/Apache-2.0.txt)".to_string()
+        });
+    let bsd3_license = fs::read_to_string(manifest_dir.join("LICENSES/BSD-3-Clause.txt"))
+        .unwrap_or_else(|_| "BSD 3-Clause License (see LICENSES/BSD-3-Clause.txt)".to_string());
 
+    let templates = FallbackLicenseTemplates {
+        mit: &mit_license,
+        apache2: &apache2_license,
+        bsd3: &bsd3_license,
+    };
+
+    let root_license = format_application_license(&gpl_license, &mit_license);
     let include_full_texts = std::env::var("PROFILE").as_deref() == Ok("release");
     let registry_dirs = find_cargo_registry_src_dirs();
 
-    let notices: Vec<CrateNotice> = parse_cargo_lock_packages(&lock_contents)
+    let resolved_packages = resolve_target_packages(&manifest_dir, &registry_dirs);
+    let notices: Vec<CrateNotice> = resolved_packages
         .into_iter()
-        .filter(|pkg| pkg.source.is_some())
-        .map(|pkg| {
-            collect_crate_notice(&pkg.name, &pkg.version, &registry_dirs, include_full_texts)
+        .map(|(name, version)| {
+            collect_crate_notice(
+                &name,
+                &version,
+                &registry_dirs,
+                include_full_texts,
+                &templates,
+            )
         })
         .collect();
+
+    if include_full_texts && let Err(errors) = validate_release_notices(&notices) {
+        panic!(
+            "Release license notice validation failed:\n  - {}",
+            errors.join("\n  - ")
+        );
+    }
 
     let app_version = env!("CARGO_PKG_VERSION");
     let bundle = format_license_bundle(app_version, &root_license, &notices, include_full_texts);
@@ -130,6 +161,63 @@ fn generate_bundled_licenses() {
 
     fs::write(out_dir.join("generated_licenses.rs"), generated)
         .expect("failed to write generated_licenses.rs");
+}
+
+fn resolve_target_packages(
+    manifest_dir: &Path,
+    registry_dirs: &[PathBuf],
+) -> Vec<(String, String)> {
+    if let Some(target_pkgs) = resolve_via_cargo_tree(manifest_dir)
+        && !target_pkgs.is_empty()
+    {
+        return target_pkgs;
+    }
+
+    // Offline/non-Cargo fallback: read Cargo.lock and retain only external crates
+    // that are actually unpacked for the active target in Cargo's registry cache.
+    let lock_contents = fs::read_to_string(manifest_dir.join("Cargo.lock")).unwrap_or_default();
+    let mut packages = BTreeSet::new();
+    for pkg in parse_cargo_lock_packages(&lock_contents) {
+        if pkg.source.is_none() {
+            continue;
+        }
+        let folder_name = format!("{}-{}", pkg.name, pkg.version);
+        if registry_dirs
+            .iter()
+            .any(|base| base.join(&folder_name).is_dir())
+        {
+            packages.insert((pkg.name, pkg.version));
+        }
+    }
+    packages.into_iter().collect()
+}
+
+fn resolve_via_cargo_tree(manifest_dir: &Path) -> Option<Vec<(String, String)>> {
+    let cargo = std::env::var_os("CARGO")?;
+    let target = std::env::var("TARGET").ok()?;
+    let output = Command::new(cargo)
+        .arg("tree")
+        .arg("--offline")
+        .arg("--locked")
+        .arg("--manifest-path")
+        .arg(manifest_dir.join("Cargo.toml"))
+        .arg("--target")
+        .arg(target)
+        .arg("-e")
+        .arg("normal")
+        .arg("--prefix")
+        .arg("none")
+        .arg("--format")
+        .arg("{p}")
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    Some(parse_cargo_tree_packages(&stdout))
 }
 
 fn find_cargo_registry_src_dirs() -> Vec<PathBuf> {
@@ -164,6 +252,7 @@ fn collect_crate_notice(
     version: &str,
     registry_dirs: &[PathBuf],
     include_full_texts: bool,
+    templates: &FallbackLicenseTemplates<'_>,
 ) -> CrateNotice {
     let folder_name = format!("{name}-{version}");
     let crate_dir = registry_dirs
@@ -185,7 +274,19 @@ fn collect_crate_notice(
         .unwrap_or_default();
 
     let license_texts = if include_full_texts {
-        read_crate_license_files(&crate_dir, metadata.license_file.as_deref())
+        let mut texts = read_crate_license_files(&crate_dir, metadata.license_file.as_deref());
+        if texts.is_empty() {
+            let spdx_holders = fs::read_to_string(crate_dir.join("src/lib.rs"))
+                .map(|src| extract_spdx_copyright_holders(&src))
+                .unwrap_or_default();
+            texts = synthesize_fallback_license_texts(
+                name,
+                metadata.license.as_deref(),
+                &spdx_holders,
+                templates,
+            );
+        }
+        texts
     } else {
         Vec::new()
     };
@@ -200,29 +301,12 @@ fn collect_crate_notice(
 
 fn read_crate_license_files(crate_dir: &Path, license_file: Option<&str>) -> Vec<(String, String)> {
     let mut filenames = BTreeSet::new();
-
-    if let Ok(entries) = fs::read_dir(crate_dir) {
-        for entry in entries.filter_map(Result::ok) {
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
-                let upper = name.to_ascii_uppercase();
-                if upper.starts_with("LICENSE")
-                    || upper.starts_with("COPYING")
-                    || upper.starts_with("NOTICE")
-                {
-                    filenames.insert(name.to_string());
-                }
-            }
-        }
-    }
+    collect_license_paths_recursive(crate_dir, crate_dir, &mut filenames);
 
     if let Some(rel) = license_file {
         let candidate = crate_dir.join(rel);
         if candidate.is_file() {
-            filenames.insert(rel.to_string());
+            filenames.insert(rel.replace('\\', "/"));
         }
     }
 
@@ -234,4 +318,31 @@ fn read_crate_license_files(crate_dir: &Path, license_file: Option<&str>) -> Vec
             Some((rel, text))
         })
         .collect()
+}
+
+fn collect_license_paths_recursive(root: &Path, dir: &Path, out: &mut BTreeSet<String>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+
+        if path.is_dir() {
+            if !is_excluded_fixture_dir(name) {
+                collect_license_paths_recursive(root, &path, out);
+            }
+            continue;
+        }
+
+        if path.is_file()
+            && is_license_filename(name)
+            && let Ok(rel) = path.strip_prefix(root)
+        {
+            out.insert(rel.to_string_lossy().replace('\\', "/"));
+        }
+    }
 }

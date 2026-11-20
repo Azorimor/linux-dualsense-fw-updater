@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Pure parsing and formatting helpers for Cargo.lock and crate license reports.
+//! Pure parsing and formatting helpers for Cargo dependency graphs and crate license reports.
+
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LockPackage {
@@ -24,6 +26,13 @@ pub struct CrateNotice {
     pub version: String,
     pub metadata: CrateMetadata,
     pub license_texts: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FallbackLicenseTemplates<'a> {
+    pub mit: &'a str,
+    pub apache2: &'a str,
+    pub bsd3: &'a str,
 }
 
 /// Parses `[[package]]` entries from a `Cargo.lock` file.
@@ -73,6 +82,198 @@ pub fn parse_cargo_lock_packages(lock_contents: &str) -> Vec<LockPackage> {
     }
 
     packages
+}
+
+/// Parses deduplicated external `(name, version)` pairs from
+/// `cargo tree --prefix none --format "{p}"` output, skipping local path/workspace crates.
+pub fn parse_cargo_tree_packages(tree_output: &str) -> Vec<(String, String)> {
+    let mut packages = BTreeSet::new();
+
+    for raw_line in tree_output.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.split_whitespace();
+        let Some(name) = parts.next() else {
+            continue;
+        };
+        let Some(raw_ver) = parts.next() else {
+            continue;
+        };
+        let Some(version) = raw_ver.strip_prefix('v') else {
+            continue;
+        };
+        if version.is_empty() {
+            continue;
+        }
+
+        // Workspace and path dependencies include a parenthesized filesystem path
+        // (e.g. `(/path/to/crate)`), whereas registry crates have either no third token,
+        // `(*)` for deduplicated nodes, or `(proc-macro)`.
+        let is_local_path = parts
+            .next()
+            .is_some_and(|tok| tok.starts_with('(') && tok != "(*)" && tok != "(proc-macro)");
+        if is_local_path {
+            continue;
+        }
+
+        packages.insert((name.to_string(), version.to_string()));
+    }
+
+    packages.into_iter().collect()
+}
+
+/// Returns `true` when `filename` represents a license, copyright, or notice document.
+pub fn is_license_filename(filename: &str) -> bool {
+    let upper = filename.to_ascii_uppercase();
+    // Skip REUSE sidecar annotations (e.g. `foo.rs.license`) on test fixtures.
+    if upper.ends_with(".LICENSE") {
+        return false;
+    }
+    upper.starts_with("LICENSE")
+        || upper.starts_with("COPYING")
+        || upper.starts_with("NOTICE")
+        || upper.starts_with("COPYRIGHT")
+        || upper.starts_with("UNLICENSE")
+}
+
+/// Returns `true` when `dir_name` is a non-shipping test, benchmark, or example fixture directory.
+pub fn is_excluded_fixture_dir(dir_name: &str) -> bool {
+    matches!(
+        dir_name.to_ascii_lowercase().as_str(),
+        "test"
+            | "tests"
+            | "test_inputs"
+            | "test_outputs"
+            | "bench"
+            | "benches"
+            | "example"
+            | "examples"
+            | "fuzz"
+            | "fuzzing"
+            | ".github"
+            | "ci"
+            | "doc"
+            | "docs"
+            | "target"
+    )
+}
+
+/// Extracts unique `SPDX-FileCopyrightText:` holder lines from the header of a source file.
+pub fn extract_spdx_copyright_holders(source_text: &str) -> Vec<String> {
+    let mut holders = Vec::new();
+    for line in source_text.lines().take(50) {
+        if let Some((_, rest)) = line.split_once("SPDX-FileCopyrightText:") {
+            let holder = rest.trim();
+            if !holder.is_empty() && !holders.iter().any(|existing| existing == holder) {
+                holders.push(holder.to_string());
+            }
+        }
+    }
+    holders
+}
+
+/// Returns a canonical upstream copyright holder for known crates whose crates.io tarballs
+/// omit top-level license files (such as KDAB's `cxx-qt` family).
+pub fn known_crate_copyright_holder(crate_name: &str) -> Option<&'static str> {
+    match crate_name {
+        "cxx-qt" | "cxx-qt-lib" | "cxx-qt-gen" | "cxx-qt-macro" | "cxx-qt-build"
+        | "qt-build-utils" | "clang-format" => {
+            Some("Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>")
+        }
+        _ => None,
+    }
+}
+
+/// Synthesizes attributed fallback license notice entries when a crate archive omits
+/// bundled `LICENSE*`/`COPYING*`/`NOTICE*` files.
+pub fn synthesize_fallback_license_texts(
+    crate_name: &str,
+    license_expr: Option<&str>,
+    spdx_holders: &[String],
+    templates: &FallbackLicenseTemplates<'_>,
+) -> Vec<(String, String)> {
+    let Some(expr) = license_expr.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Vec::new();
+    };
+
+    let mut copyright_lines = Vec::new();
+    for holder in spdx_holders {
+        copyright_lines.push(format!("Copyright (C) {holder}"));
+    }
+    if copyright_lines.is_empty()
+        && let Some(known) = known_crate_copyright_holder(crate_name)
+    {
+        copyright_lines.push(format!("Copyright (C) {known}"));
+    }
+    let copyright_header = if copyright_lines.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n\n", copyright_lines.join("\n"))
+    };
+
+    let mut entries = Vec::new();
+    if expr.contains("MIT") {
+        entries.push((
+            "LICENSE-MIT (fallback notice)".to_string(),
+            format!("{copyright_header}{}", templates.mit.trim()),
+        ));
+    }
+    if expr.contains("Apache-2.0") {
+        entries.push((
+            "LICENSE-APACHE (fallback notice)".to_string(),
+            format!("{copyright_header}{}", templates.apache2.trim()),
+        ));
+    }
+    if expr.contains("BSD-3-Clause") {
+        entries.push((
+            "LICENSE-BSD-3-Clause (fallback notice)".to_string(),
+            format!("{copyright_header}{}", templates.bsd3.trim()),
+        ));
+    }
+
+    entries
+}
+
+/// Validates that every resolved crate in a release build has license metadata and notice text.
+pub fn validate_release_notices(notices: &[CrateNotice]) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+    if notices.is_empty() {
+        errors.push("resolved crate notice list is empty".to_string());
+        return Err(errors);
+    }
+
+    for pkg in notices {
+        let has_license_meta = pkg
+            .metadata
+            .license
+            .as_deref()
+            .is_some_and(|s| !s.trim().is_empty())
+            || pkg
+                .metadata
+                .license_file
+                .as_deref()
+                .is_some_and(|s| !s.trim().is_empty());
+        if !has_license_meta {
+            errors.push(format!(
+                "{} v{}: missing license metadata",
+                pkg.name, pkg.version
+            ));
+        }
+        if pkg.license_texts.is_empty() {
+            errors.push(format!(
+                "{} v{}: missing license/copyright text",
+                pkg.name, pkg.version
+            ));
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 /// Extracts `license`, `license-file`, and `repository` from a crate `Cargo.toml` `[package]` section.
@@ -151,34 +352,35 @@ pub fn format_license_bundle(
     out.push_str("------------------------------------------------------------\n");
     out.push_str(
         "- Qt 6 (Qt Core, Qt Gui, Qt Qml, Qt Quick, Qt Quick Controls 2, Qt Dialogs,\n  \
-         Qt Layouts, Qt ShaderTools, Qt Svg, Qt Wayland)\n  \
+         Qt Layouts, Qt Widgets, Qt Svg, Qt Wayland)\n  \
          Copyright (C) The Qt Company Ltd. and contributors.\n  \
-         Dynamically linked; licensed under LGPL-3.0-only / GPL-3.0-only.\n  \
-         Upstream source (Qt 6.8.3 in AppImage): https://download.qt.io/official_releases/qt/6.8/6.8.3/single/qt-everywhere-src-6.8.3.tar.xz\n  \
+         Dynamically linked from the host system; licensed under LGPL-3.0-only / GPL-3.0-only\n  \
+         (used under LGPL-3.0-only).\n  \
          Repository: https://code.qt.io/cgit/qt/\n\n",
     );
     out.push_str(
         "- KDE Kirigami (KDE Frameworks 6 Kirigami)\n  \
          Copyright (C) KDE e.V. and contributors.\n  \
-         Dynamically loaded QML module; licensed under LGPL-2.0-or-later / LGPL-2.1-or-later / BSD-3-Clause.\n  \
-         Upstream source (Kirigami 6.10.0 in AppImage): https://download.kde.org/stable/frameworks/6.10/kirigami-6.10.0.tar.xz\n  \
+         Dynamically loaded QML module from the host system; licensed under\n  \
+         LGPL-2.0-or-later / LGPL-2.1-or-later / LGPL-3.0-only / BSD-3-Clause.\n  \
          Repository: https://invent.kde.org/frameworks/kirigami\n\n",
     );
     out.push_str(
-        "- hidapi (system libhidapi-hidraw / hidapi)\n  \
-         Alan Ott / signal11 & libusb maintainers — licensed under BSD-3-Clause / GPL-3.0 / HIDAPI license.\n  \
+        "- Vendored C hidapi (statically linked via the `hidapi` crate `linux-static-hidraw`)\n  \
+         Copyright (C) Alan Ott / signal11 and libusb / hidapi maintainers.\n  \
+         Licensed under BSD-3-Clause OR GPL-3.0-only OR LicenseRef-HIDAPI-Orig.\n  \
+         Dynamically links host `libudev.so.1` from the operating system.\n  \
          Repository: https://github.com/libusb/hidapi\n\n",
     );
     out.push_str(
-        "- AppImage Relinking & Written Source Offer (GPLv3 §6 / LGPLv3 §4 / LGPLv2.1 §6)\n  \
-         AppImage releases bundle dynamically linked shared libraries so you can extract and\n  \
-         replace/relink any `.so` library via `--appimage-extract`. Complete license texts and\n  \
-         library inventories live in `usr/share/licenses/linux-dualsense-fw-updater/` inside the\n  \
-         AppImage (`THIRD_PARTY_NOTICES.txt`, `BUNDLED_LIBRARIES.txt`, `LGPL-*.txt`, and\n  \
-         `system-packages/*.copyright`).\n  \
-         Corresponding source code and reproducible CI build scripts are published at:\n  \
+        "- Source Availability & Written Source Offer (GPLv3 §6 / LGPLv3 §4 / LGPLv2.1 §6)\n  \
+         Official GitHub Releases distribute the portable `.tar.gz` binary archive dynamically\n  \
+         linked against host Qt 6, KDE Frameworks Kirigami, `libudev`, and standard OS libraries.\n  \
+         Complete Corresponding Source code and build scripts are published at:\n  \
          https://github.com/Azorimor/linux-dualsense-fw-updater\n  \
-         Written source requests (valid for at least 3 years): azorimor@gmail.com\n\n",
+         Written source requests (valid for at least 3 years): azorimor@gmail.com\n  \
+         (For optional local AppImage builds created from source via `scripts/package-appimage.sh`,\n  \
+         bundled `.so` libraries can be inspected or relinked via `--appimage-extract`.)\n\n",
     );
 
     out.push_str(&format!(

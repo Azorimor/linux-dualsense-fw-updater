@@ -33,5 +33,7 @@ SPDX-FileCopyrightText = [
     "2026 Azorimor <azorimor@gmail.com>",
     "The Qt Company Ltd. and contributors",
     "KDE e.V. and contributors",
+    "Alan Ott / signal11 and libusb maintainers",
+    "Klarälvdalens Datakonsult AB (KDAB)",
 ]
-SPDX-License-Identifier = "GPL-3.0-or-later AND LGPL-3.0-only AND LGPL-2.1-or-later AND LGPL-2.0-or-later AND BSD-3-Clause"
+SPDX-License-Identifier = "GPL-3.0-or-later AND Apache-2.0 AND LGPL-3.0-only AND LGPL-2.1-or-later AND LGPL-2.0-or-later AND BSD-3-Clause"

@@ -121,9 +121,9 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ├── .github/
 │   ├── ISSUE_TEMPLATE/         # GitHub issue templates (`flash_report.md` prefill target; others live on main)
 │   └── workflows/              # GitHub Actions workflows (Ubuntu 24.04)
-│       ├── ci.yml              # Fast prechecks -> Clippy, test+coverage, tarball (Qt 6.4), & self-contained Qt 6.8 + Kirigami AppImage packaging/smoke check
+│       ├── ci.yml              # Fast prechecks -> Clippy, test+coverage, portable `.tar.gz` packaging & compliance gate
 │       ├── cleanup-pr-cache.yml # PR cache cleanup workflow
-│       ├── release.yml         # Release & SHA256SUMS artifact publishing workflow
+│       ├── release.yml         # Release & SHA256SUMS `.tar.gz` artifact publishing workflow
 │       └── deploy-website.yml  # Fumadocs static site build & deploy workflow
 ├── .agents/                    # Antigravity lifecycle hooks
 ├── assets/                     # Brand SVGs (`logo.svg`, `logo-symbol.svg`), Vectorcraft source, & GUI screenshots (`assets/desktop/` -> `packaging/linux/icons/`, `assets/web/` -> `website/public/`)
@@ -134,8 +134,9 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │       └── icons/              # Canonical app icons (`16x16`..`512x512/icon.png` + `scalable/icon.svg`; moved from `assets/desktop`)
 ├── scripts/
 │   ├── coverage.sh             # cargo-llvm-cov HTML & LCOV report script
-│   ├── package-appimage.sh     # Portable .tar.gz & .AppImage packager (`--tarball-only`/`--appimage-only`, Wayland/offscreen/SVG plugins, desktop entry, icons, `install-desktop.sh`)
-│   └── verify_structural_rules.py # Checks file length, test layout, SPDX headers, & AGENTS.md paths
+│   ├── package-appimage.sh     # Portable `.tar.gz` (CI) & optional local `.AppImage` packager (`--tarball-only`/`--appimage-only`, desktop entry, icons, `install-desktop.sh`)
+│   ├── verify_structural_rules.py # Checks file length, test layout, SPDX headers, & AGENTS.md paths
+│   └── verify_tarball_compliance.py # Verifies `.tar.gz` layout, host `DT_NEEDED` libs, and release-embedded crate notices
 ├── website/                    # Fumadocs / Next.js static documentation website
 │   └── public/                 # Static web brand assets (`favicon.svg`, `favicon-16x16.png`, `favicon-32x32.png`, `favicon-48x48.png`, `icon-192x192.png`, `icon-512x512.png`, `apple-touch-icon.png`, `site.webmanifest`; moved from `assets/web`)
 ├── crates/
@@ -207,7 +208,7 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 - **Qt6 / `qmake6` discovery:** `build.rs` defaults `QMAKE` to `/usr/bin/qmake6` when unset and present; export `QMAKE=/path/to/qmake6` on systems where `qmake` defaults to Qt 5 or `qmake6` is elsewhere.
 - **Headless CI compatibility:** All 3 workspace crates decouple business logic and snapshot adaptation from Qt event loops, display servers, and physical DualSense hardware so `cargo test --workspace` runs completely headlessly.
 - **Kirigami style & QML linting:** `src/main.rs` + `src/quick_style.rs` select `org.kde.desktop` when present in QML import paths and fall back to `Fusion` otherwise (unless `QT_QUICK_CONTROLS_STYLE` is set). Keep QML strictly typed (`pragma ComponentBehavior: Bound`, `required property` on delegates) so `qmllint` passes with zero warnings.
-- **Linux system dev libraries:** `libhidapi-dev`, `libudev-dev`, `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, `pkg-config`, and Qt 6 dev packages.
+- **Linux system dev libraries:** `libudev-dev`, `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, `pkg-config`, and Qt 6 dev packages.
 - **Offscreen smoke check:** Running with `QT_QPA_PLATFORM=offscreen` verifies `QQmlApplicationEngine` loads `qrc:/qt/qml/io/github/azorimor/linux_dualsense_fw_updater/qml/Main.qml` cleanly without X11/Wayland (using `timeout` because the Qt event loop stays open until closed).
 
 ---

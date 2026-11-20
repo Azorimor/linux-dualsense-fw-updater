@@ -41,23 +41,17 @@ Launch `dualsense-updater` and follow the four guided KDE Kirigami wizard steps:
 - **Built-in About & Licenses Windows**: Open **Help → About Unofficial DualSense Firmware Updater** for version info and project links (GitHub repository, website, issue tracker), or **Help → Licenses** to inspect the bundled third-party crate notices, `GPL-3.0-or-later` license text, and `nchie` MIT attribution.
 - **Optional Flash Run Reporting**: After a firmware update succeeds or fails, use **Flash Run Infos** or **Open GitHub Issue** to inspect or open a prefilled `[Flash Report]` GitHub issue containing anonymized OS, hardware revision, firmware version, and error metrics (never serial numbers or local file paths).
 
-## Installation (AppImage & Prebuilt Archives)
+## Installation (Prebuilt Portable Archive)
 
-Download the latest release artifacts from [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases):
+Official [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases) distribute the portable single-binary `.tar.gz` archive (`x86_64`), which dynamically links against your host system's Qt 6, KDE Frameworks 6 Kirigami, and `libudev` libraries (prebuilt AppImages are not distributed via GitHub Releases; building an AppImage remains an optional local build from source below):
 
-- **AppImage (`x86_64`)**:
-  ```sh
-  chmod +x linux-dualsense-fw-updater-<tag>-x86_64.AppImage
-  ./linux-dualsense-fw-updater-<tag>-x86_64.AppImage
-  ```
-  The AppImage embeds `io.github.azorimor.linux_dualsense_fw_updater.desktop`, `.DirIcon`, and the hicolor PNG/SVG icon set (`16x16`–`512x512` + `scalable`) for desktop launcher / AppImage integration, and the window itself embeds multi-resolution Qt resource icons as a fallback.
-- **Tarball (`x86_64`)**:
+- **Portable Tarball (`x86_64`)**:
   ```sh
   tar -xzf linux-dualsense-fw-updater-<tag>-x86_64.tar.gz
   cd linux-dualsense-fw-updater-<tag>-x86_64
   ./dualsense-updater
   ```
-  To register the `.desktop` entry and hicolor icons from the extracted tarball directory, run:
+  To register the `.desktop` entry and hicolor icons (`16x16`–`512x512` + `scalable`) from the extracted tarball directory, run:
   ```sh
   ./install-desktop.sh
   ```
@@ -73,7 +67,7 @@ Download the latest release artifacts from [GitHub Releases](https://github.com/
 - **`mold` linker** (configured for Linux targets via `.cargo/config.toml` with `-C link-arg=-fuse-ld=mold`)
 - **Qt 6** development packages: `Qt6Core`, `Qt6Gui`, `Qt6Qml`, `Qt6Quick`, `Qt6QuickControls2`, and `qmake6`
 - **KDE Frameworks 6 (KF6) runtime QML modules**: `Kirigami` (`org.kde.kirigami`) and `qqc2-desktop-style` (`org.kde.desktop`; falls back to Qt `Fusion` style if unavailable, or override with `QT_QUICK_CONTROLS_STYLE`)
-- **`hidapi` & Linux USB/GL system libraries**: `libhidapi-dev` (`hidapi-hidraw` / `hidapi-libusb`), `libudev-dev`, `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, and `pkg-config` (Ubuntu 24.04)
+- **Linux USB/GL system libraries**: `libudev-dev` (required for the statically compiled `hidapi` `linux-static-hidraw` backend, which dynamically links host `libudev.so.1`), `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, and `pkg-config` (Ubuntu 24.04)
 
 ### `qmake6` Note
 
@@ -128,15 +122,17 @@ sudo ./packaging/linux/install-desktop.sh --system
 
 Use `./packaging/linux/install-desktop.sh --uninstall` (with `--system` or `--prefix DIR` if applicable) to remove the installed `.desktop` file and icons.
 
-### Packaging an AppImage Locally
+### Packaging Locally (Tarball & Optional AppImage)
 
-After building the release binary, package both the portable `.tar.gz` and `.AppImage` into `dist/`:
+Official CI/GitHub Releases publish only the portable `.tar.gz` archive (`--tarball-only`). If you clone the repository, you can package the portable `.tar.gz` or optionally build a local `.AppImage` into `dist/`:
 
 ```sh
+./scripts/package-appimage.sh --tarball-only target/release/dualsense-updater v0.1.0 dist
+# Optional local AppImage build (requires local Qt6 + KF6 Kirigami and linuxdeploy):
 ./scripts/package-appimage.sh target/release/dualsense-updater v0.1.0 dist
 ```
 
-Desktop integration assets live in `packaging/linux/io.github.azorimor.linux_dualsense_fw_updater.desktop`, `packaging/linux/install-desktop.sh`, and `packaging/linux/icons/` (`16x16`, `22x22`, `32x32`, `48x48`, `64x64`, `128x128`, `256x256`, `512x512` PNGs plus `scalable/icon.svg`). `scripts/package-appimage.sh` bundles the hicolor icons, `.DirIcon`, `.desktop` file, and `install-desktop.sh` into the `.tar.gz` and `.AppImage` (`AppDir`).
+Desktop integration assets live in `packaging/linux/io.github.azorimor.linux_dualsense_fw_updater.desktop`, `packaging/linux/install-desktop.sh`, and `packaging/linux/icons/` (`16x16`, `22x22`, `32x32`, `48x48`, `64x64`, `128x128`, `256x256`, `512x512` PNGs plus `scalable/icon.svg`). `scripts/package-appimage.sh` bundles the hicolor icons, `.desktop` file, `install-desktop.sh`, `THIRD_PARTY_NOTICES.txt`, and `LICENSES/` into the `.tar.gz` (and `.DirIcon` / `AppDir` for optional local AppImage builds).
 
 ## Testing, Coverage, and Structural Checks
 
@@ -214,14 +210,14 @@ https://fwupdater.dl.playstation.net/fwupdater/fwupdate000B/0x0630/FWUPDATE000B.
 
 The core DualSense USB HID protocol and firmware update backend logic in `crates/dualsense-core` is adapted from the original CLI project by [nchie](https://github.com/nchie/dualsense-updater-rs) under the MIT License and remains licensed under **`MIT AND GPL-3.0-or-later`**.
 
-### AppImage Third-Party Notices & Source Availability
+### Third-Party Notices & Source Availability
 
-Prebuilt AppImage releases dynamically link against **Qt 6** (`LGPL-3.0-only` / `GPL-3.0`), **KDE Frameworks Kirigami** (`LGPL-2.0-or-later` / `LGPL-2.1-or-later` / `BSD-3-Clause`), **`hidapi`** (`BSD-3-Clause` / `GPL-3.0` / HIDAPI), and system libraries. Full license texts, `THIRD_PARTY_NOTICES.txt`, `BUNDLED_LIBRARIES.txt`, and Debian/Ubuntu `system-packages/*.copyright` notices are bundled inside the AppImage under `usr/share/licenses/linux-dualsense-fw-updater/`.
+Prebuilt portable `.tar.gz` releases dynamically link against your host system's **Qt 6** (`LGPL-3.0-only` / `GPL-3.0-only`, used under `LGPL-3.0-only`), **KDE Frameworks 6 Kirigami** (`LGPL-2.0-or-later` / `LGPL-2.1-or-later` / `LGPL-3.0-only` / `BSD-3-Clause`), and **`libudev`** (`libudev.so.1`). Statically linked dependencies include vendored C **`hidapi`** (`Alan Ott / signal11 & libusb maintainers`, `BSD-3-Clause OR GPL-3.0-only OR LicenseRef-HIDAPI-Orig`, compiled via the `hidapi` crate's `linux-static-hidraw` backend), **`cxx-qt` / `cxx-qt-lib`** (`Klarälvdalens Datakonsult AB (KDAB)`, `MIT OR Apache-2.0`), and the Rust crates listed in `Cargo.lock` (embedded with full copyright notices and license texts inside **Help → Licenses**).
 
-Per LGPLv3 §4 / LGPLv2.1 §6, you can extract the AppImage (`./linux-dualsense-fw-updater-<tag>-x86_64.AppImage --appimage-extract`) to inspect or replace/relink bundled `.so` libraries. Upstream sources used by the official AppImage CI workflow:
+Full license texts (`GPL-3.0-or-later.txt`, `MIT.txt`, `Apache-2.0.txt`, `LGPL-3.0-only.txt`, `LGPL-2.1-or-later.txt`, `LGPL-2.0-or-later.txt`, `BSD-3-Clause.txt`) and `THIRD_PARTY_NOTICES.txt` are included in every `.tar.gz` archive. Complete Corresponding Source code is available via:
 
 - **Application & build scripts (`GPL-3.0-or-later`)**: https://github.com/Azorimor/linux-dualsense-fw-updater
-- **Qt 6.8.3 (`LGPL-3.0-only` / `GPL-3.0`)**: https://download.qt.io/official_releases/qt/6.8/6.8.3/single/qt-everywhere-src-6.8.3.tar.xz (`https://code.qt.io/cgit/qt/`)
-- **KDE Frameworks Kirigami 6.10.0 (`LGPL-2.0-or-later` / `LGPL-2.1-or-later` / `BSD-3-Clause`)**: https://download.kde.org/stable/frameworks/6.10/kirigami-6.10.0.tar.xz (`https://invent.kde.org/frameworks/kirigami`)
-- **hidapi (`BSD-3-Clause` / `GPL-3.0` / HIDAPI)**: https://github.com/libusb/hidapi
-- **Written source offer**: Complete Corresponding Source code is available via the links above or upon written request (valid for at least 3 years) to `azorimor@gmail.com`.
+- **Qt 6 (`LGPL-3.0-only` / `GPL-3.0-only`)**: https://code.qt.io/cgit/qt/
+- **KDE Frameworks Kirigami (`LGPL-2.0-or-later` / `LGPL-2.1-or-later` / `LGPL-3.0-only` / `BSD-3-Clause`)**: https://invent.kde.org/frameworks/kirigami
+- **hidapi (`BSD-3-Clause` / `GPL-3.0-only` / HIDAPI)**: https://github.com/libusb/hidapi
+- **Written source offer**: Complete Corresponding Source code is available via the repository above or upon written request (valid for at least 3 years) to `azorimor@gmail.com`. (If you build a local AppImage yourself via `scripts/package-appimage.sh`, bundled `.so` libraries can be inspected or relinked via `--appimage-extract`.)

@@ -17,11 +17,13 @@ QQC2.ApplicationWindow {
     required property string githubPagesUrl
     required property string githubIssuesUrl
 
+    signal openLicensesRequested()
+
     title: "About Unofficial DualSense Firmware Updater"
-    width: 560
-    height: 430
-    minimumWidth: 460
-    minimumHeight: 360
+    width: 580
+    height: 510
+    minimumWidth: 480
+    minimumHeight: 440
     visible: false
 
     ColumnLayout {
@@ -136,9 +138,9 @@ QQC2.ApplicationWindow {
 
         QQC2.Label {
             Layout.fillWidth: true
-            text: "Licensed under GPL-3.0-or-later (core HID protocol logic adapted from nchie under MIT)."
+            text: "Copyright (C) 2026 Azorimor <azorimor@gmail.com>\nLicensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later); core HID protocol logic adapted from nchie under MIT. You may redistribute and/or modify this program under the terms of GPL-3.0-or-later.\n\nThis program comes with ABSOLUTELY NO WARRANTY, to the extent permitted by applicable law."
             wrapMode: Text.WordWrap
-            opacity: 0.78
+            opacity: 0.82
         }
 
         Item {
@@ -147,6 +149,13 @@ QQC2.ApplicationWindow {
 
         RowLayout {
             Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+
+            QQC2.Button {
+                text: "View Licenses"
+                icon.name: "license"
+                onClicked: root.openLicensesRequested()
+            }
 
             Item {
                 Layout.fillWidth: true

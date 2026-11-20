@@ -46,6 +46,11 @@ Kirigami.ApplicationWindow {
         githubUrl: updater.githubUrl
         githubPagesUrl: updater.githubPagesUrl
         githubIssuesUrl: updater.githubIssuesUrl
+        onOpenLicensesRequested: {
+            licensesWindow.show()
+            licensesWindow.raise()
+            licensesWindow.requestActivate()
+        }
     }
 
     FlashReportWindow {

@@ -13,7 +13,7 @@ export const dynamic = 'force-static';
 
 const DOWNLOAD_TITLE = 'Download';
 const DOWNLOAD_DESCRIPTION =
-  'Download the recommended portable Linux archive (.tar.gz) or AppImage for the Unofficial Linux DualSense Firmware Updater.';
+  'Download portable Linux (.tar.gz) archives for x86_64 and aarch64 (ARM64) of the Unofficial Linux DualSense Firmware Updater.';
 const DOWNLOAD_CANONICAL_URL = toCanonicalPageUrl('/download');
 
 export const metadata: Metadata = {

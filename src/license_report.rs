@@ -6,6 +6,10 @@
 
 use std::collections::BTreeSet;
 
+/// Explicit sentinel appended to the generated license bundle so binary compliance
+/// checks can slice the exact UTF-8 payload without relying on `.rodata` NUL padding.
+pub const LICENSE_BUNDLE_END_MARKER: &str = "=== END OF THIRD-PARTY LICENSES ===";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LockPackage {
     pub name: String,
@@ -432,6 +436,9 @@ pub fn format_license_bundle(
         }
         out.push('\n');
     }
+
+    out.push_str(LICENSE_BUNDLE_END_MARKER);
+    out.push('\n');
 
     out
 }

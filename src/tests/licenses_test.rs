@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::licenses::{
-    CrateMetadata, CrateNotice, FallbackLicenseTemplates, LockPackage, bundled_licenses_text,
-    contains_notice_for, extract_spdx_copyright_holders, format_application_license,
-    format_license_bundle, is_excluded_fixture_dir, is_full_release_bundle, is_license_filename,
-    known_crate_copyright_holder, parse_cargo_lock_packages, parse_cargo_tree_packages,
-    parse_crate_package_metadata, synthesize_fallback_license_texts, third_party_crate_entries,
-    validate_release_notices,
+    CrateMetadata, CrateNotice, FallbackLicenseTemplates, LICENSE_BUNDLE_END_MARKER, LockPackage,
+    bundled_licenses_text, contains_notice_for, extract_spdx_copyright_holders,
+    format_application_license, format_license_bundle, is_excluded_fixture_dir,
+    is_full_release_bundle, is_license_filename, known_crate_copyright_holder,
+    parse_cargo_lock_packages, parse_cargo_tree_packages, parse_crate_package_metadata,
+    synthesize_fallback_license_texts, third_party_crate_entries, validate_release_notices,
 };
 
 #[test]
@@ -269,6 +269,8 @@ fn format_license_bundle_renders_full_and_summary_modes() {
     assert!(full.contains("--- LICENSE ---"));
     assert!(full.contains("Permission is hereby granted, free of charge."));
     assert!(full.contains("No LICENSE/COPYING/NOTICE file bundled in crate archive."));
+    assert!(summary.trim_end().ends_with(LICENSE_BUNDLE_END_MARKER));
+    assert!(full.trim_end().ends_with(LICENSE_BUNDLE_END_MARKER));
 }
 
 #[test]
@@ -311,5 +313,6 @@ fn generated_bundled_licenses_includes_target_crates_without_unspecified_entries
     assert!(!contains_notice_for(text, "Qt ShaderTools"));
     assert!(!contains_notice_for(text, "qt-everywhere-src-6.8.3"));
     assert!(!contains_notice_for(text, "kirigami-6.10.0"));
+    assert!(text.trim_end().ends_with(LICENSE_BUNDLE_END_MARKER));
     assert!(!third_party_crate_entries(text).is_empty());
 }

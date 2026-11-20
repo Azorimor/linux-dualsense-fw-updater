@@ -1,6 +1,56 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.0.5] - 2026-11-20
+
+### Bug Fixes
+
+- **licenses:** Add explicit end delimiter for embedded license bundle ([541339f](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/541339fe693b6bcf30d562745be2936876cda8ef))
+
+- **packaging:** Make tarball packaging and verifier arch-aware ([613fb20](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/613fb20428ec3ef573df9dce362709897a5fc4e2))
+
+- **tests:** Pass -B to python3 to avoid writing __pycache__ ([13be59e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/13be59e8677f232e2bf28e488cd8f2e4b207b97b))
+
+
+### CI / Workflows
+
+- **release:** Add native Linux aarch64 release builds to matrix ([df05a2e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/df05a2e73a511ea3d591dfa0fbd7ff371989e592))
+
+
+### Documentation
+
+- Document x86_64 and aarch64 tarball releases and policy ([91cf9b9](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/91cf9b919ec87eb35f6097486b067bb32c35bba2))
+
+- **website:** Update getting-started and streamline licenses page ([937b725](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/937b725eeaa466034a07e719badfbe3c04e4f7d1))
+
+
+### Features
+
+- **website:** Support x86_64 and aarch64 tarballs in release parser ([078df5d](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/078df5d94b74de59b2435e9ce2c15100c26f4ff0))
+
+- **website:** Show equal x86_64 and aarch64 download cards ([11472b2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/11472b2dfbfeea8470df82722194e53de95d6807))
+
+- **website:** Add editable markdown Privacy Policy page at /privacy ([410b3c9](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/410b3c959468ce804b2b86cd706cea99d3881a2e))
+
+- **website:** Add SiteFooter with Privacy Policy link to all pages ([fd58481](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/fd584810208388b9d230aefc8308249eac05d55a))
+
+
+### Miscellaneous
+
+- Update readme to reduce licence notes ([bd00b86](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/bd00b86b49d73b8be45e1993554e75a232e201e3))
+
+- **website:** Update privacy policy to another template for dsgvo ([5ea9d29](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/5ea9d29887e30b5a5b2c8bc19967226eab496c4a))
+
+
+### Testing
+
+- **website:** Update SEO assertions for ARM64 tarballs and licenses ([5adeccb](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/5adeccb545955526d2b958e522d7b17f4f8f2c44))
+
+- **website:** Verify footer placement and Privacy Policy page ([251754f](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/251754f4f1179464a57aaca7ba44be3d77f4d451))
+
+
+
+
 ## [0.0.4] - 2026-11-20
 
 ### Bug Fixes

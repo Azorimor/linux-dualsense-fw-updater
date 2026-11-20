@@ -1,9 +1,51 @@
 # Changelog (/docs/changelog)
 
 All notable changes to this project will be documented in this file.
-## [0.0.4] - 2026-11-20 [#004---2026-11-20]
+## [0.0.5] - 2026-11-20 [#005---2026-11-20]
 
 ### Bug Fixes [#bug-fixes]
+
+- **licenses:** Add explicit end delimiter for embedded license bundle ([541339f](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/541339fe693b6bcf30d562745be2936876cda8ef))
+
+- **packaging:** Make tarball packaging and verifier arch-aware ([613fb20](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/613fb20428ec3ef573df9dce362709897a5fc4e2))
+
+- **tests:** Pass -B to python3 to avoid writing __pycache__ ([13be59e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/13be59e8677f232e2bf28e488cd8f2e4b207b97b))
+
+### CI / Workflows [#ci--workflows]
+
+- **release:** Add native Linux aarch64 release builds to matrix ([df05a2e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/df05a2e73a511ea3d591dfa0fbd7ff371989e592))
+
+### Documentation [#documentation]
+
+- Document x86_64 and aarch64 tarball releases and policy ([91cf9b9](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/91cf9b919ec87eb35f6097486b067bb32c35bba2))
+
+- **website:** Update getting-started and streamline licenses page ([937b725](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/937b725eeaa466034a07e719badfbe3c04e4f7d1))
+
+### Features [#features]
+
+- **website:** Support x86_64 and aarch64 tarballs in release parser ([078df5d](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/078df5d94b74de59b2435e9ce2c15100c26f4ff0))
+
+- **website:** Show equal x86_64 and aarch64 download cards ([11472b2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/11472b2dfbfeea8470df82722194e53de95d6807))
+
+- **website:** Add editable markdown Privacy Policy page at /privacy ([410b3c9](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/410b3c959468ce804b2b86cd706cea99d3881a2e))
+
+- **website:** Add SiteFooter with Privacy Policy link to all pages ([fd58481](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/fd584810208388b9d230aefc8308249eac05d55a))
+
+### Miscellaneous [#miscellaneous]
+
+- Update readme to reduce licence notes ([bd00b86](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/bd00b86b49d73b8be45e1993554e75a232e201e3))
+
+- **website:** Update privacy policy to another template for dsgvo ([5ea9d29](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/5ea9d29887e30b5a5b2c8bc19967226eab496c4a))
+
+### Testing [#testing]
+
+- **website:** Update SEO assertions for ARM64 tarballs and licenses ([5adeccb](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/5adeccb545955526d2b958e522d7b17f4f8f2c44))
+
+- **website:** Verify footer placement and Privacy Policy page ([251754f](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/251754f4f1179464a57aaca7ba44be3d77f4d451))
+
+## [0.0.4] - 2026-11-20 [#004---2026-11-20]
+
+### Bug Fixes [#bug-fixes-1]
 
 - **website:** Avoid double basePath in Markdown page actions ([3e52deb](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/3e52deba9baa8ccf0b4c42a734df28abcd301dbe))
 
@@ -13,11 +55,11 @@ All notable changes to this project will be documented in this file.
 
 - **ui:** Add GPLv3 section 5(d) notices and Licenses button to AboutWindow ([307bfbb](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/307bfbb4bc6a471eba314137895ac4da9b4eccdf))
 
-### CI / Workflows [#ci--workflows]
+### CI / Workflows [#ci--workflows-1]
 
 - **release:** Publish portable tarball only and add compliance gate ([b60a14e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/b60a14e77d2fd840f99ca06952b05707ac0b81ae))
 
-### Documentation [#documentation]
+### Documentation [#documentation-1]
 
 - **website:** Make portable tar.gz archive the recommended install option ([4e3d192](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/4e3d192b7e69cee6795fd976a5f0f5201a4369ec))
 
@@ -25,7 +67,7 @@ All notable changes to this project will be documented in this file.
 
 - Update README and AGENTS for tarball-only releases and hidapi ([841c922](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/841c9226f714eea33ecf5bde8246f30db04fdd59))
 
-### Features [#features]
+### Features [#features-1]
 
 - **website:** Enable processed markdown for docs collection ([9a348cc](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/9a348cce55cac113544887dfd74abb67ad9447d3))
 
@@ -63,7 +105,7 @@ All notable changes to this project will be documented in this file.
 
 - **website:** Add docs canonical URLs, JSON-LD, and SEO descriptions ([26013f2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/26013f288375e0c13df941f8ad8177bc5d442ea8))
 
-### Miscellaneous [#miscellaneous]
+### Miscellaneous [#miscellaneous-1]
 
 - **website:** Match OG card colors to dark black.css theme ([c3cf4b1](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/c3cf4b17b75e12ef8c4362a6025959d45723a841))
 
@@ -73,7 +115,7 @@ All notable changes to this project will be documented in this file.
 
 - **website:** Move supported hardware from docs to top-level route ([ccdae8c](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/ccdae8c2ebb0c79e154a2010cd57d51b83c25665))
 
-### Testing [#testing]
+### Testing [#testing-1]
 
 - **website:** Add unit and static build tests for LLM markdown output ([0886c44](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/0886c44f56e1c05d253e9063982279c6324a36e0))
 
@@ -85,7 +127,7 @@ All notable changes to this project will be documented in this file.
 
 ## [0.0.3] - 2026-11-18 [#003---2026-11-18]
 
-### Bug Fixes [#bug-fixes-1]
+### Bug Fixes [#bug-fixes-2]
 
 - **viewmodel:** Ignore stale background catalog results when already loaded ([e81fc15](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/e81fc15dbc6f2191272a679e4f9e0ae20ab28386))
 
@@ -95,7 +137,7 @@ All notable changes to this project will be documented in this file.
 
 - **appimage:** Bundle xdgdesktopportal platformtheme plugin ([ee1f05e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/ee1f05e8f197c9c255e338ca361cd1d55602715f))
 
-### Documentation [#documentation-1]
+### Documentation [#documentation-2]
 
 - Add feature-ideas.md with upcoming firmware updater ideas ([06d5719](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/06d5719d12ccb263524b5a1b811c9b5a05635159))
 
@@ -103,7 +145,7 @@ All notable changes to this project will be documented in this file.
 
 - Document --no-flash, native file picker, and new modules ([fc78f23](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/fc78f239038180b432bea9584c1b8707932375a9))
 
-### Features [#features-1]
+### Features [#features-2]
 
 - **ui:** Implement safety validation, battery, verification, and flow updates ([4281dac](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/4281dac22a4af3ac06a7b378b1fa1aaaa2e6afe8))
 
@@ -133,7 +175,7 @@ All notable changes to this project will be documented in this file.
 
 - **app:** Wire CLI --no-flash parsing into main and QML indicator ([d1ca781](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/d1ca7812f47099629a22ff440ab8b9e12c34e4b4))
 
-### Miscellaneous [#miscellaneous-1]
+### Miscellaneous [#miscellaneous-2]
 
 - Merge main into feat/safety-and-flow ([c8189ed](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/c8189edb56a222589812dcfbe46655e9b0c407d9))
 
@@ -141,7 +183,7 @@ All notable changes to this project will be documented in this file.
 
 - **packaging:** Update app ID to io.github.azorimor.linux_dualsense_fw_updater ([45b7b46](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/45b7b460ed269425ec1f573e736e94909e05a99c))
 
-### Testing [#testing-1]
+### Testing [#testing-2]
 
 - **ui:** Update HidDeviceInfo fixtures for bus_type and add mock helpers ([b931955](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/b93195578031a55ebfc9ff5b98ffd7413f0ca25f))
 
@@ -157,27 +199,27 @@ All notable changes to this project will be documented in this file.
 
 ## [0.0.2] - 2026-11-17 [#002---2026-11-17]
 
-### CI / Workflows [#ci--workflows-1]
+### CI / Workflows [#ci--workflows-2]
 
 - **website:** Trigger website deployment when root CHANGELOG.md changes ([d4292b2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/d4292b2d97d002a7686e402db9110f8070e85e8f))
 
 - **release:** Fix Qt 6.8.3 modules and harden AppImage build checks ([025aff5](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/025aff53d7341cd077f946d0914b437220aa2742))
 
-### Documentation [#documentation-2]
+### Documentation [#documentation-3]
 
 - **website:** Add changelog documentation page from root CHANGELOG.md ([f2e18f7](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/f2e18f7f659b2e56b924f19b6acc14245a170734))
 
-### Features [#features-2]
+### Features [#features-3]
 
 - **website:** Strip redundant H1 from included MDX docs ([a6d57da](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/a6d57da6dc8c42cd79949a9d056bb5b1eacdf234))
 
-### Testing [#testing-2]
+### Testing [#testing-3]
 
 - **website:** Add unit and build tests for changelog doc inclusion ([b640637](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/b640637b57429e321b677602e792c1726e8af0c5))
 
 ## [0.0.1] - 2026-11-17 [#001---2026-11-17]
 
-### Bug Fixes [#bug-fixes-2]
+### Bug Fixes [#bug-fixes-3]
 
 - **ui:** Fall back to Fusion Quick Controls style when org.kde.desktop is missing ([97340c6](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/97340c63f9b220ca1f0c4d0fb4406788c7c8508a))
 
@@ -189,25 +231,25 @@ All notable changes to this project will be documented in this file.
 
 - **release:** Release only on release PR merge and run release before release-pr ([617fb58](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/617fb587e1bdae92e409c2bd2670c1732fc84a07))
 
-### CI / Workflows [#ci--workflows-2]
+### CI / Workflows [#ci--workflows-3]
 
 - **release:** Deploy website automatically after release assets upload ([67c1da1](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/67c1da13efd144ee518d8a253f3a31388f2cd3af))
 
 - **release:** Bundle Qt 6.8, Kirigami, and Wayland in AppImage ([6d274f5](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/6d274f5d9c06564dae400c1cfbf36dd217e5b5cc))
 
-### Documentation [#documentation-3]
+### Documentation [#documentation-4]
 
 - **ci:** Update CI workflow descriptions in README and AGENTS ([77326f8](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/77326f890e4db5d336bc339aac0d1faf7cdd668f))
 
 - **licenses:** Add LGPL/BSD SPDX texts, notices, and in-app attribution ([23ffe4e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/23ffe4e4becf4d2b17c0b8b6aff63029bd71d930))
 
-### Features [#features-3]
+### Features [#features-4]
 
 - **website:** Rework download page for two builds and checksums ([1f0ceac](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/1f0ceac5648f6398a198a5edcb46453cb7375b5b))
 
 - **packaging:** Bundle third-party licenses and library notices in AppImage ([9e994c2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/9e994c2b1242f52aba867d1779c66ad274ca39a9))
 
-### Miscellaneous [#miscellaneous-2]
+### Miscellaneous [#miscellaneous-3]
 
 - **reuse:** Cover generated CHANGELOG.md in REUSE.toml ([a734014](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/a73401491bd8a3aefb20edf7ab41f3c3eff12121))
 
@@ -219,7 +261,7 @@ All notable changes to this project will be documented in this file.
 
 ## [0.0.0] - 2026-11-17 [#000---2026-11-17]
 
-### Bug Fixes [#bug-fixes-3]
+### Bug Fixes [#bug-fixes-4]
 
 - **qml:** Wrap rootColumn in Item inside Kirigami.ScrollablePage ([854d292](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/854d2921f457892193f098f9ca68238b3ea6b053))
 
@@ -253,7 +295,7 @@ All notable changes to this project will be documented in this file.
 
 - **packaging:** Bundle hicolor icons and installer in tarball and AppDir ([0661bf2](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/0661bf21a37eeef8466a0cde0d12f9833caa0a22))
 
-### CI / Workflows [#ci--workflows-3]
+### CI / Workflows [#ci--workflows-4]
 
 - **github:** Add manual Ubuntu 24.04 build, test, and coverage workflow ([2edf931](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/2edf931d5d40f76ad5b071e6fa2b7d89df9d174b))
 
@@ -271,7 +313,7 @@ All notable changes to this project will be documented in this file.
 
 - **workflows:** Enable automatic PR, release, cache, and Pages triggers ([e8edfa5](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/e8edfa5a807427e5df0ff12ace50015c4ccbf546))
 
-### Documentation [#documentation-4]
+### Documentation [#documentation-5]
 
 - **agents:** Document current architecture and git workflow rules ([89928d7](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/89928d7bfb9baf81722a7ff9e8bc0cb4c4888b38))
 
@@ -309,7 +351,7 @@ All notable changes to this project will be documented in this file.
 
 - Document desktop icon installation and update AGENTS file map ([1eebf53](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/1eebf5384e987d933ed60e0b8521e5f838f2320e))
 
-### Features [#features-4]
+### Features [#features-5]
 
 - **gui:** Add headless snapshot_adapter for UiSnapshot and file URL mapping ([6f0f658](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/6f0f658a1b2b781671d8d31c7bfa8847dbd68be8))
 
@@ -349,7 +391,7 @@ All notable changes to this project will be documented in this file.
 
 - **website:** Wire navbar logo, favicons, and web manifest with basePath ([a7cf446](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/a7cf4465aa9cada113f92489beda49c9a12b82f9))
 
-### Miscellaneous [#miscellaneous-3]
+### Miscellaneous [#miscellaneous-4]
 
 - **git:** Add hooks enforcing branch protection and conventional commits ([8de382e](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/8de382eb781fc009159d97857b5465ae434d8a8d))
 
@@ -399,7 +441,7 @@ All notable changes to this project will be documented in this file.
 
 - **app:** Expose snapshot_adapter via lib.rs for integration tests ([5108e71](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/5108e71d50293da3b8864df1cc7342dbecb941ad))
 
-### Testing [#testing-3]
+### Testing [#testing-4]
 
 - **app:** Extract snapshot_adapter unit tests into src/tests ([5504295](https://github.com/Azorimor/linux-dualsense-fw-updater/commit/5504295c896e761348e334b2d6daa6b0b780b0b7))
 

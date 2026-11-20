@@ -2,4 +2,4 @@
 :HL["/linux-dualsense-fw-updater/favicon.svg","image"]
 2:[["children",{"s":"__PAGE__","h":160}]]
 1:[["children",{"s":"supported-hardware","h":96,"c":"$Q2"}]]
-0:{"b":"ODxS3I0OXe9FoVZni7t9K","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
+0:{"b":"yqKtOYYf1AQvgoPWkNSIr","t":{"t":{"s":"","h":80,"c":"$Q1"}}}

@@ -3,9 +3,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::licenses::{
-    CrateMetadata, CrateNotice, LockPackage, bundled_licenses_text, contains_notice_for,
-    format_application_license, format_license_bundle, is_full_release_bundle,
-    parse_cargo_lock_packages, parse_crate_package_metadata, third_party_crate_entries,
+    CrateMetadata, CrateNotice, FallbackLicenseTemplates, LockPackage, bundled_licenses_text,
+    contains_notice_for, extract_spdx_copyright_holders, format_application_license,
+    format_license_bundle, is_excluded_fixture_dir, is_full_release_bundle, is_license_filename,
+    known_crate_copyright_holder, parse_cargo_lock_packages, parse_cargo_tree_packages,
+    parse_crate_package_metadata, synthesize_fallback_license_texts, third_party_crate_entries,
+    validate_release_notices,
 };
 
 #[test]
@@ -54,6 +57,134 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
             },
         ]
     );
+}
+
+#[test]
+fn parse_cargo_tree_packages_deduplicates_and_skips_workspace_paths() {
+    let tree = r#"
+dualsense-updater v0.0.3 (/home/dev/repo)
+dualsense-ui v0.0.3 (/home/dev/repo/crates/dualsense-ui)
+hidapi v2.6.4
+ring v0.17.14
+ring v0.17.14 (*)
+cxx-qt-macro v0.10.0 (proc-macro)
+tokio v1.54.1
+"#;
+
+    assert_eq!(
+        parse_cargo_tree_packages(tree),
+        vec![
+            ("cxx-qt-macro".to_string(), "0.10.0".to_string()),
+            ("hidapi".to_string(), "2.6.4".to_string()),
+            ("ring".to_string(), "0.17.14".to_string()),
+            ("tokio".to_string(), "1.54.1".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn license_filename_and_fixture_dir_filters_match_expected_files() {
+    for valid in [
+        "LICENSE",
+        "LICENSE.txt",
+        "LICENSE-bsd.txt",
+        "LICENSE-UNICODE",
+        "COPYING",
+        "NOTICE",
+        "COPYRIGHT",
+        "UNLICENSE",
+    ] {
+        assert!(is_license_filename(valid), "expected match for {valid}");
+    }
+    for invalid in ["README.md", "cfgs.rs.license", "lib.rs", "Cargo.toml"] {
+        assert!(
+            !is_license_filename(invalid),
+            "did not expect match for {invalid}"
+        );
+    }
+
+    for skipped in [
+        "tests",
+        "test_inputs",
+        "test_outputs",
+        "benches",
+        "examples",
+        "fuzz",
+        ".github",
+        "docs",
+    ] {
+        assert!(
+            is_excluded_fixture_dir(skipped),
+            "expected excluded dir: {skipped}"
+        );
+    }
+    for kept in ["etc", "hidapi", "third_party", "fiat", "src", "polyfill"] {
+        assert!(
+            !is_excluded_fixture_dir(kept),
+            "expected included dir: {kept}"
+        );
+    }
+}
+
+#[test]
+fn spdx_copyright_extraction_and_fallback_synthesis_cover_kdab_crates() {
+    let src = r#"
+// SPDX-FileCopyrightText: 2023 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+// SPDX-FileCopyrightText: 2023 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>
+// SPDX-License-Identifier: MIT OR Apache-2.0
+"#;
+    let holders = extract_spdx_copyright_holders(src);
+    assert_eq!(
+        holders,
+        vec!["2023 Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>".to_string()]
+    );
+    assert_eq!(
+        known_crate_copyright_holder("cxx-qt"),
+        Some("Klarälvdalens Datakonsult AB, a KDAB Group company <info@kdab.com>")
+    );
+    assert_eq!(known_crate_copyright_holder("unknown-crate"), None);
+
+    let templates = FallbackLicenseTemplates {
+        mit: "MIT BODY",
+        apache2: "APACHE2 BODY",
+        bsd3: "BSD3 BODY",
+    };
+    let generated =
+        synthesize_fallback_license_texts("cxx-qt-lib", Some("MIT OR Apache-2.0"), &[], &templates);
+    assert_eq!(generated.len(), 2);
+    assert_eq!(generated[0].0, "LICENSE-MIT (fallback notice)");
+    assert!(generated[0].1.contains("Klarälvdalens Datakonsult AB"));
+    assert!(generated[0].1.contains("MIT BODY"));
+    assert_eq!(generated[1].0, "LICENSE-APACHE (fallback notice)");
+    assert!(generated[1].1.contains("APACHE2 BODY"));
+}
+
+#[test]
+fn validate_release_notices_rejects_missing_metadata_or_texts() {
+    assert!(validate_release_notices(&[]).is_err());
+
+    let valid = vec![CrateNotice {
+        name: "hidapi".to_string(),
+        version: "2.6.4".to_string(),
+        metadata: CrateMetadata {
+            license: Some("MIT".to_string()),
+            license_file: None,
+            repository: None,
+        },
+        license_texts: vec![("LICENSE.txt".to_string(), "MIT text".to_string())],
+    }];
+    assert!(validate_release_notices(&valid).is_ok());
+
+    let missing_both = vec![CrateNotice {
+        name: "broken".to_string(),
+        version: "0.1.0".to_string(),
+        metadata: CrateMetadata::default(),
+        license_texts: Vec::new(),
+    }];
+    let errs = validate_release_notices(&missing_both).unwrap_err();
+    assert_eq!(errs.len(), 2);
+    assert!(errs[0].contains("missing license metadata"));
+    assert!(errs[1].contains("missing license/copyright text"));
 }
 
 #[test]
@@ -112,15 +243,18 @@ fn format_license_bundle_renders_full_and_summary_modes() {
     assert!(summary.contains("Root text"));
     assert!(summary.contains("Qt 6"));
     assert!(summary.contains("LGPL-3.0-only"));
-    assert!(summary.contains("download.qt.io/official_releases/qt/6.8/6.8.3"));
+    assert!(!summary.contains("Qt ShaderTools"));
+    assert!(!summary.contains("qt-everywhere-src-6.8.3"));
+    assert!(!summary.contains("kirigami-6.10.0"));
     assert!(summary.contains("KDE Kirigami"));
     assert!(summary.contains("KDE Frameworks 6 Kirigami"));
     assert!(summary.contains("LGPL-2.1-or-later"));
     assert!(summary.contains("BSD-3-Clause"));
-    assert!(summary.contains("download.kde.org/stable/frameworks/6.10/kirigami-6.10.0.tar.xz"));
+    assert!(summary.contains("statically linked via the `hidapi` crate"));
+    assert!(summary.contains("libudev.so.1"));
+    assert!(summary.contains("optional local AppImage builds"));
     assert!(summary.contains("--appimage-extract"));
     assert!(summary.contains("azorimor@gmail.com"));
-    assert!(summary.contains("hidapi"));
     assert_eq!(
         third_party_crate_entries(&summary),
         vec![
@@ -149,7 +283,7 @@ fn format_application_license_preserves_gpl_and_mit_notices() {
 }
 
 #[test]
-fn generated_bundled_licenses_includes_root_system_and_core_crates() {
+fn generated_bundled_licenses_includes_target_crates_without_unspecified_entries() {
     let text = bundled_licenses_text();
     assert!(!text.is_empty());
     assert!(contains_notice_for(text, "GPL-3.0-or-later"));
@@ -162,11 +296,20 @@ fn generated_bundled_licenses_includes_root_system_and_core_crates() {
     assert!(contains_notice_for(text, "KDE Kirigami"));
     assert!(contains_notice_for(text, "LGPL-2.1-or-later"));
     assert!(contains_notice_for(text, "BSD-3-Clause"));
-    assert!(contains_notice_for(text, "qt-everywhere-src-6.8.3"));
-    assert!(contains_notice_for(text, "kirigami-6.10.0"));
-    assert!(contains_notice_for(text, "--appimage-extract"));
+    assert!(contains_notice_for(
+        text,
+        "statically linked via the `hidapi` crate"
+    ));
+    assert!(contains_notice_for(text, "libudev.so.1"));
     assert!(contains_notice_for(text, "hidapi"));
     assert!(contains_notice_for(text, "tokio"));
     assert!(contains_notice_for(text, "cxx-qt"));
+    assert!(contains_notice_for(text, "cxx-qt-lib"));
+    assert!(contains_notice_for(text, "ring"));
+    assert!(!contains_notice_for(text, "See license file / unspecified"));
+    assert!(!contains_notice_for(text, "windows-sys"));
+    assert!(!contains_notice_for(text, "Qt ShaderTools"));
+    assert!(!contains_notice_for(text, "qt-everywhere-src-6.8.3"));
+    assert!(!contains_notice_for(text, "kirigami-6.10.0"));
     assert!(!third_party_crate_entries(text).is_empty());
 }

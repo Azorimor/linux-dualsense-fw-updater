@@ -7,8 +7,11 @@
 include!(concat!(env!("OUT_DIR"), "/generated_licenses.rs"));
 
 pub use crate::license_report::{
-    CrateMetadata, CrateNotice, LockPackage, format_application_license, format_license_bundle,
-    parse_cargo_lock_packages, parse_crate_package_metadata,
+    CrateMetadata, CrateNotice, FallbackLicenseTemplates, LockPackage,
+    extract_spdx_copyright_holders, format_application_license, format_license_bundle,
+    is_excluded_fixture_dir, is_license_filename, known_crate_copyright_holder,
+    parse_cargo_lock_packages, parse_cargo_tree_packages, parse_crate_package_metadata,
+    synthesize_fallback_license_texts, validate_release_notices,
 };
 
 /// Returns the compile-time generated application and third-party license notice text.

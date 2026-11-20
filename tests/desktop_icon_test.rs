@@ -251,7 +251,10 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
         String::from_utf8_lossy(&status.stderr)
     );
 
-    let tarball = out_dir.join("linux-dualsense-fw-updater-v0.0.0-test-x86_64.tar.gz");
+    let host_arch = std::env::consts::ARCH;
+    let tarball = out_dir.join(format!(
+        "linux-dualsense-fw-updater-v0.0.0-test-{host_arch}.tar.gz"
+    ));
     assert!(tarball.is_file());
     let tar_list = Command::new("tar")
         .arg("-tzf")
@@ -260,7 +263,7 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
         .expect("list tarball contents");
     assert!(tar_list.status.success());
     let tar_entries = String::from_utf8_lossy(&tar_list.stdout);
-    let prefix = "linux-dualsense-fw-updater-v0.0.0-test-x86_64";
+    let prefix = format!("linux-dualsense-fw-updater-v0.0.0-test-{host_arch}");
     assert!(tar_entries.contains(&format!("{prefix}/dualsense-updater\n")));
     assert!(tar_entries.contains(&format!(
         "{prefix}/io.github.azorimor.linux_dualsense_fw_updater.desktop\n"
@@ -317,4 +320,94 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
                 .is_file()
         );
     }
+}
+
+#[test]
+fn package_tarball_and_compliance_verifier_support_aarch64_and_non_nul_rodata() {
+    let temp = TempDirGuard(create_temp_dir("package-aarch64"));
+    let dummy_bin = temp.0.join("dualsense-updater");
+    fs::write(&dummy_bin, "#!/usr/bin/env sh\nexit 0\n").expect("write dummy executable");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&dummy_bin)
+            .expect("stat dummy bin")
+            .permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&dummy_bin, perms).expect("chmod dummy bin");
+    }
+
+    let out_dir = temp.0.join("dist");
+    let script = repo_path("scripts/package-appimage.sh");
+    let status = Command::new("bash")
+        .env("ARCH", "arm64")
+        .arg(&script)
+        .arg("--tarball-only")
+        .arg(&dummy_bin)
+        .arg("v0.0.4-test")
+        .arg(&out_dir)
+        .output()
+        .expect("run package-appimage.sh --tarball-only with ARCH=arm64");
+    assert!(
+        status.status.success(),
+        "package-appimage.sh --tarball-only failed: {}",
+        String::from_utf8_lossy(&status.stderr)
+    );
+
+    let aarch64_tarball = out_dir.join("linux-dualsense-fw-updater-v0.0.4-test-aarch64.tar.gz");
+    assert!(aarch64_tarball.is_file());
+    let tar_list = Command::new("tar")
+        .arg("-tzf")
+        .arg(&aarch64_tarball)
+        .output()
+        .expect("list aarch64 tarball contents");
+    assert!(tar_list.status.success());
+    let tar_entries = String::from_utf8_lossy(&tar_list.stdout);
+    assert!(
+        tar_entries.contains("linux-dualsense-fw-updater-v0.0.4-test-aarch64/dualsense-updater\n")
+    );
+
+    let py_check = Command::new("python3")
+        .arg("-c")
+        .arg(
+            r#"
+import importlib.util, pathlib, sys
+spec = importlib.util.spec_from_file_location("v", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+assert mod.parse_tarball_arch("linux-dualsense-fw-updater-v0.0.4-aarch64.tar.gz") == (
+    "linux-dualsense-fw-updater-v0.0.4-aarch64", "aarch64"
+)
+assert mod.parse_tarball_arch("linux-dualsense-fw-updater-v0.0.4-x86_64.tar.gz") == (
+    "linux-dualsense-fw-updater-v0.0.4-x86_64", "x86_64"
+)
+assert mod.validate_elf_machine("  Machine:                           AArch64\n", "aarch64") == []
+assert mod.validate_elf_machine("  Machine:                           Advanced Micro Devices X86-64\n", "x86_64") == []
+assert mod.validate_elf_machine("  Machine:                           Advanced Micro Devices X86-64\n", "aarch64") != []
+
+arm_needed = ["ld-linux-aarch64.so.1", "libc.so.6", "libudev.so.1", "libQt6Core.so.6"]
+assert mod.validate_dt_needed(arm_needed, "aarch64") == []
+assert mod.validate_dt_needed(["ld-linux-x86-64.so.2", "libc.so.6", "libudev.so.1"], "aarch64") != []
+assert mod.validate_dt_needed(arm_needed + ["libhidapi-hidraw.so.0"], "aarch64") != []
+
+# Regression test for CI byte 0xcc immediately following non-NUL-terminated Rust &str in .rodata
+fake_rodata = (
+    b"\x80\xfe\xff"
+    + b"DualSense Firmware Updater (v0.0.4)\nbody text\n=== END OF THIRD-PARTY LICENSES ==="
+    + b"\xcc\xff\xfe\x80trailing binary data"
+)
+extracted = mod.extract_embedded_licenses_from_bytes(fake_rodata)
+assert extracted.startswith("DualSense Firmware Updater (v0.0.4)")
+assert extracted.endswith("=== END OF THIRD-PARTY LICENSES ===")
+"#,
+        )
+        .arg(repo_path("scripts/verify_tarball_compliance.py"))
+        .output()
+        .expect("run verify_tarball_compliance.py unit assertions");
+    assert!(
+        py_check.status.success(),
+        "verify_tarball_compliance.py unit assertions failed: {}",
+        String::from_utf8_lossy(&py_check.stderr)
+    );
 }

@@ -120,10 +120,10 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 ├── .githooks/                  # Enforced git hooks (pre-commit, commit-msg, pre-push)
 ├── .github/
 │   ├── ISSUE_TEMPLATE/         # GitHub issue templates (`flash_report.md` prefill target; others live on main)
-│   └── workflows/              # GitHub Actions workflows (Ubuntu 24.04)
-│       ├── ci.yml              # Fast prechecks -> Clippy, test+coverage, portable `.tar.gz` packaging & compliance gate
+│   └── workflows/              # GitHub Actions workflows (Ubuntu 24.04 + release-only ARM64)
+│       ├── ci.yml              # Fast prechecks & Clippy/test+coverage (`x86_64`) -> release-only `x86_64` + `aarch64` `.tar.gz` packaging & compliance gate
 │       ├── cleanup-pr-cache.yml # PR cache cleanup workflow
-│       ├── release.yml         # Release & SHA256SUMS `.tar.gz` artifact publishing workflow
+│       ├── release.yml         # Release & SHA256SUMS (`x86_64` + `aarch64` `.tar.gz`) artifact publishing workflow
 │       └── deploy-website.yml  # Fumadocs static site build & deploy workflow
 ├── .agents/                    # Antigravity lifecycle hooks
 ├── assets/                     # Brand SVGs (`logo.svg`, `logo-symbol.svg`), Vectorcraft source, & GUI screenshots (`assets/desktop/` -> `packaging/linux/icons/`, `assets/web/` -> `website/public/`)
@@ -134,9 +134,9 @@ Every commit message **must** follow [Conventional Commits v1.0.0](https://www.c
 │       └── icons/              # Canonical app icons (`16x16`..`512x512/icon.png` + `scalable/icon.svg`; moved from `assets/desktop`)
 ├── scripts/
 │   ├── coverage.sh             # cargo-llvm-cov HTML & LCOV report script
-│   ├── package-appimage.sh     # Portable `.tar.gz` (CI) & optional local `.AppImage` packager (`--tarball-only`/`--appimage-only`, desktop entry, icons, `install-desktop.sh`)
+│   ├── package-appimage.sh     # Arch-aware portable `.tar.gz` (CI) & optional local `.AppImage` packager (`--tarball-only`/`--appimage-only`, desktop entry, icons, `install-desktop.sh`)
 │   ├── verify_structural_rules.py # Checks file length, test layout, SPDX headers, & AGENTS.md paths
-│   └── verify_tarball_compliance.py # Verifies `.tar.gz` layout, host `DT_NEEDED` libs, and release-embedded crate notices
+│   └── verify_tarball_compliance.py # Verifies `x86_64`/`aarch64` `.tar.gz` layout, ELF arch, host `DT_NEEDED` libs, and release-embedded crate notices
 ├── website/                    # Fumadocs / Next.js static documentation website
 │   └── public/                 # Static web brand assets (`favicon.svg`, `favicon-16x16.png`, `favicon-32x32.png`, `favicon-48x48.png`, `icon-192x192.png`, `icon-512x512.png`, `apple-touch-icon.png`, `site.webmanifest`; moved from `assets/web`)
 ├── crates/

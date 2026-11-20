@@ -1,0 +1,49 @@
+---
+title: Privacy Policy
+description: Privacy policy for the Unofficial Linux DualSense Firmware Updater website, browser USB checker, and Linux desktop application.
+---
+
+{/*
+SPDX-FileCopyrightText: 2026 Azorimor <azorimor@gmail.com>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+*/}
+
+{/*
+  Edit this Markdown file (`website/content/pages/privacy.mdx`) directly to
+  update the Privacy Policy shown at `/privacy`.
+*/}
+
+*Last updated: November 2026*
+
+This Privacy Policy describes how information is handled when you visit this documentation website or use the **Unofficial Linux DualSense Firmware Updater** desktop application.
+
+## 1. Website Data & Tracking
+
+This website is a static documentation site. It does **not** use cookies, advertising networks, behavioral tracking, or third-party analytics scripts.
+
+## 2. Hosting (GitHub Pages)
+
+This website is hosted on **GitHub Pages** (operated by GitHub, Inc.). When you access the site, GitHub may process technical server log data — such as your IP address, browser user agent, referrer, and requested page — to deliver the website and maintain service security. For details, see the [GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
+
+## 3. Browser USB Controller Checker (WebHID)
+
+The interactive hardware checker on the [Supported Hardware](/supported-hardware) page uses your browser&apos;s WebHID API to read DualSense hardware revision metadata directly from a USB-connected controller. All inspection runs **100% locally in your browser** — controller data is never transmitted to or stored by any server.
+
+## 4. Desktop Application Network Requests
+
+The Linux desktop application (`dualsense-updater`) runs locally on your computer and does not collect telemetry or usage analytics.
+
+- **Official Sony firmware lookup & downloads:** When you check for updates or download official firmware, the application connects directly to Sony Interactive Entertainment&apos;s public firmware distribution servers (`fwupdater.dl.playstation.net`). Those requests are subject to Sony&apos;s privacy practices.
+- **Optional Flash Run Reports:** After an update completes or fails, the app can optionally pre-fill a GitHub Issue template with anonymized OS, controller board revision, firmware version, and error metrics (controller serial numbers and local file paths are never included). Nothing is sent automatically; submission occurs only if you explicitly open and post the issue on GitHub.
+
+## 5. External Links
+
+This website contains links to external sites (such as GitHub and Sony documentation/download endpoints). Those external websites operate under their own privacy policies.
+
+## 6. Contact
+
+If you have questions regarding privacy for this project, you can reach the maintainer via:
+
+- **Email:** [azorimor@gmail.com](mailto:azorimor@gmail.com)
+- **GitHub Issues:** [Azorimor/linux-dualsense-fw-updater/issues](https://github.com/Azorimor/linux-dualsense-fw-updater/issues)

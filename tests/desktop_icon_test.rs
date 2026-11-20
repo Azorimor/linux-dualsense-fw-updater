@@ -270,6 +270,7 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
     assert!(tar_entries.contains(&format!("{prefix}/THIRD_PARTY_NOTICES.txt\n")));
     assert!(tar_entries.contains(&format!("{prefix}/LICENSES/GPL-3.0-or-later.txt\n")));
     assert!(tar_entries.contains(&format!("{prefix}/LICENSES/MIT.txt\n")));
+    assert!(tar_entries.contains(&format!("{prefix}/LICENSES/Apache-2.0.txt\n")));
     assert!(tar_entries.contains(&format!("{prefix}/LICENSES/LGPL-3.0-only.txt\n")));
     assert!(tar_entries.contains(&format!("{prefix}/LICENSES/LGPL-2.1-or-later.txt\n")));
     assert!(tar_entries.contains(&format!("{prefix}/LICENSES/LGPL-2.0-or-later.txt\n")));
@@ -290,6 +291,7 @@ fn package_appimage_stage_only_bundles_tarball_and_appdir_icons() {
     for expected_license in [
         "GPL-3.0-or-later.txt",
         "MIT.txt",
+        "Apache-2.0.txt",
         "LGPL-3.0-only.txt",
         "LGPL-2.1-or-later.txt",
         "LGPL-2.0-or-later.txt",

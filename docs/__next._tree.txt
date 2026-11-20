@@ -1,6 +1,6 @@
-:HL["/linux-dualsense-fw-updater/_next/static/chunks/041vq_fl578r6.css","style"]
+:HL["/linux-dualsense-fw-updater/_next/static/chunks/194e3daj27y_g.css","style"]
 :HL["/linux-dualsense-fw-updater/favicon.svg","image"]
 3:[["children",{"s":"__PAGE__","h":160}]]
 2:[["children",{"s":{"n":"slug","t":"oc","k":"","s":[]},"h":96,"c":"$Q3"}]]
 1:[["children",{"s":"docs","h":96,"c":"$Q2"}]]
-0:{"b":"Sm0GtYcUm118-rGQKKamk","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
+0:{"b":"ODxS3I0OXe9FoVZni7t9K","t":{"t":{"s":"","h":80,"c":"$Q1"}}}

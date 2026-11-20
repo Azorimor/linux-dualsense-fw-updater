@@ -1,7 +1,7 @@
 # Documentation
 
 - [Overview](/linux-dualsense-fw-updater/llms.mdx/docs.md): Documentation for the Unofficial Linux DualSense Firmware Updater, covering the 4-step update workflow, USB requirements, and key features.
-- [Getting Started & Installation](/linux-dualsense-fw-updater/llms.mdx/docs/getting-started.md): Install the Unofficial Linux DualSense Firmware Updater using the recommended portable .tar.gz archive, AppImage, or by building from source.
+- [Getting Started & Installation](/linux-dualsense-fw-updater/llms.mdx/docs/getting-started.md): Install the Unofficial Linux DualSense Firmware Updater using portable x86_64 or aarch64 (.tar.gz) archives, or by building from source.
 - [Safety, USB Permissions & Troubleshooting](/linux-dualsense-fw-updater/llms.mdx/docs/safety-and-troubleshooting.md): Firmware safety precautions, Linux udev rules for DualSense USB permissions, and troubleshooting tips for common update issues.
 - [Changelog](/linux-dualsense-fw-updater/llms.mdx/docs/changelog.md): Release history, version notes, and notable changes for the Unofficial Linux DualSense Firmware Updater on Linux.
-- [Licenses & Acknowledgments](/linux-dualsense-fw-updater/llms.mdx/docs/licenses.md): GPL-3.0-or-later project license, original MIT attribution to nchie, and third-party open-source credits for DualSense Firmware Updater.
+- [Licenses & Acknowledgments](/linux-dualsense-fw-updater/llms.mdx/docs/licenses.md): Attribution to nchie's original project and links to the canonical license and third-party notice files on GitHub.

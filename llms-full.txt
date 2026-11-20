@@ -411,25 +411,30 @@ All notable changes to this project will be documented in this file.
 
 # Getting Started & Installation (/docs/getting-started)
 
-## Option 1: Portable Archive (`.tar.gz`) — Recommended [#option-1-portable-archive-targz--recommended]
+## Option 1: Portable Archive (`.tar.gz`) [#option-1-portable-archive-targz]
 
-Pre-built x86_64 portable `.tar.gz` archives (recommended) and AppImage releases are available via the [Download](/download) page (requiring safety acknowledgment) and on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases).
+Pre-built portable `.tar.gz` archives for both **`x86_64` (Intel / AMD)** and **`aarch64` (ARM64)** Linux are available via the [Download](/download) page (requiring safety acknowledgment) and on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases).
 
-Extract the archive and run the application directly:
+Check your CPU architecture with `uname -m`, download the matching archive, extract it, and run the application directly:
 
 ```sh
-tar -xzf linux-dualsense-fw-updater-*-x86_64.tar.gz
-cd linux-dualsense-fw-updater-*-x86_64
+# Replace <arch> with x86_64 or aarch64
+tar -xzf linux-dualsense-fw-updater-*-<arch>.tar.gz
+cd linux-dualsense-fw-updater-*-<arch>
 ./dualsense-updater
 ```
 
 Optionally install the desktop menu entry and application icons for your user account (or system-wide / uninstall later):
 
 ```sh
-./install-desktop.sh           # Install for current user (~/.local/share)
+./install-desktop.sh                # Install for current user (~/.local/share)
 sudo ./install-desktop.sh --system  # Optional: install system-wide (/usr/local/share)
 ./install-desktop.sh --uninstall    # Remove installed desktop entry and icons
 ```
+
+> [!INFO] Official Distribution Policy
+>
+> Official releases are published only as portable `.tar.gz` archives on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases). Any third-party store or distribution packages (such as Flatpak, AUR, or Snap) are community-maintained.
 
 > [!INFO] Wired USB Connection Required
 >
@@ -472,22 +477,11 @@ sudo zypper install kf6-kirigami kf6-qqc2-desktop-style
 
 #### Theme & Styling Behavior [#theme--styling-behavior]
 
-If the native KDE desktop style (`org.kde.desktop`) is not installed or unavailable on your system, the application will still run by automatically falling back to Qt's built-in `Fusion` theme. You can also force a specific Qt Quick Controls style by setting the `QT_QUICK_CONTROLS_STYLE` environment variable before launching the app (for example: `QT_QUICK_CONTROLS_STYLE=Fusion ./your-app`).
+If the native KDE desktop style (`org.kde.desktop`) is not installed or unavailable on your system, the application will still run by automatically falling back to Qt's built-in `Fusion` theme. You can also force a specific Qt Quick Controls style by setting the `QT_QUICK_CONTROLS_STYLE` environment variable before launching the app (for example: `QT_QUICK_CONTROLS_STYLE=Fusion ./dualsense-updater`).
 
 ---
 
-## Option 2: AppImage (Alternative) [#option-2-appimage-alternative]
-
-If you prefer a single self-contained executable with a bundled Qt 6 + Kirigami runtime, download the `.AppImage` release instead:
-
-```sh
-chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
-./linux-dualsense-fw-updater-*-x86_64.AppImage
-```
-
----
-
-## Option 3: Build from Source [#option-3-build-from-source]
+## Option 2: Build from Source [#option-2-build-from-source]
 
 ### Prerequisites [#prerequisites]
 
@@ -495,7 +489,7 @@ chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
 - **`mold` linker** (configured for Linux targets in `.cargo/config.toml`)
 - **Qt 6** development packages (`Qt6Core`, `Qt6Gui`, `Qt6Qml`, `Qt6Quick`, `Qt6QuickControls2`, and `qmake6`)
 - **KDE Frameworks 6** QML modules (`Kirigami` and `qqc2-desktop-style`)
-- **`hidapi`** development library (`libhidapi-dev` / `hidapi`) and `pkg-config`
+- **Linux USB / GL development libraries**: `libudev-dev` (used by the statically compiled `hidapi` backend), `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, and `pkg-config`
 
 ### Build & Run [#build--run]
 
@@ -541,30 +535,25 @@ The desktop GUI walks you through four stages while monitoring USB connection st
 
 # Licenses & Acknowledgments (/docs/licenses)
 
-## Project License [#project-license]
+## Upstream Attribution [#upstream-attribution]
 
-**Unofficial Linux DualSense Firmware Updater** is licensed under the **GNU General Public License v3.0 or later (`GPL-3.0-or-later`)** and follows the [FSFE REUSE](https://reuse.software/) specification. Full license texts live in `LICENSES/GPL-3.0-or-later.txt` and `LICENSES/MIT.txt`.
-
-```text
-Copyright (C) 2026 Azorimor <azorimor@gmail.com>
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-```
-
-The core DualSense USB HID protocol implementation, firmware image validation, and update state machine logic in `dualsense-core` are adapted from [nchie&apos;s original CLI project](https://github.com/nchie/dualsense-updater-rs) and remain licensed under **`MIT AND GPL-3.0-or-later`**:
+The core DualSense USB HID protocol implementation, firmware image validation, and update state machine logic in `crates/dualsense-core` are built on top of **[nchie&apos;s original CLI project](https://github.com/nchie/dualsense-updater-rs)** under the MIT License and remain licensed under **`MIT AND GPL-3.0-or-later`**:
 
 ```text
 Copyright (c) 2026 nchie
 Copyright (c) 2026 Azorimor
 ```
 
-## Acknowledgments [#acknowledgments]
+## Full Licenses & Third-Party Notices [#full-licenses--third-party-notices]
 
-- **[nchie](https://github.com/nchie/dualsense-updater-rs)** &mdash; The core DualSense USB HID protocol implementation, firmware image validation, and update state machine logic in `dualsense-core` are adapted from nchie&apos;s original CLI project under the MIT License.
-- **Open-Source Ecosystem** &mdash; Built with Rust, `hidapi`, `tokio`, `ureq`, `cxx-qt`, Qt 6, KDE Frameworks 6 Kirigami, and documented with Next.js and Fumadocs. Full dependency license notices are also accessible directly inside the desktop application via the built-in Licenses dialog.
+To keep licensing information in a single canonical place, all full license texts, third-party notices, and dependency metadata are maintained directly in the GitHub repository:
+
+- **[`LICENSES/` directory](https://github.com/Azorimor/linux-dualsense-fw-updater/tree/main/LICENSES)** &mdash; Full SPDX license texts (`GPL-3.0-or-later`, `MIT`, `Apache-2.0`, `LGPL-*`, `BSD-3-Clause`).
+- **[`packaging/linux/THIRD_PARTY_NOTICES.txt`](https://github.com/Azorimor/linux-dualsense-fw-updater/blob/main/packaging/linux/THIRD_PARTY_NOTICES.txt)** &mdash; Third-party library notices and Corresponding Source availability.
+- **[`REUSE.toml`](https://github.com/Azorimor/linux-dualsense-fw-updater/blob/main/REUSE.toml)** &mdash; FSFE REUSE copyright and license annotations.
+- **[`deny.toml`](https://github.com/Azorimor/linux-dualsense-fw-updater/blob/main/deny.toml)** &amp; **[`Cargo.lock`](https://github.com/Azorimor/linux-dualsense-fw-updater/blob/main/Cargo.lock)** &mdash; Rust dependency license policy and locked crate list.
+
+Complete per-crate license notices are also bundled inside the desktop application under **Help &rarr; Licenses**.
 
 # Safety, USB Permissions & Troubleshooting (/docs/safety-and-troubleshooting)
 

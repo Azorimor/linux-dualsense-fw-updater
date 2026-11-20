@@ -1,24 +1,29 @@
 # Getting Started & Installation (/docs/getting-started)
 
-## Option 1: Portable Archive (`.tar.gz`) — Recommended [#option-1-portable-archive-targz--recommended]
+## Option 1: Portable Archive (`.tar.gz`) [#option-1-portable-archive-targz]
 
-Pre-built x86_64 portable `.tar.gz` archives (recommended) and AppImage releases are available via the [Download](/download) page (requiring safety acknowledgment) and on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases).
+Pre-built portable `.tar.gz` archives for both **`x86_64` (Intel / AMD)** and **`aarch64` (ARM64)** Linux are available via the [Download](/download) page (requiring safety acknowledgment) and on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases).
 
-Extract the archive and run the application directly:
+Check your CPU architecture with `uname -m`, download the matching archive, extract it, and run the application directly:
 
 ```sh
-tar -xzf linux-dualsense-fw-updater-*-x86_64.tar.gz
-cd linux-dualsense-fw-updater-*-x86_64
+# Replace <arch> with x86_64 or aarch64
+tar -xzf linux-dualsense-fw-updater-*-<arch>.tar.gz
+cd linux-dualsense-fw-updater-*-<arch>
 ./dualsense-updater
 ```
 
 Optionally install the desktop menu entry and application icons for your user account (or system-wide / uninstall later):
 
 ```sh
-./install-desktop.sh           # Install for current user (~/.local/share)
+./install-desktop.sh                # Install for current user (~/.local/share)
 sudo ./install-desktop.sh --system  # Optional: install system-wide (/usr/local/share)
 ./install-desktop.sh --uninstall    # Remove installed desktop entry and icons
 ```
+
+> [!INFO] Official Distribution Policy
+>
+> Official releases are published only as portable `.tar.gz` archives on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases). Any third-party store or distribution packages (such as Flatpak, AUR, or Snap) are community-maintained.
 
 > [!INFO] Wired USB Connection Required
 >
@@ -61,22 +66,11 @@ sudo zypper install kf6-kirigami kf6-qqc2-desktop-style
 
 #### Theme & Styling Behavior [#theme--styling-behavior]
 
-If the native KDE desktop style (`org.kde.desktop`) is not installed or unavailable on your system, the application will still run by automatically falling back to Qt's built-in `Fusion` theme. You can also force a specific Qt Quick Controls style by setting the `QT_QUICK_CONTROLS_STYLE` environment variable before launching the app (for example: `QT_QUICK_CONTROLS_STYLE=Fusion ./your-app`).
+If the native KDE desktop style (`org.kde.desktop`) is not installed or unavailable on your system, the application will still run by automatically falling back to Qt's built-in `Fusion` theme. You can also force a specific Qt Quick Controls style by setting the `QT_QUICK_CONTROLS_STYLE` environment variable before launching the app (for example: `QT_QUICK_CONTROLS_STYLE=Fusion ./dualsense-updater`).
 
 ---
 
-## Option 2: AppImage (Alternative) [#option-2-appimage-alternative]
-
-If you prefer a single self-contained executable with a bundled Qt 6 + Kirigami runtime, download the `.AppImage` release instead:
-
-```sh
-chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
-./linux-dualsense-fw-updater-*-x86_64.AppImage
-```
-
----
-
-## Option 3: Build from Source [#option-3-build-from-source]
+## Option 2: Build from Source [#option-2-build-from-source]
 
 ### Prerequisites [#prerequisites]
 
@@ -84,7 +78,7 @@ chmod +x linux-dualsense-fw-updater-*-x86_64.AppImage
 - **`mold` linker** (configured for Linux targets in `.cargo/config.toml`)
 - **Qt 6** development packages (`Qt6Core`, `Qt6Gui`, `Qt6Qml`, `Qt6Quick`, `Qt6QuickControls2`, and `qmake6`)
 - **KDE Frameworks 6** QML modules (`Kirigami` and `qqc2-desktop-style`)
-- **`hidapi`** development library (`libhidapi-dev` / `hidapi`) and `pkg-config`
+- **Linux USB / GL development libraries**: `libudev-dev` (used by the statically compiled `hidapi` backend), `libusb-1.0-0-dev`, `libgl-dev`, `libxkbcommon-dev`, and `pkg-config`
 
 ### Build & Run [#build--run]
 

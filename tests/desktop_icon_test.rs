@@ -368,6 +368,7 @@ fn package_tarball_and_compliance_verifier_support_aarch64_and_non_nul_rodata() 
     );
 
     let py_check = Command::new("python3")
+        .arg("-B")
         .arg("-c")
         .arg(
             r#"

@@ -41,14 +41,15 @@ Launch `dualsense-updater` and follow the four guided KDE Kirigami wizard steps:
 - **Built-in About & Licenses Windows**: Open **Help → About Unofficial DualSense Firmware Updater** for version info and project links (GitHub repository, website, issue tracker), or **Help → Licenses** to inspect the bundled third-party crate notices, `GPL-3.0-or-later` license text, and `nchie` MIT attribution.
 - **Optional Flash Run Reporting**: After a firmware update succeeds or fails, use **Flash Run Infos** or **Open GitHub Issue** to inspect or open a prefilled `[Flash Report]` GitHub issue containing anonymized OS, hardware revision, firmware version, and error metrics (never serial numbers or local file paths).
 
-## Installation (Prebuilt Portable Archive)
+## Installation (Prebuilt Portable Archives)
 
-Official [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases) distribute the portable single-binary `.tar.gz` archive (`x86_64`), which dynamically links against your host system's Qt 6, KDE Frameworks 6 Kirigami, and `libudev` libraries (prebuilt AppImages are not distributed via GitHub Releases; building an AppImage remains an optional local build from source below):
+Official [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases) distribute portable single-binary `.tar.gz` archives for both **`x86_64`** and **`aarch64` (ARM64)** Linux, dynamically linked against your host system's Qt 6, KDE Frameworks 6 Kirigami, and `libudev` libraries:
 
-- **Portable Tarball (`x86_64`)**:
+- **Portable Tarball (`x86_64` or `aarch64`)**:
   ```sh
-  tar -xzf linux-dualsense-fw-updater-<tag>-x86_64.tar.gz
-  cd linux-dualsense-fw-updater-<tag>-x86_64
+  # Replace <arch> with x86_64 or aarch64
+  tar -xzf linux-dualsense-fw-updater-<tag>-<arch>.tar.gz
+  cd linux-dualsense-fw-updater-<tag>-<arch>
   ./dualsense-updater
   ```
   To register the `.desktop` entry and hicolor icons (`16x16`–`512x512` + `scalable`) from the extracted tarball directory, run:
@@ -56,6 +57,8 @@ Official [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-update
   ./install-desktop.sh
   ```
   By default this installs into `${XDG_DATA_HOME:-$HOME/.local/share}` and points `Exec=` at `./dualsense-updater` when no `dualsense-updater` binary is already on `PATH`. Pass `--system` (with `sudo`) for `/usr/local/share`, `--prefix DIR`, `--exec PATH`, or `--uninstall` to remove the entry and icons.
+
+> **Official Distribution Policy:** Official releases are distributed **only** as portable `.tar.gz` archives on [GitHub Releases](https://github.com/Azorimor/linux-dualsense-fw-updater/releases) (prebuilt AppImages are not published; building an AppImage remains an optional local build from source below). Any third-party store or distribution packages (such as Flatpak, AUR, Snap, etc.) are community-maintained and not officially published by this project.
 
 > **USB Permissions (`udev`)**: On Linux, you may need udev rules granting your user read/write access to DualSense HID devices (`/dev/hidraw*` / USB vendor ID `054c`) to inspect or flash without root privileges.
 
@@ -220,4 +223,3 @@ Full license texts (`GPL-3.0-or-later.txt`, `MIT.txt`, `Apache-2.0.txt`, `LGPL-3
 - **Qt 6 (`LGPL-3.0-only` / `GPL-3.0-only`)**: https://code.qt.io/cgit/qt/
 - **KDE Frameworks Kirigami (`LGPL-2.0-or-later` / `LGPL-2.1-or-later` / `LGPL-3.0-only` / `BSD-3-Clause`)**: https://invent.kde.org/frameworks/kirigami
 - **hidapi (`BSD-3-Clause` / `GPL-3.0-only` / HIDAPI)**: https://github.com/libusb/hidapi
-- **Written source offer**: Complete Corresponding Source code is available via the repository above or upon written request (valid for at least 3 years) to `azorimor@gmail.com`. (If you build a local AppImage yourself via `scripts/package-appimage.sh`, bundled `.so` libraries can be inspected or relinked via `--appimage-extract`.)

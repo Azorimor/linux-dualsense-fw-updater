@@ -7,7 +7,7 @@
 include!(concat!(env!("OUT_DIR"), "/generated_licenses.rs"));
 
 pub use crate::license_report::{
-    CrateMetadata, CrateNotice, FallbackLicenseTemplates, LockPackage,
+    CrateMetadata, CrateNotice, FallbackLicenseTemplates, LICENSE_BUNDLE_END_MARKER, LockPackage,
     extract_spdx_copyright_holders, format_application_license, format_license_bundle,
     is_excluded_fixture_dir, is_license_filename, known_crate_copyright_holder,
     parse_cargo_lock_packages, parse_cargo_tree_packages, parse_crate_package_metadata,

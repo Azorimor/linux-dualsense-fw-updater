@@ -395,6 +395,20 @@ test('built static export satisfies SEO metadata, JSON-LD, verification, and cop
       true,
       `out/${relPath} JSON-LD must declare "@context": "https://schema.org"`,
     );
+
+    assert.match(
+      htmlNoScripts,
+      /<footer\b[^>]*aria-label="Site footer"[^>]*>[\s\S]*?href="\/linux-dualsense-fw-updater\/privacy\/"[\s\S]*?Privacy Policy[\s\S]*?<\/footer>/i,
+      `out/${relPath} must render SiteFooter with a Privacy Policy link`,
+    );
+
+    if (relPath.startsWith('docs/')) {
+      assert.match(
+        htmlNoScripts,
+        /<article\b[^>]*>[\s\S]*?<footer\b[^>]*aria-label="Site footer"[\s\S]*?<\/footer>[\s\S]*?<\/article>/i,
+        `out/${relPath} must place SiteFooter inside the documentation <article> column`,
+      );
+    }
   }
 
   const homeHtml = fs
@@ -418,11 +432,62 @@ test('built static export satisfies SEO metadata, JSON-LD, verification, and cop
     .readFileSync(path.join(OUT_DIR, 'download/index.html'), 'utf8')
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
   assert.ok(
-    downloadHtml.includes('Portable Archive (.tar.gz)'),
-    'out/download/index.html missing "Portable Archive (.tar.gz)"',
+    downloadHtml.includes('.tar.gz'),
+    'out/download/index.html missing ".tar.gz"',
   );
   assert.ok(
+    downloadHtml.includes('x86_64') && downloadHtml.includes('aarch64'),
+    'out/download/index.html must reference both x86_64 and aarch64 architectures',
+  );
+  assert.equal(
+    downloadHtml.includes('AppImage'),
+    false,
+    'out/download/index.html must not mention AppImage',
+  );
+  assert.equal(
     downloadHtml.includes('Recommended'),
-    'out/download/index.html must mark Portable Archive (.tar.gz) as Recommended',
+    false,
+    'out/download/index.html must not label an architecture build as Recommended',
+  );
+
+  const gettingStartedHtml = fs
+    .readFileSync(path.join(OUT_DIR, 'docs/getting-started/index.html'), 'utf8')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  assert.equal(
+    gettingStartedHtml.includes('AppImage'),
+    false,
+    'out/docs/getting-started/index.html must not mention AppImage',
+  );
+  assert.ok(
+    gettingStartedHtml.includes('x86_64') && gettingStartedHtml.includes('aarch64'),
+    'out/docs/getting-started/index.html must document both x86_64 and aarch64',
+  );
+
+  const licensesHtml = fs
+    .readFileSync(path.join(OUT_DIR, 'docs/licenses/index.html'), 'utf8')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  assert.ok(
+    licensesHtml.includes('github.com/nchie/dualsense-updater-rs'),
+    'out/docs/licenses/index.html must preserve nchie attribution',
+  );
+  assert.ok(
+    licensesHtml.includes('/tree/main/LICENSES'),
+    'out/docs/licenses/index.html must link to the GitHub LICENSES directory',
+  );
+  assert.ok(
+    licensesHtml.includes('THIRD_PARTY_NOTICES.txt'),
+    'out/docs/licenses/index.html must link to THIRD_PARTY_NOTICES.txt',
+  );
+
+  const privacyHtml = fs
+    .readFileSync(path.join(OUT_DIR, 'privacy/index.html'), 'utf8')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  assert.ok(
+    privacyHtml.includes('Privacy Policy'),
+    'out/privacy/index.html must render Privacy Policy content',
+  );
+  assert.ok(
+    privacyHtml.includes('GitHub Pages'),
+    'out/privacy/index.html must include hosting privacy notice',
   );
 });

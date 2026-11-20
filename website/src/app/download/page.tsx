@@ -5,6 +5,7 @@
 import type { Metadata } from 'next';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import { DownloadPanel } from '@/components/DownloadPanel';
+import { SiteFooter } from '@/components/SiteFooter';
 import { fetchLatestRelease } from '@/lib/github-release';
 import { BASE_PATH, baseOptions } from '@/lib/layout.shared';
 import { toCanonicalPageUrl } from '@/lib/llms-urls';
@@ -13,7 +14,7 @@ export const dynamic = 'force-static';
 
 const DOWNLOAD_TITLE = 'Download';
 const DOWNLOAD_DESCRIPTION =
-  'Download the recommended portable Linux archive (.tar.gz) or AppImage for the Unofficial Linux DualSense Firmware Updater.';
+  'Download portable Linux (.tar.gz) archives for x86_64 and aarch64 (ARM64) of the Unofficial Linux DualSense Firmware Updater.';
 const DOWNLOAD_CANONICAL_URL = toCanonicalPageUrl('/download');
 
 export const metadata: Metadata = {
@@ -99,6 +100,7 @@ export default async function DownloadPage() {
         />
         <DownloadPanel release={release} />
       </main>
+      <SiteFooter />
     </HomeLayout>
   );
 }

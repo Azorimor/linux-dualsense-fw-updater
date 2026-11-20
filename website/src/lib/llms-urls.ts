@@ -68,6 +68,11 @@ export function buildSitemapEntries(
       changeFrequency: 'weekly',
       priority: 0.9,
     },
+    {
+      url: toCanonicalPageUrl('/privacy', origin, basePath),
+      changeFrequency: 'weekly',
+      priority: 0.5,
+    },
   ];
 
   const seen = new Set(entries.map((entry) => entry.url));

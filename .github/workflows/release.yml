@@ -85,8 +85,9 @@ jobs:
       - name: Download Linux release artifacts
         uses: actions/download-artifact@v7
         with:
-          name: linux-release-artifacts
+          pattern: linux-release-artifacts-*
           path: dist
+          merge-multiple: true
 
       - name: Generate SHA256 checksums and upload to GitHub Release
         env:
@@ -104,12 +105,16 @@ jobs:
             TAG="${PLZ_TAG}"
           fi
           cd dist
-          sha256sum *.tar.gz > SHA256SUMS.txt
+          X86_TAR="linux-dualsense-fw-updater-${TAG}-x86_64.tar.gz"
+          ARM_TAR="linux-dualsense-fw-updater-${TAG}-aarch64.tar.gz"
+          test -f "$X86_TAR" || { echo "error: missing expected x86_64 release archive: $X86_TAR" >&2; exit 1; }
+          test -f "$ARM_TAR" || { echo "error: missing expected aarch64 release archive: $ARM_TAR" >&2; exit 1; }
+          sha256sum "$X86_TAR" "$ARM_TAR" > SHA256SUMS.txt
           ls -lh
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" *.tar.gz SHA256SUMS.txt --clobber
+            gh release upload "$TAG" "$X86_TAR" "$ARM_TAR" SHA256SUMS.txt --clobber
           else
-            gh release create "$TAG" *.tar.gz SHA256SUMS.txt \
+            gh release create "$TAG" "$X86_TAR" "$ARM_TAR" SHA256SUMS.txt \
               --title "$TAG" \
               --generate-notes
           fi

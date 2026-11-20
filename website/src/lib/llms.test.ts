@@ -100,6 +100,7 @@ test('toCanonicalPageUrl, toSiteAssetUrl, and buildSitemapEntries produce traili
       [`${SITE_ORIGIN}${SITE_BASE_PATH}/`, 1],
       [`${SITE_ORIGIN}${SITE_BASE_PATH}/download/`, 0.9],
       [`${SITE_ORIGIN}${SITE_BASE_PATH}/supported-hardware/`, 0.9],
+      [`${SITE_ORIGIN}${SITE_BASE_PATH}/privacy/`, 0.5],
       [`${SITE_ORIGIN}${SITE_BASE_PATH}/docs/`, 0.9],
       [`${SITE_ORIGIN}${SITE_BASE_PATH}/docs/getting-started/`, 0.8],
     ],
@@ -216,6 +217,10 @@ test('built static export generates llms.txt, llms-full.txt, and per-page markdo
       htmlRel: 'supported-hardware/index.html',
       ogRel: 'og/supported-hardware/image.png',
     },
+    {
+      htmlRel: 'privacy/index.html',
+      ogRel: 'og/privacy/image.png',
+    },
   ]) {
     const html = fs.readFileSync(path.join(OUT_DIR, htmlRel), 'utf8');
     const ogFullUrl = `${ORIGIN}${SITE_BASE_PATH}/${ogRel}`;
@@ -277,6 +282,7 @@ test('built static export generates llms.txt, llms-full.txt, and per-page markdo
     '/',
     '/download/',
     '/supported-hardware/',
+    '/privacy/',
     '/docs/',
     '/docs/getting-started/',
     '/docs/safety-and-troubleshooting/',

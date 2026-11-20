@@ -3,7 +3,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import path from 'node:path';
-import { defineConfig, defineDocs } from 'fumadocs-mdx/config';
+import { pageSchema } from 'fumadocs-core/source/schema';
+import {
+  defineCollections,
+  defineConfig,
+  defineDocs,
+} from 'fumadocs-mdx/config';
 import { remarkStripIncludedH1 } from './src/lib/remark-strip-included-h1';
 
 export const docs = defineDocs({
@@ -13,6 +18,12 @@ export const docs = defineDocs({
       includeProcessedMarkdown: true,
     },
   },
+});
+
+export const pages = defineCollections({
+  type: 'doc',
+  dir: 'content/pages',
+  schema: pageSchema,
 });
 
 export default defineConfig({

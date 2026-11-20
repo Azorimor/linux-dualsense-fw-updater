@@ -121,13 +121,26 @@ OUT_DIR_ABS="$(cd "${OUT_DIR}" && pwd)"
 BINARY_ABS="$(cd "$(dirname "${BINARY_PATH}")" && pwd)/$(basename "${BINARY_PATH}")"
 
 APP_NAME="linux-dualsense-fw-updater"
+RAW_ARCH="${ARCH:-$(uname -m)}"
+case "${RAW_ARCH}" in
+    x86_64|amd64)
+        ARCH="x86_64"
+        ;;
+    aarch64|arm64)
+        ARCH="aarch64"
+        ;;
+    *)
+        ARCH="${RAW_ARCH}"
+        ;;
+esac
+
 STAGE_ROOT="$(mktemp -d)"
 trap 'rm -rf "${STAGE_ROOT}"' EXIT
 
 # 1. Build portable .tar.gz release archive (unless --appimage-only)
-TAR_ARCHIVE="${OUT_DIR_ABS}/${APP_NAME}-${TAG}-x86_64.tar.gz"
+TAR_ARCHIVE="${OUT_DIR_ABS}/${APP_NAME}-${TAG}-${ARCH}.tar.gz"
 if [[ "${MODE}" != "appimage-only" ]]; then
-    TAR_STAGE="${STAGE_ROOT}/${APP_NAME}-${TAG}-x86_64"
+    TAR_STAGE="${STAGE_ROOT}/${APP_NAME}-${TAG}-${ARCH}"
     mkdir -p "${TAR_STAGE}"
     install -Dm755 "${BINARY_ABS}" "${TAR_STAGE}/dualsense-updater"
     for lic_file in "${REPO_ROOT}/LICENSES/"*.txt; do
@@ -144,7 +157,7 @@ if [[ "${MODE}" != "appimage-only" ]]; then
     done
     install -Dm644 "${SVG_ICON_FILE}" "${TAR_STAGE}/icons/scalable/icon.svg"
 
-    tar -C "${STAGE_ROOT}" -czf "${TAR_ARCHIVE}" "${APP_NAME}-${TAG}-x86_64"
+    tar -C "${STAGE_ROOT}" -czf "${TAR_ARCHIVE}" "${APP_NAME}-${TAG}-${ARCH}"
 fi
 
 if [[ "${MODE}" == "tarball-only" ]]; then
@@ -208,13 +221,13 @@ resolve_tool() {
 
 LINUXDEPLOY_BIN="$(resolve_tool \
     "${LINUXDEPLOY:-}" \
-    "linuxdeploy-x86_64.AppImage" \
-    "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage")"
+    "linuxdeploy-${ARCH}.AppImage" \
+    "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage")"
 
 LINUXDEPLOY_QT_BIN="$(resolve_tool \
     "${LINUXDEPLOY_PLUGIN_QT:-}" \
-    "linuxdeploy-plugin-qt-x86_64.AppImage" \
-    "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage")"
+    "linuxdeploy-plugin-qt-${ARCH}.AppImage" \
+    "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${ARCH}.AppImage")"
 
 # Ensure linuxdeploy discovers the Qt plugin binary in PATH.
 TOOLS_BIN_DIR="${STAGE_ROOT}/tools-bin"
@@ -367,7 +380,7 @@ if [[ -z "${EXTRA_PLATFORM_PLUGINS+x}" ]]; then
     fi
 fi
 
-export LDAI_OUTPUT="${OUT_DIR_ABS}/${APP_NAME}-${TAG}-x86_64.AppImage"
+export LDAI_OUTPUT="${OUT_DIR_ABS}/${APP_NAME}-${TAG}-${ARCH}.AppImage"
 WAYLAND_GFX_SRC="${EFFECTIVE_QT_PLUGINS}/wayland-graphics-integration-client"
 WAYLAND_GFX_SOS=()
 if [[ -d "${WAYLAND_GFX_SRC}" ]]; then
@@ -501,7 +514,7 @@ collect_appdir_library_notices "${APPDIR}" "${APPDIR_LICENSES_DIR}"
     --output appimage
 popd >/dev/null
 
-APPIMAGE_PATH="${OUT_DIR_ABS}/${APP_NAME}-${TAG}-x86_64.AppImage"
+APPIMAGE_PATH="${OUT_DIR_ABS}/${APP_NAME}-${TAG}-${ARCH}.AppImage"
 if [[ ! -f "${APPIMAGE_PATH}" ]]; then
     GENERATED="$(find "${STAGE_ROOT}" -maxdepth 1 -name '*.AppImage' | head -n1 || true)"
     if [[ -n "${GENERATED}" ]]; then

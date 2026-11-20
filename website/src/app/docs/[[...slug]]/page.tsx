@@ -9,10 +9,12 @@ import {
   DocsPage,
   DocsTitle,
   MarkdownCopyButton,
+  PageFooter,
   ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { SiteFooter } from '@/components/SiteFooter';
 import { REPO_URL } from '@/lib/layout.shared';
 import {
   SITE_ORIGIN,
@@ -63,7 +65,7 @@ export default async function Page(props: {
   ]);
 
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage toc={page.data.toc} full={page.data.full} footer={{ enabled: false }}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
@@ -77,6 +79,8 @@ export default async function Page(props: {
       <DocsBody>
         <MDX components={getMDXComponents()} />
       </DocsBody>
+      <PageFooter />
+      <SiteFooter variant="docs" />
     </DocsPage>
   );
 }

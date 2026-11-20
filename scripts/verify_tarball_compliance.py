@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Verify license compliance, contents, and dynamic links of a portable .tar.gz release."""
+"""Verify license compliance, contents, ELF arch, and dynamic links of a portable .tar.gz release."""
 
 from __future__ import annotations
 
@@ -38,9 +38,7 @@ REQUIRED_LICENSES = (
     "LGPL-2.0-or-later.txt",
 )
 
-ALLOWED_HOST_DT_NEEDED = {
-    "ld-linux-x86-64.so.2",
-    "ld-linux-aarch64.so.1",
+COMMON_ALLOWED_HOST_DT_NEEDED = {
     "libc.so.6",
     "libm.so.6",
     "libdl.so.2",
@@ -58,32 +56,109 @@ ALLOWED_HOST_DT_NEEDED = {
     "libQt6Widgets.so.6",
 }
 
+ARCH_DYNAMIC_LINKERS = {
+    "x86_64": "ld-linux-x86-64.so.2",
+    "aarch64": "ld-linux-aarch64.so.1",
+}
+
+ARCH_ELF_MACHINE_MARKERS = {
+    "x86_64": "X86-64",
+    "aarch64": "AArch64",
+}
+
+TARBALL_NAME_RE = re.compile(
+    r"^(linux-dualsense-fw-updater-.+-(x86_64|aarch64))\.tar\.gz$"
+)
+
+LICENSE_START_MARKER = b"DualSense Firmware Updater (v"
+LICENSE_END_MARKER = b"=== END OF THIRD-PARTY LICENSES ==="
+
+
+def parse_tarball_arch(tarball_name: str) -> tuple[str, str]:
+    """Return `(expected_top_dir, arch)` from a release tarball filename."""
+    match = TARBALL_NAME_RE.match(tarball_name)
+    if not match:
+        raise ValueError(
+            f"unexpected tarball filename (expected linux-dualsense-fw-updater-<tag>-<x86_64|aarch64>.tar.gz): {tarball_name}"
+        )
+    return match.group(1), match.group(2)
+
+
+def validate_elf_machine(readelf_header: str, arch: str) -> list[str]:
+    """Validate that `readelf -h` reports the ELF machine matching `arch`."""
+    expected = ARCH_ELF_MACHINE_MARKERS.get(arch)
+    if expected is None:
+        return [f"unsupported archive architecture: {arch}"]
+
+    machine_match = re.search(r"(?m)^\s*Machine:\s*(.+)$", readelf_header)
+    if not machine_match:
+        return ["could not parse ELF Machine field from readelf -h output"]
+
+    machine_value = machine_match.group(1).strip()
+    if expected not in machine_value:
+        return [
+            f"ELF machine mismatch for {arch} archive: expected '{expected}', found '{machine_value}'"
+        ]
+    return []
+
+
+def validate_dt_needed(dt_needed: list[str], arch: str) -> list[str]:
+    """Validate that `DT_NEEDED` libraries only reference expected host libraries for `arch`."""
+    errors: list[str] = []
+    if not dt_needed:
+        return ["no DT_NEEDED entries found in dualsense-updater binary"]
+
+    expected_linker = ARCH_DYNAMIC_LINKERS.get(arch)
+    if expected_linker is None:
+        return [f"unsupported archive architecture: {arch}"]
+
+    allowed = set(COMMON_ALLOWED_HOST_DT_NEEDED)
+    allowed.add(expected_linker)
+
+    unexpected_needed = [lib for lib in dt_needed if lib not in allowed]
+    if unexpected_needed:
+        errors.append(
+            f"unexpected DT_NEEDED shared libraries for {arch} release binary: {unexpected_needed}"
+        )
+    if "libudev.so.1" not in dt_needed:
+        errors.append("expected libudev.so.1 in DT_NEEDED (static hidapi-hidraw backend)")
+    if any("hidapi" in lib for lib in dt_needed):
+        errors.append(f"unexpected dynamic hidapi dependency in DT_NEEDED: {dt_needed}")
+    return errors
+
+
+def extract_embedded_licenses_from_bytes(data: bytes) -> str:
+    """Slice and decode the exact embedded BUNDLED_LICENSES_TEXT payload using explicit sentinels."""
+    idx = data.find(LICENSE_START_MARKER)
+    if idx == -1:
+        raise ValueError("embedded BUNDLED_LICENSES_TEXT start marker not found in binary")
+
+    end_idx = data.find(LICENSE_END_MARKER, idx)
+    if end_idx == -1:
+        raise ValueError(
+            "embedded BUNDLED_LICENSES_TEXT end marker not found in binary"
+        )
+
+    payload = data[idx : end_idx + len(LICENSE_END_MARKER)]
+    return payload.decode("utf-8", errors="strict")
+
 
 def extract_embedded_licenses(binary_path: pathlib.Path) -> str:
-    """Locate and decode the embedded BUNDLED_LICENSES_TEXT string inside the release binary."""
-    data = binary_path.read_bytes()
-    marker = b"DualSense Firmware Updater (v"
-    idx = data.find(marker)
-    if idx == -1:
-        raise ValueError("embedded BUNDLED_LICENSES_TEXT marker not found in binary")
-
-    # Bound scan to 4 MiB and stop at the first NUL or disallowed control byte.
-    chunk = data[idx : idx + 4 * 1024 * 1024]
-    end = len(chunk)
-    for offset, byte in enumerate(chunk):
-        if byte == 0 or (byte < 0x20 and byte not in (9, 10, 12, 13)):
-            end = offset
-            break
-
-    return chunk[:end].decode("utf-8", errors="strict")
+    """Read `binary_path` and decode the embedded BUNDLED_LICENSES_TEXT string."""
+    return extract_embedded_licenses_from_bytes(binary_path.read_bytes())
 
 
 def verify_tarball(tarball_path: pathlib.Path) -> list[str]:
-    """Run all compliance, layout, DT_NEEDED, and embedded-notice assertions."""
+    """Run all compliance, layout, ELF arch, DT_NEEDED, and embedded-notice assertions."""
     errors: list[str] = []
 
     if not tarball_path.is_file():
         return [f"tarball does not exist: {tarball_path}"]
+
+    try:
+        expected_top_dir, arch = parse_tarball_arch(tarball_path.name)
+    except ValueError as exc:
+        return [str(exc)]
 
     with tempfile.TemporaryDirectory(prefix="verify-tarball-") as tmp:
         tmp_dir = pathlib.Path(tmp)
@@ -98,8 +173,10 @@ def verify_tarball(tarball_path: pathlib.Path) -> list[str]:
                 if m.name and not m.name.startswith("/")
             }
         )
-        if len(top_dirs) != 1:
-            return [f"expected single top-level directory in tarball, found: {top_dirs}"]
+        if top_dirs != [expected_top_dir]:
+            return [
+                f"expected single top-level directory {expected_top_dir!r} in tarball, found: {top_dirs}"
+            ]
 
         root_dir = tmp_dir / top_dirs[0]
 
@@ -134,7 +211,16 @@ def verify_tarball(tarball_path: pathlib.Path) -> list[str]:
         if not binary_path.is_file():
             return errors
 
-        # 2. Verify DT_NEEDED entries only reference expected host system libraries.
+        # 2. Verify ELF header matches the tarball architecture.
+        try:
+            readelf_hdr = subprocess.check_output(
+                ["readelf", "-h", str(binary_path)], text=True
+            )
+            errors.extend(validate_elf_machine(readelf_hdr, arch))
+        except (OSError, subprocess.CalledProcessError) as exc:
+            errors.append(f"failed to inspect ELF header with readelf: {exc}")
+
+        # 3. Verify DT_NEEDED entries only reference expected host system libraries.
         try:
             readelf_out = subprocess.check_output(
                 ["readelf", "-d", str(binary_path)], text=True
@@ -146,21 +232,9 @@ def verify_tarball(tarball_path: pathlib.Path) -> list[str]:
         dt_needed = sorted(
             re.findall(r"\(NEEDED\)\s+Shared library: \[([^\]]+)\]", readelf_out)
         )
-        if not dt_needed:
-            errors.append("no DT_NEEDED entries found in dualsense-updater binary")
-        unexpected_needed = [lib for lib in dt_needed if lib not in ALLOWED_HOST_DT_NEEDED]
-        if unexpected_needed:
-            errors.append(
-                f"unexpected DT_NEEDED shared libraries in release binary: {unexpected_needed}"
-            )
-        if "libudev.so.1" not in dt_needed:
-            errors.append("expected libudev.so.1 in DT_NEEDED (static hidapi-hidraw backend)")
-        if any("hidapi" in lib for lib in dt_needed):
-            errors.append(
-                f"unexpected dynamic hidapi dependency in DT_NEEDED: {dt_needed}"
-            )
+        errors.extend(validate_dt_needed(dt_needed, arch))
 
-        # 3. Verify embedded BUNDLED_LICENSES_TEXT inside the compiled release binary.
+        # 4. Verify embedded BUNDLED_LICENSES_TEXT inside the compiled release binary.
         try:
             embedded = extract_embedded_licenses(binary_path)
         except ValueError as exc:
@@ -197,6 +271,7 @@ def verify_tarball(tarball_path: pathlib.Path) -> list[str]:
             "--- src/unicode_tables/LICENSE-UNICODE ---",
             "--- COPYRIGHT ---",
             "--- UNLICENSE ---",
+            "=== END OF THIRD-PARTY LICENSES ===",
         ]
         for marker in required_embedded_markers:
             if marker not in embedded:
@@ -212,7 +287,7 @@ def verify_tarball(tarball_path: pathlib.Path) -> list[str]:
 
         if not errors:
             print(
-                f"Tarball compliance verification PASSED ({tarball_path.name}: "
+                f"Tarball compliance verification PASSED ({tarball_path.name} [{arch}]: "
                 f"{len(dt_needed)} host DT_NEEDED libs, "
                 f"{crate_count} embedded Rust crates, "
                 f"{len(embedded)} bytes embedded notices)."

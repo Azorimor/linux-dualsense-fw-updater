@@ -8,6 +8,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
+  Cpu,
   Download,
   ExternalLink,
   FileCheck2,
@@ -28,30 +29,36 @@ interface DownloadPanelProps {
 
 interface BuildVariantMeta {
   title: string;
-  badge: string;
-  isRecommended: boolean;
+  archBadge: string;
   subtitle: string;
   buttonLabel: string;
 }
 
 function describeBuildVariant(asset: ReleaseAsset): BuildVariantMeta {
-  if (asset.kind === 'tarball') {
+  if (asset.arch === 'x86_64') {
     return {
-      title: 'Portable Archive (.tar.gz)',
-      badge: 'Recommended',
-      isRecommended: true,
+      title: 'Portable Archive — x86_64 (.tar.gz)',
+      archBadge: 'x86_64 (Intel / AMD)',
       subtitle:
-        'Extract and run right away on x86_64 Linux, or optionally add an app menu entry and icon with ./install-desktop.sh.',
-      buttonLabel: 'Download .tar.gz',
+        'For 64-bit Intel and AMD Linux PCs. Extract and run ./dualsense-updater, or add an app menu entry with ./install-desktop.sh.',
+      buttonLabel: 'Download x86_64 (.tar.gz)',
+    };
+  }
+  if (asset.arch === 'aarch64') {
+    return {
+      title: 'Portable Archive — aarch64 (.tar.gz)',
+      archBadge: 'aarch64 (ARM64)',
+      subtitle:
+        'For 64-bit ARM Linux devices (such as ARM laptops or Raspberry Pi). Extract and run ./dualsense-updater, or add an app menu entry with ./install-desktop.sh.',
+      buttonLabel: 'Download aarch64 (.tar.gz)',
     };
   }
   return {
-    title: 'Linux AppImage (x86_64)',
-    badge: 'Alternative',
-    isRecommended: false,
+    title: 'Portable Archive (.tar.gz)',
+    archBadge: 'Linux',
     subtitle:
-      'All-in-one executable file bundling its own graphics runtime and desktop icon (mark executable with chmod +x).',
-    buttonLabel: 'Download AppImage',
+      'Extract and run ./dualsense-updater, or optionally add an app menu entry and icon with ./install-desktop.sh.',
+    buttonLabel: 'Download .tar.gz',
   };
 }
 
@@ -63,31 +70,19 @@ function BuildDownloadCard({
   acknowledged: boolean;
 }) {
   const meta = describeBuildVariant(asset);
-  const Icon = asset.kind === 'tarball' ? Package : Download;
 
   return (
-    <div
-      className={
-        meta.isRecommended
-          ? 'flex flex-col justify-between gap-4 rounded-xl border border-fd-primary/50 bg-fd-background p-5'
-          : 'flex flex-col justify-between gap-4 rounded-xl border border-fd-border bg-fd-background p-5'
-      }
-    >
+    <div className="flex flex-col justify-between gap-4 rounded-xl border border-fd-border bg-fd-background p-5">
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 font-semibold text-fd-foreground">
-              <Icon className="size-4 shrink-0" aria-hidden="true" />
+              <Package className="size-4 shrink-0" aria-hidden="true" />
               <h3>{meta.title}</h3>
             </div>
-            <span
-              className={
-                meta.isRecommended
-                  ? 'inline-flex items-center rounded-md border border-fd-primary/30 bg-fd-primary/15 px-2 py-0.5 text-xs font-semibold text-fd-foreground'
-                  : 'inline-flex items-center rounded-md border border-fd-border bg-fd-secondary px-2 py-0.5 text-xs font-medium text-fd-muted-foreground'
-              }
-            >
-              {meta.badge}
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-secondary px-2 py-0.5 text-xs font-medium text-fd-secondary-foreground">
+              <Cpu className="size-3 shrink-0" aria-hidden="true" />
+              {meta.archBadge}
             </span>
           </div>
           <span className="shrink-0 rounded-md border border-fd-border bg-fd-secondary px-2 py-0.5 text-xs font-medium text-fd-secondary-foreground">
@@ -115,13 +110,9 @@ function BuildDownloadCard({
         <a
           href={asset.downloadUrl}
           rel="noreferrer"
-          className={
-            meta.isRecommended
-              ? 'inline-flex w-full items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-primary px-4 py-2.5 text-sm font-medium text-fd-primary-foreground transition-opacity hover:opacity-90'
-              : 'inline-flex w-full items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-secondary px-4 py-2.5 text-sm font-medium text-fd-secondary-foreground transition-colors hover:bg-fd-accent'
-          }
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-primary px-4 py-2.5 text-sm font-medium text-fd-primary-foreground transition-opacity hover:opacity-90"
         >
-          <Icon className="size-4 shrink-0" aria-hidden="true" />
+          <Download className="size-4 shrink-0" aria-hidden="true" />
           <span>{meta.buttonLabel}</span>
         </a>
       ) : (
@@ -131,7 +122,7 @@ function BuildDownloadCard({
           aria-disabled="true"
           className="inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-muted px-4 py-2.5 text-sm font-medium text-fd-muted-foreground opacity-55"
         >
-          <Icon className="size-4 shrink-0" aria-hidden="true" />
+          <Download className="size-4 shrink-0" aria-hidden="true" />
           <span>{meta.buttonLabel}</span>
         </button>
       )}
@@ -145,8 +136,8 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
   const partitioned = release ? partitionReleaseAssets(release.assets) : null;
   const buildAssets = partitioned
     ? [
-        ...(partitioned.tarball ? [partitioned.tarball] : []),
-        ...(partitioned.appimage ? [partitioned.appimage] : []),
+        ...(partitioned.x86_64 ? [partitioned.x86_64] : []),
+        ...(partitioned.aarch64 ? [partitioned.aarch64] : []),
         ...partitioned.otherBuilds,
       ]
     : [];
@@ -260,11 +251,15 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
               <div className="space-y-5">
                 <p className="text-sm text-fd-muted-foreground">
                   {acknowledged
-                    ? 'Acknowledgment confirmed. Choose the recommended portable archive or the alternative AppImage below:'
-                    : 'Check the acknowledgment box above to unlock both download buttons.'}
+                    ? 'Acknowledgment confirmed. Choose the portable .tar.gz archive matching your Linux CPU architecture below (run uname -m in a terminal if unsure):'
+                    : 'Check the acknowledgment box above to unlock the download buttons. Choose the portable .tar.gz archive matching your Linux CPU architecture (run uname -m if unsure).'}
                 </p>
-                <p className="text-sm">
-                  Downloads are served directly from GitHub.
+                <p className="text-xs text-fd-muted-foreground">
+                  Official releases are served directly from GitHub Releases as
+                  portable <code>.tar.gz</code> archives for{' '}
+                  <code>x86_64</code> and <code>aarch64</code> Linux. Any
+                  third-party store packages (Flatpak, AUR, Snap, etc.) are
+                  community-maintained.
                 </p>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -325,8 +320,8 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
               <div className="space-y-3 text-sm text-fd-muted-foreground">
                 <p>
                   Release <code>{release.tagName}</code> exists, but no
-                  pre-built Portable Archive (<code>.tar.gz</code>,{' '}
-                  Recommended), <code>.AppImage</code>, or{' '}
+                  pre-built Portable Archive (<code>.tar.gz</code>) for{' '}
+                  <code>x86_64</code> or <code>aarch64</code>, or{' '}
                   <code>SHA256SUMS.txt</code> files were found on it.
                 </p>
                 <button
@@ -349,10 +344,10 @@ export function DownloadPanel({ release }: DownloadPanelProps) {
               </h2>
               <p className="mt-1 text-sm text-fd-muted-foreground">
                 No tagged release is currently available for download. Once a
-                version tag is published, this page will list the Portable
-                Archive (<code>.tar.gz</code>, Recommended),{' '}
-                <code>.AppImage</code>, and <code>SHA256SUMS.txt</code> files
-                automatically.
+                version tag is published, this page will list the portable{' '}
+                <code>.tar.gz</code> archives for <code>x86_64</code> and{' '}
+                <code>aarch64</code> Linux along with{' '}
+                <code>SHA256SUMS.txt</code> automatically.
               </p>
             </div>
 

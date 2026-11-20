@@ -145,10 +145,18 @@ jobs:
           if-no-files-found: error
 
   build-linux:
-    name: Build & Package Linux Portable Tarball (Ubuntu 24.04)
+    name: Build & Package Linux Portable Tarball (${{ matrix.arch }})
     needs: check
     if: ${{ inputs.is_release == true }}
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
@@ -179,6 +187,8 @@ jobs:
 
       - name: Cache Rust dependencies and build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.arch }}
 
       - name: Resolve release tag
         run: |
@@ -192,17 +202,17 @@ jobs:
         run: |
           cargo build --release --locked
           readelf -p .comment target/release/dualsense-updater | grep -i mold
-          ./scripts/package-appimage.sh --tarball-only target/release/dualsense-updater "$RELEASE_TAG" dist
+          ARCH="${{ matrix.arch }}" ./scripts/package-appimage.sh --tarball-only target/release/dualsense-updater "$RELEASE_TAG" dist
 
       - name: Verify portable tarball license compliance and dynamic links
         run: |
-          TARBALL="$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)"
-          test -n "$TARBALL"
+          TARBALL="dist/linux-dualsense-fw-updater-${RELEASE_TAG}-${{ matrix.arch }}.tar.gz"
+          test -f "$TARBALL"
           python3 scripts/verify_tarball_compliance.py "$TARBALL"
 
-      - name: Upload Linux portable tarball release artifact (.tar.gz)
+      - name: Upload Linux portable tarball release artifact (${{ matrix.arch }})
         uses: actions/upload-artifact@v6
         with:
-          name: linux-release-artifacts
+          name: linux-release-artifacts-${{ matrix.arch }}
           path: dist/
           if-no-files-found: error

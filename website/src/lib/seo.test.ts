@@ -418,11 +418,50 @@ test('built static export satisfies SEO metadata, JSON-LD, verification, and cop
     .readFileSync(path.join(OUT_DIR, 'download/index.html'), 'utf8')
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
   assert.ok(
-    downloadHtml.includes('Portable Archive (.tar.gz)'),
-    'out/download/index.html missing "Portable Archive (.tar.gz)"',
+    downloadHtml.includes('.tar.gz'),
+    'out/download/index.html missing ".tar.gz"',
   );
   assert.ok(
+    downloadHtml.includes('x86_64') && downloadHtml.includes('aarch64'),
+    'out/download/index.html must reference both x86_64 and aarch64 architectures',
+  );
+  assert.equal(
+    downloadHtml.includes('AppImage'),
+    false,
+    'out/download/index.html must not mention AppImage',
+  );
+  assert.equal(
     downloadHtml.includes('Recommended'),
-    'out/download/index.html must mark Portable Archive (.tar.gz) as Recommended',
+    false,
+    'out/download/index.html must not label an architecture build as Recommended',
+  );
+
+  const gettingStartedHtml = fs
+    .readFileSync(path.join(OUT_DIR, 'docs/getting-started/index.html'), 'utf8')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  assert.equal(
+    gettingStartedHtml.includes('AppImage'),
+    false,
+    'out/docs/getting-started/index.html must not mention AppImage',
+  );
+  assert.ok(
+    gettingStartedHtml.includes('x86_64') && gettingStartedHtml.includes('aarch64'),
+    'out/docs/getting-started/index.html must document both x86_64 and aarch64',
+  );
+
+  const licensesHtml = fs
+    .readFileSync(path.join(OUT_DIR, 'docs/licenses/index.html'), 'utf8')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  assert.ok(
+    licensesHtml.includes('github.com/nchie/dualsense-updater-rs'),
+    'out/docs/licenses/index.html must preserve nchie attribution',
+  );
+  assert.ok(
+    licensesHtml.includes('/tree/main/LICENSES'),
+    'out/docs/licenses/index.html must link to the GitHub LICENSES directory',
+  );
+  assert.ok(
+    licensesHtml.includes('THIRD_PARTY_NOTICES.txt'),
+    'out/docs/licenses/index.html must link to THIRD_PARTY_NOTICES.txt',
   );
 });

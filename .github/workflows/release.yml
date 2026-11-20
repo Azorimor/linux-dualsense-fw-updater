@@ -104,12 +104,12 @@ jobs:
             TAG="${PLZ_TAG}"
           fi
           cd dist
-          sha256sum *.tar.gz *.AppImage > SHA256SUMS.txt
+          sha256sum *.tar.gz > SHA256SUMS.txt
           ls -lh
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" *.tar.gz *.AppImage SHA256SUMS.txt --clobber
+            gh release upload "$TAG" *.tar.gz SHA256SUMS.txt --clobber
           else
-            gh release create "$TAG" *.tar.gz *.AppImage SHA256SUMS.txt \
+            gh release create "$TAG" *.tar.gz SHA256SUMS.txt \
               --title "$TAG" \
               --generate-notes
           fi
